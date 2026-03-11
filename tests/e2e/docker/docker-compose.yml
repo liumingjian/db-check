@@ -1,0 +1,27 @@
+services:
+  mysql:
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpwd
+      MYSQL_DATABASE: dbcheck
+      MYSQL_USER: checker
+      MYSQL_PASSWORD: checkerpwd
+      TZ: Asia/Shanghai
+    volumes:
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -prootpwd"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  os-target:
+    image: alpine:3.20
+    restart: unless-stopped
+    command: ["sh", "-c", "trap : TERM INT; sleep infinity & wait"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /etc/alpine-release"]
+      interval: 3s
+      timeout: 3s
+      retries: 5

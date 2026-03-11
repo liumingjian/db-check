@@ -1,0 +1,1694 @@
+{
+  "meta": {
+    "schema_version": "2.0",
+    "collector_version": "1.1.0-mock",
+    "db_type": "mysql",
+    "db_host": "192.168.1.101",
+    "db_port": 3306,
+    "db_name": "order_db",
+    "collect_mode": "remote",
+    "collect_time": "2026-03-03T16:55:00+08:00",
+    "collect_duration_seconds": 523,
+    "os_sample_count": 3,
+    "customer_name": "某电商客户",
+    "environment": "production",
+    "metric_template_version": "2.0",
+    "timezone": "Asia/Shanghai"
+  },
+  "os": {
+    "system_info": {
+      "hostname": "db-prod-01",
+      "os": "Rocky Linux 8.9",
+      "kernel": "4.18.0-513.24.1.el8_9.x86_64",
+      "arch": "x86_64",
+      "uptime_seconds": 9723600,
+      "cpu_model": "Intel(R) Xeon(R) Gold 6230",
+      "cpu_cores": 16,
+      "cpu_threads": 32,
+      "memory_total_bytes": 137438953472
+    },
+    "cpu": {
+      "samples": [
+        {
+          "timestamp": "2026-03-03T16:45:00+08:00",
+          "usage_percent": 52.1,
+          "user_percent": 30.5,
+          "system_percent": 14.2,
+          "idle_percent": 47.9,
+          "iowait_percent": 3.4
+        },
+        {
+          "timestamp": "2026-03-03T16:50:00+08:00",
+          "usage_percent": 55.3,
+          "user_percent": 32.3,
+          "system_percent": 15.1,
+          "idle_percent": 44.7,
+          "iowait_percent": 4.0
+        },
+        {
+          "timestamp": "2026-03-03T16:55:00+08:00",
+          "usage_percent": 58.5,
+          "user_percent": 34.1,
+          "system_percent": 16.0,
+          "idle_percent": 41.5,
+          "iowait_percent": 4.6
+        }
+      ]
+    },
+    "memory": {
+      "samples": [
+        {
+          "timestamp": "2026-03-03T16:55:00+08:00",
+          "total_bytes": 137438953472,
+          "used_bytes": 112742891520,
+          "available_bytes": 24696061952,
+          "usage_percent": 82.0,
+          "buffers_bytes": 1284505600,
+          "cached_bytes": 17616076800,
+          "swap_total_bytes": 17179869184,
+          "swap_used_bytes": 0,
+          "swap_usage_percent": 0
+        }
+      ]
+    },
+    "disk_io": {
+      "samples": [
+        {
+          "timestamp": "2026-03-03T16:55:00+08:00",
+          "devices": [
+            {
+              "name": "nvme0n1",
+              "read_iops": 1800,
+              "write_iops": 1350,
+              "read_bytes_per_sec": 98304000,
+              "write_bytes_per_sec": 73400320,
+              "avg_read_latency_ms": 1.8,
+              "avg_write_latency_ms": 2.6,
+              "io_util_percent": 61.2
+            }
+          ]
+        }
+      ]
+    },
+    "filesystem": {
+      "samples": [
+        {
+          "timestamp": "2026-03-03T16:55:00+08:00",
+          "mountpoints": [
+            {
+              "mountpoint": "/",
+              "device": "/dev/mapper/rootvg-root",
+              "fstype": "xfs",
+              "total_bytes": 107374182400,
+              "used_bytes": 38654705664,
+              "available_bytes": 68719476736,
+              "usage_percent": 36.0
+            },
+            {
+              "mountpoint": "/data",
+              "device": "/dev/nvme0n1p1",
+              "fstype": "xfs",
+              "total_bytes": 2199023255552,
+              "used_bytes": 1589137899520,
+              "available_bytes": 609985355032,
+              "usage_percent": 72.3
+            }
+          ]
+        }
+      ]
+    },
+    "network": {
+      "samples": [
+        {
+          "timestamp": "2026-03-03T16:55:00+08:00",
+          "interfaces": [
+            {
+              "name": "eth0",
+              "bytes_sent_per_sec": 2147483,
+              "bytes_recv_per_sec": 7340032,
+              "packets_sent_per_sec": 4120,
+              "packets_recv_per_sec": 5980,
+              "errin": 0,
+              "errout": 0,
+              "dropin": 0,
+              "dropout": 0
+            }
+          ]
+        }
+      ]
+    },
+    "process": {
+      "samples": [
+        {
+          "timestamp": "2026-03-03T16:55:00+08:00",
+          "load_avg_1": 8.4,
+          "load_avg_5": 7.1,
+          "load_avg_15": 6.5,
+          "total_processes": 312,
+          "running_processes": 11
+        }
+      ]
+    }
+  },
+  "db": {
+    "basic_info": {
+      "version": "8.0.36",
+      "version_comment": "MySQL Community Server - GPL",
+      "instance_uptime_seconds": 2876400,
+      "server_uuid": "f2c76a7b-2b74-11ef-8f10-00163e1a5f11",
+      "read_only": "OFF",
+      "character_set_server": "utf8mb4",
+      "collation_server": "utf8mb4_0900_ai_ci",
+      "datadir": "/data/mysql/",
+      "socket": "/data/mysql/mysql.sock",
+      "log_error": "/data/mysql/logs/error.log",
+      "autocommit": "ON",
+      "log_bin": "ON",
+      "server_id": 1013306,
+      "current_user": "checker@10.20.31.%",
+      "connection_id": 8862012,
+      "current_database": null,
+      "plugins": [
+        {
+          "name": "InnoDB",
+          "status": "ACTIVE"
+        },
+        {
+          "name": "binlog",
+          "status": "ACTIVE"
+        },
+        {
+          "name": "validate_password",
+          "status": "ACTIVE"
+        }
+      ],
+      "version_vars": {
+        "version": "8.0.36",
+        "version_compile_os": "Linux",
+        "version_compile_machine": "x86_64"
+      }
+    },
+    "config_check": {
+      "innodb_buffer_pool_size": 68719476736,
+      "innodb_flush_log_at_trx_commit": 1,
+      "sync_binlog": 1,
+      "slow_query_log": "ON",
+      "long_query_time": 1.0,
+      "max_connections": 3000,
+      "datadir": "/data/mysql/",
+      "socket": "/data/mysql/mysql.sock",
+      "sql_mode": "STRICT_TRANS_TABLES,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+      "time_zone": "+08:00",
+      "character_set_server": "utf8mb4",
+      "collation_server": "utf8mb4_0900_ai_ci",
+      "log_output": "FILE",
+      "pid_file": "/data/mysql/mysql.pid",
+      "log_error": "/data/mysql/logs/error.log",
+      "tmpdir": "/data/mysql/tmp",
+      "slow_query_log_file": "/data/mysql/slow.log",
+      "log_queries_not_using_indexes": "OFF",
+      "log_throttle_queries_not_using_indexes": 0,
+      "max_user_connections": 500,
+      "max_connect_errors": 100,
+      "innodb_lock_wait_timeout": 50,
+      "innodb_io_capacity": 2000,
+      "innodb_io_capacity_max": 4000,
+      "innodb_flush_method": "O_DIRECT",
+      "innodb_thread_concurrency": 0,
+      "innodb_data_file_path": "ibdata1:128M;ibdata2:128M:autoextend",
+      "innodb_log_files_in_group": 2,
+      "innodb_log_group_home_dir": "/data/mysql/data",
+      "innodb_temp_data_file_path": "/tmp/ibtemp1:16M:autoextend:max:5G",
+      "query_cache_type": "OFF",
+      "query_cache_size": 0,
+      "lower_case_table_names": 1,
+      "open_files_limit": 65535,
+      "max_allowed_packet": 67108864,
+      "slave_max_allowed_packet": 1073741824,
+      "auto_increment_increment": 1,
+      "auto_increment_offset": 1,
+      "binlog_format": "ROW",
+      "binlog_row_image": "FULL",
+      "sync_relay_log": 10000,
+      "sync_relay_log_info": 10000,
+      "log_bin_basename": "/data/mysql/binlog/mysql-bin",
+      "log_bin_index": "/data/mysql/binlog/mysql-bin.index",
+      "relay_log_basename": "/data/mysql/data/relay",
+      "relay_log_info_file": "relay-log.info",
+      "sql_log_bin": "ON",
+      "expire_logs_days": 7,
+      "max_binlog_size": 1073741824,
+      "server_id": 1013306,
+      "server_uuid": "f2c76a7b-2b74-11ef-8f10-00163e1a5f11",
+      "log_bin": "ON",
+      "log_slave_updates": "ON",
+      "slave_skip_errors": "OFF",
+      "sql_slave_skip_counter": 0,
+      "slave_exec_mode": "STRICT",
+      "gtid_mode": "ON",
+      "enforce_gtid_consistency": "ON",
+      "explicit_defaults_for_timestamp": "ON",
+      "log_bin_trust_function_creators": "ON",
+      "read_only": "OFF",
+      "innodb_file_per_table": "ON"
+    },
+    "performance": {
+      "qps": 1820.4,
+      "tps": 246.1,
+      "threads_connected": 812,
+      "threads_running": 36,
+      "questions_total": 1220330481,
+      "top_wait_events": [
+        {
+          "event": "wait/io/file/innodb/innodb_log_file",
+          "pct": 31.0
+        },
+        {
+          "event": "wait/io/table/sql/handler",
+          "pct": 28.0
+        }
+      ],
+      "top_tables_by_io": {
+        "items": [
+          {
+            "object_schema": "order_db",
+            "object_name": "orders",
+            "read_ops": 120398,
+            "write_ops": 29881,
+            "total_wait_ms": 928.4
+          }
+        ]
+      },
+      "full_scan_tables": {
+        "items": [
+          {
+            "object_schema": "order_db",
+            "object_name": "orders_history",
+            "read_ops": 9981,
+            "read_wait_ms": 481.2
+          }
+        ]
+      },
+      "row_ops_top_tables": {
+        "items": [
+          {
+            "object_schema": "order_db",
+            "object_name": "orders",
+            "fetch_ops": 830120,
+            "insert_ops": 29881,
+            "update_ops": 8801,
+            "delete_ops": 1022,
+            "total_ops": 869824
+          }
+        ]
+      },
+      "global_status_core": {
+        "connections": 1289032,
+        "uptime": 2876400,
+        "com_select": 865220339,
+        "com_insert": 10233822,
+        "com_delete": 3229981,
+        "slow_queries": 1284
+      },
+      "events_stages_current_count": 2,
+      "connection_load_by_user_host": [
+        {
+          "user": "app_rw",
+          "host": "10.20.31.18",
+          "conn_count": 142
+        }
+      ],
+      "global_status_extended": {
+        "threads_created": 23891,
+        "threads_connected": 812,
+        "threads_running": 36,
+        "aborted_connects": 182,
+        "aborted_clients": 392,
+        "bytes_received": 310245619283,
+        "bytes_sent": 789512304188,
+        "created_tmp_disk_tables": 1822031,
+        "created_tmp_tables": 2988122,
+        "sort_merge_passes": 33812,
+        "handler_external_lock": 15581359,
+        "innodb_row_lock_current_waits": 0,
+        "innodb_row_lock_time": 5,
+        "innodb_row_lock_time_avg": 5,
+        "innodb_row_lock_time_max": 5,
+        "table_locks_waited": 12039,
+        "table_locks_immediate": 694201,
+        "key_blocks_not_flushed": 0,
+        "key_blocks_used": 8,
+        "key_blocks_unused": 6696,
+        "locked_connects": 0,
+        "performance_schema_locker_lost": 0,
+        "innodb_row_lock_waits": 4321
+      },
+      "innodb_buffer_pool_health": {
+        "buffer_pool_size_bytes": 68719476736,
+        "buffer_pool_pages_total": 4194304,
+        "buffer_pool_pages_free": 168932,
+        "buffer_pool_pages_dirty": 82112,
+        "buffer_pool_read_requests": 189213123321,
+        "buffer_pool_reads": 2912381
+      },
+      "key_business_ratios": {
+        "buffer_pool_hit_pct": 99.98,
+        "tmp_to_disk_pct": 60.98,
+        "thread_cache_miss_pct": 0.84,
+        "table_lock_wait_pct": 0.12
+      },
+      "io_hot_files_top10": [
+        {
+          "file": "@@tmpdir/ibtemp1",
+          "total_read": {
+            "value": 0,
+            "unit": "bytes"
+          },
+          "avg_read": {
+            "value": 0,
+            "unit": "bytes"
+          },
+          "total_written": {
+            "value": 2.47,
+            "unit": "gib"
+          },
+          "avg_write": {
+            "value": 16.1,
+            "unit": "kib"
+          },
+          "total": {
+            "value": 2.47,
+            "unit": "gib"
+          }
+        },
+        {
+          "file": "@@datadir/ibdata1",
+          "total_read": {
+            "value": 10.42,
+            "unit": "mib"
+          },
+          "avg_read": {
+            "value": 19.84,
+            "unit": "kib"
+          },
+          "total_written": {
+            "value": 41.3,
+            "unit": "mib"
+          },
+          "avg_write": {
+            "value": 25.98,
+            "unit": "kib"
+          },
+          "total": {
+            "value": 51.72,
+            "unit": "mib"
+          }
+        },
+        {
+          "file": "/data/mysql/binlog/mysql-bin.000002",
+          "total_read": {
+            "value": 849,
+            "unit": "mib"
+          },
+          "avg_read": {
+            "value": 21.1,
+            "unit": "kib"
+          },
+          "total_written": {
+            "value": 1,
+            "unit": "bytes"
+          },
+          "avg_write": {
+            "value": 1,
+            "unit": "bytes"
+          },
+          "total": {
+            "value": 849,
+            "unit": "mib"
+          }
+        }
+      ],
+      "memory_event_top10": [
+        {
+          "event_name": "memory/innodb/buf_buf_pool",
+          "current_count": 64,
+          "current_alloc": {
+            "value": 8.19,
+            "unit": "gib"
+          },
+          "avg_alloc": {
+            "value": 131.06,
+            "unit": "mib"
+          }
+        },
+        {
+          "event_name": "memory/innodb/hash0hash",
+          "current_count": 76,
+          "current_alloc": {
+            "value": 247.4,
+            "unit": "mib"
+          },
+          "avg_alloc": {
+            "value": 3.26,
+            "unit": "mib"
+          }
+        },
+        {
+          "event_name": "memory/innodb/os0event",
+          "current_count": 1585079,
+          "current_alloc": {
+            "value": 217.68,
+            "unit": "mib"
+          },
+          "avg_alloc": {
+            "value": 144,
+            "unit": "bytes"
+          }
+        },
+        {
+          "event_name": "memory/performance_schema/events_statements_summary_by_digest.tokens",
+          "current_count": 1,
+          "current_alloc": {
+            "value": 156.25,
+            "unit": "mib"
+          },
+          "avg_alloc": {
+            "value": 156.25,
+            "unit": "mib"
+          }
+        }
+      ]
+    },
+    "storage": {
+      "total_size_gb": 742.4,
+      "data_size_gb": 651.2,
+      "index_size_gb": 91.2,
+      "top_tables": [
+        {
+          "db": "order_db",
+          "table": "orders",
+          "size_gb": 120.0
+        },
+        {
+          "db": "log_db",
+          "table": "event_log",
+          "size_gb": 98.0
+        }
+      ],
+      "top_indexes_by_size": {
+        "items": [
+          {
+            "table_schema": "order_db",
+            "table_name": "orders",
+            "index_name": "idx_user_status",
+            "size_mb": 2048.0
+          }
+        ]
+      },
+      "tables_with_many_indexes": {
+        "items": [
+          {
+            "table_schema": "order_db",
+            "table_name": "orders",
+            "index_count": 8
+          }
+        ],
+        "count": 1,
+        "max_value": 8
+      },
+      "wide_composite_indexes": {
+        "items": [
+          {
+            "table_schema": "order_db",
+            "table_name": "orders",
+            "index_name": "idx_a_b_c_d_e",
+            "column_count": 5
+          }
+        ],
+        "count": 1,
+        "max_value": 5
+      },
+      "schema_size_breakdown": [
+        {
+          "schema": "order_db",
+          "rows": 2200000000,
+          "data_mb": 430080.0,
+          "index_mb": 30720.0,
+          "total_mb": 460800.0,
+          "data_free_mb": 6144.0
+        },
+        {
+          "schema": "pay_db",
+          "rows": 810000000,
+          "data_mb": 153600.0,
+          "index_mb": 30720.0,
+          "total_mb": 184320.0,
+          "data_free_mb": 2048.0
+        }
+      ],
+      "engine_distribution_by_schema": [
+        {
+          "schema": "order_db",
+          "engine": "InnoDB",
+          "table_count": 186
+        },
+        {
+          "schema": "legacy_db",
+          "engine": "MyISAM",
+          "table_count": 3
+        }
+      ],
+      "engine_distribution_global": [
+        {
+          "engine": "InnoDB",
+          "table_count": 432
+        },
+        {
+          "engine": "MyISAM",
+          "table_count": 5
+        },
+        {
+          "engine": "MEMORY",
+          "table_count": 3
+        }
+      ],
+      "supported_engines": [
+        {
+          "engine": "InnoDB",
+          "support": "DEFAULT"
+        },
+        {
+          "engine": "MyISAM",
+          "support": "YES"
+        },
+        {
+          "engine": "MEMORY",
+          "support": "YES"
+        },
+        {
+          "engine": "CSV",
+          "support": "YES"
+        }
+      ],
+      "auto_increment_top": [
+        {
+          "schema": "order_db",
+          "table": "orders",
+          "column": "id",
+          "data_type": "bigint",
+          "max_value": 9223372036854775807,
+          "auto_increment": 214043554,
+          "auto_increment_ratio": 2.32e-08,
+          "engine": "InnoDB"
+        },
+        {
+          "schema": "pay_db",
+          "table": "bill",
+          "column": "id",
+          "data_type": "bigint",
+          "max_value": 9223372036854775807,
+          "auto_increment": 89223121,
+          "auto_increment_ratio": 9.7e-09,
+          "engine": "InnoDB"
+        }
+      ],
+      "table_size_top10": [
+        {
+          "schema": "order_db",
+          "table": "orders",
+          "engine": "InnoDB",
+          "rows": 1500221290,
+          "data_mb": 358400.0,
+          "index_mb": 21504.0,
+          "total_mb": 379904.0
+        },
+        {
+          "schema": "pay_db",
+          "table": "bill_detail",
+          "engine": "InnoDB",
+          "rows": 623331922,
+          "data_mb": 97280.0,
+          "index_mb": 15360.0,
+          "total_mb": 112640.0
+        }
+      ],
+      "table_fragmentation_top": [
+        {
+          "schema": "order_db",
+          "table": "orders_history",
+          "engine": "InnoDB",
+          "data_free_mb": 4096.0,
+          "total_mb": 51200.0,
+          "fragment_pct": 8.0
+        },
+        {
+          "schema": "crm_db",
+          "table": "customer_log",
+          "engine": "InnoDB",
+          "data_free_mb": 2048.0,
+          "total_mb": 28672.0,
+          "fragment_pct": 7.14
+        }
+      ],
+      "db_object_counts": [
+        {
+          "schema": "cms_v2_prod",
+          "object_type": "BASE TABLE",
+          "count": 137
+        },
+        {
+          "schema": "cms_v2_prod",
+          "object_type": "INDEX (BTREE)",
+          "count": 279
+        },
+        {
+          "schema": "nacos_config",
+          "object_type": "BASE TABLE",
+          "count": 14
+        },
+        {
+          "schema": "nacos_config",
+          "object_type": "INDEX (BTREE)",
+          "count": 46
+        },
+        {
+          "schema": "cmdb_prod",
+          "object_type": "PROCEDURE",
+          "count": 2
+        }
+      ],
+      "non_innodb_tables": [
+        {
+          "schema": "legacy_db",
+          "table": "old_audit_log",
+          "engine": "MyISAM",
+          "rows": 1299202
+        },
+        {
+          "schema": "legacy_db",
+          "table": "old_alert_index",
+          "engine": "MyISAM",
+          "rows": 442102
+        }
+      ],
+      "hot_indexes_top10": [
+        {
+          "schema": "cmdb_prod",
+          "table": "privilege_master",
+          "index_name": "idx_index",
+          "index_size_gb": 0.0,
+          "non_unique": 1,
+          "index_type": "BTREE",
+          "columns": "privilege_master_value,privilege_access,privilege_operation"
+        },
+        {
+          "schema": "cms_v2_prod",
+          "table": "t_config_alter_notice_relation",
+          "index_name": "alter_tplid",
+          "index_size_gb": 0.0,
+          "non_unique": 1,
+          "index_type": "BTREE",
+          "columns": "alter_tplid"
+        }
+      ]
+    },
+    "sql_analysis": {
+      "slow_sql_top": [
+        {
+          "sql_id": "a1b2c3",
+          "avg_ms": 35,
+          "p95_ms": 120,
+          "digest": "SELECT ... FROM orders WHERE ..."
+        }
+      ],
+      "full_scan_sql_count": 37,
+      "no_index_sql_count": 14,
+      "tmp_table_sqls": {
+        "items": [
+          {
+            "DIGEST_TEXT": "SELECT category, COUNT(*) FROM orders_history GROUP BY category ORDER BY COUNT(*) DESC",
+            "COUNT_STAR": 1822,
+            "SUM_CREATED_TMP_TABLES": 1822,
+            "SUM_CREATED_TMP_DISK_TABLES": 315
+          }
+        ]
+      },
+      "top_sql_95p_by_avg_latency": {
+        "check_id": "4.4",
+        "headers": {
+          "c1": "sql_id",
+          "c2": "db",
+          "c3": "execs",
+          "c4": "avg_ms",
+          "c5": "p95_ms",
+          "c6": "digest"
+        },
+        "rows": [
+          {
+            "c1": "a1b2c3",
+            "c2": "order_db",
+            "c3": "1200",
+            "c4": "35",
+            "c5": "120",
+            "c6": "SELECT ... FROM orders WHERE ..."
+          },
+          {
+            "c1": "d4e5f6",
+            "c2": "pay_db",
+            "c3": "860",
+            "c4": "42",
+            "c5": "180",
+            "c6": "UPDATE payments SET ..."
+          }
+        ],
+        "row_count": 2
+      },
+      "tmp_table_sql_top": {
+        "check_id": "4.17",
+        "headers": {
+          "c1": "sql_id",
+          "c2": "db",
+          "c3": "execs",
+          "c4": "rows_exam",
+          "c5": "avg_ms",
+          "c6": "note"
+        },
+        "rows": [
+          {
+            "c1": "0a12f1",
+            "c2": "order_db",
+            "c3": "32890",
+            "c4": "32950",
+            "c5": "8.7",
+            "c6": "高频查询"
+          },
+          {
+            "c1": "0b22f2",
+            "c2": "user_db",
+            "c3": "21440",
+            "c4": "21440",
+            "c5": "4.2",
+            "c6": "缓存命中"
+          }
+        ],
+        "row_count": 2
+      },
+      "sort_merge_sql_top": {
+        "check_id": "4.18",
+        "headers": {
+          "c1": "sql_id",
+          "c2": "db",
+          "c3": "scan_rows",
+          "c4": "execs",
+          "c5": "avg_ms",
+          "c6": "note"
+        },
+        "rows": [
+          {
+            "c1": "3c31ab",
+            "c2": "order_db",
+            "c3": "18900000",
+            "c4": "2200",
+            "c5": "85",
+            "c6": "建议补充索引"
+          },
+          {
+            "c1": "4d42bc",
+            "c2": "audit_db",
+            "c3": "9200000",
+            "c4": "910",
+            "c5": "66",
+            "c6": "可分页查询"
+          }
+        ],
+        "row_count": 2
+      },
+      "full_scan_table_top": {
+        "check_id": "4.19",
+        "headers": {
+          "c1": "sql_id",
+          "c2": "db",
+          "c3": "tbl",
+          "c4": "execs",
+          "c5": "scan_rows",
+          "c6": "query"
+        },
+        "rows": [
+          {
+            "c1": "8c9d11",
+            "c2": "order_db",
+            "c3": "orders",
+            "c4": "780",
+            "c5": "850000",
+            "c6": "SELECT * FROM orders WHERE status=?"
+          },
+          {
+            "c1": "8c9d12",
+            "c2": "crm_db",
+            "c3": "customer",
+            "c4": "640",
+            "c5": "710000",
+            "c6": "SELECT name,phone FROM customer"
+          }
+        ],
+        "row_count": 2
+      },
+      "no_index_sql_top": {
+        "check_id": "4.20",
+        "headers": {
+          "c1": "sql_id",
+          "c2": "db",
+          "c3": "tbl",
+          "c4": "execs",
+          "c5": "avg_ms",
+          "c6": "query"
+        },
+        "rows": [
+          {
+            "c1": "2f91ca",
+            "c2": "pay_db",
+            "c3": "payments",
+            "c4": "1500",
+            "c5": "48",
+            "c6": "SELECT * FROM payments WHERE ..."
+          },
+          {
+            "c1": "2f91cb",
+            "c2": "log_db",
+            "c3": "op_log",
+            "c4": "2820",
+            "c5": "37",
+            "c6": "SELECT ... FROM op_log WHERE ..."
+          }
+        ],
+        "row_count": 2
+      },
+      "sql_error_warning_top": {
+        "source": "performance_schema.events_statements_summary_by_digest",
+        "rows": [
+          {
+            "sql_id": "8f12cd",
+            "db": "order_db",
+            "exec_count": 1200,
+            "errors": 5,
+            "error_pct": 0.42,
+            "warnings": 23,
+            "warning_pct": 1.92
+          },
+          {
+            "sql_id": "aa21ef",
+            "db": "pay_db",
+            "exec_count": 880,
+            "errors": 2,
+            "error_pct": 0.23,
+            "warnings": 14,
+            "warning_pct": 1.59
+          }
+        ]
+      },
+      "active_transaction_sessions": {
+        "source": "sys.session",
+        "rows": [
+          {
+            "conn_id": 12011,
+            "user": "app_rw",
+            "db": "order_db",
+            "trx_state": "ACTIVE",
+            "trx_latency_ms": 1920
+          },
+          {
+            "conn_id": 12022,
+            "user": "app_rw",
+            "db": "pay_db",
+            "trx_state": "ACTIVE",
+            "trx_latency_ms": 1321
+          }
+        ]
+      },
+      "committed_transaction_sessions": {
+        "source": "sys.session",
+        "rows": [
+          {
+            "conn_id": 11803,
+            "user": "batch",
+            "db": "order_db",
+            "trx_state": "COMMITTED",
+            "trx_latency_ms": 112
+          },
+          {
+            "conn_id": 11812,
+            "user": "batch",
+            "db": "crm_db",
+            "trx_state": "COMMITTED",
+            "trx_latency_ms": 95
+          }
+        ]
+      },
+      "statement_analysis_full_scan_top": {
+        "source": "sys.statement_analysis",
+        "rows": [
+          {
+            "db": "order_db",
+            "exec_count": 452221,
+            "rows_examined_avg": 1299,
+            "full_scan": "*",
+            "digest": "e8cc3a"
+          },
+          {
+            "db": "crm_db",
+            "exec_count": 103882,
+            "rows_examined_avg": 792,
+            "full_scan": "*",
+            "digest": "a2f9bc"
+          }
+        ]
+      },
+      "statement_analysis_tmp_table_top": {
+        "source": "sys.statement_analysis",
+        "rows": [
+          {
+            "db": "order_db",
+            "tmp_tables": 132221,
+            "tmp_disk_tables": 84221,
+            "exec_count": 312202,
+            "digest": "91ad01"
+          },
+          {
+            "db": "pay_db",
+            "tmp_tables": 81211,
+            "tmp_disk_tables": 31211,
+            "exec_count": 190203,
+            "digest": "55bc22"
+          }
+        ]
+      },
+      "profiling_state_breakdown_sample": {
+        "source": "information_schema.profiling",
+        "rows": [
+          {
+            "state": "Sending data",
+            "total_duration_ms": 310.2,
+            "pct": 53.2,
+            "calls": 18
+          },
+          {
+            "state": "Creating tmp table",
+            "total_duration_ms": 141.7,
+            "pct": 24.3,
+            "calls": 9
+          },
+          {
+            "state": "Sorting result",
+            "total_duration_ms": 92.5,
+            "pct": 15.9,
+            "calls": 6
+          }
+        ]
+      },
+      "high_frequency_sql_top10": {
+        "source": "performance_schema.events_statements_summary_by_digest",
+        "rows": [
+          {
+            "db": "order_db",
+            "exec_count": 431851,
+            "count_pct": 10.0,
+            "last_seen": "2026-03-05T10:46:57",
+            "sql_text": "SELECT ... FROM incident WHERE ..."
+          },
+          {
+            "db": "pay_db",
+            "exec_count": 16887,
+            "count_pct": 4.2,
+            "last_seen": "2026-03-05T10:46:00",
+            "sql_text": "SELECT ... FROM send_cc WHERE ..."
+          }
+        ]
+      },
+      "table_readwrite_latency_top30": {
+        "source": "sys.schema_table_statistics_with_buffer",
+        "rows": [
+          {
+            "table_schema": "nacos_config",
+            "table_name": "permissions",
+            "select_latency": {
+              "value": 18.5,
+              "unit": "s"
+            },
+            "rows_inserted": 0,
+            "rows_updated": 0,
+            "rows_deleted": 0
+          },
+          {
+            "table_schema": "order_db",
+            "table_name": "orders",
+            "select_latency": {
+              "value": 15.78,
+              "unit": "s"
+            },
+            "rows_inserted": 123,
+            "rows_updated": 86,
+            "rows_deleted": 0
+          }
+        ]
+      }
+    },
+    "replication": {
+      "role": "Slave",
+      "master_host": "192.168.1.100",
+      "master_port": 3307,
+      "slave_io_running": "Yes",
+      "slave_sql_running": "Yes",
+      "seconds_behind_master": 0,
+      "sample_time": "2026-03-03T16:55:00+08:00"
+    },
+    "rac": null,
+    "connection": {
+      "processlist_active_top": {
+        "source": "information_schema.processlist",
+        "rows": [
+          {
+            "id": 12011,
+            "user": "app_rw",
+            "host": "10.20.31.18:59321",
+            "db": "order_db",
+            "command": "Query",
+            "time_sec": 32,
+            "state": "Sending data"
+          },
+          {
+            "id": 12102,
+            "user": "reporter",
+            "host": "10.20.31.44:51211",
+            "db": "pay_db",
+            "command": "Query",
+            "time_sec": 18,
+            "state": "Sorting result"
+          }
+        ]
+      },
+      "processlist_sleep_top": {
+        "source": "information_schema.processlist",
+        "rows": [
+          {
+            "id": 10411,
+            "user": "app_ro",
+            "host": "10.20.31.15:48813",
+            "time_sec": 942,
+            "command": "Sleep"
+          },
+          {
+            "id": 10418,
+            "user": "app_ro",
+            "host": "10.20.31.16:48829",
+            "time_sec": 865,
+            "command": "Sleep"
+          }
+        ]
+      },
+      "active_users_by_host": [
+        {
+          "user": "app_rw",
+          "host": "10.20.31.18",
+          "conn_count": 142
+        },
+        {
+          "user": "app_ro",
+          "host": "10.20.31.15",
+          "conn_count": 189
+        }
+      ],
+      "distinct_user_host_pairs": [
+        {
+          "user": "app_rw",
+          "host": "10.20.31.18"
+        },
+        {
+          "user": "app_ro",
+          "host": "10.20.31.15"
+        },
+        {
+          "user": "reporter",
+          "host": "10.20.31.44"
+        }
+      ],
+      "active_users_by_db_host": [
+        {
+          "db": "order_db",
+          "user": "app_rw",
+          "host": "10.20.31.18",
+          "conn_count": 98
+        },
+        {
+          "db": "pay_db",
+          "user": "app_ro",
+          "host": "10.20.31.15",
+          "conn_count": 77
+        }
+      ],
+      "hosts_summary": [
+        {
+          "host": "10.20.31.18",
+          "current_connections": 142,
+          "total_connections": 129001,
+          "total_errors": 3
+        }
+      ],
+      "non_sleep_threads": [
+        {
+          "thread_id": 81122,
+          "processlist_id": 12011,
+          "user": "app_rw",
+          "db": "order_db",
+          "cmd": "Query",
+          "time_sec": 32
+        },
+        {
+          "thread_id": 81125,
+          "processlist_id": 12022,
+          "user": "app_rw",
+          "db": "pay_db",
+          "cmd": "Query",
+          "time_sec": 18
+        }
+      ]
+    },
+    "lock": {
+      "open_tables_in_use": [
+        {
+          "db": "order_db",
+          "table": "orders",
+          "in_use": 3
+        },
+        {
+          "db": "pay_db",
+          "table": "bill",
+          "in_use": 2
+        }
+      ],
+      "innodb_status_excerpt": "LATEST DETECTED DEADLOCK ... TRANSACTION ... WAITING FOR THIS LOCK ...",
+      "innodb_locks": {
+        "check_id": "11.3",
+        "headers": {
+          "c1": "proc_id",
+          "c2": "obj_type",
+          "c3": "obj_sch",
+          "c4": "obj_name",
+          "c5": "lck_type",
+          "c6": "lck_stat"
+        },
+        "rows": [
+          {
+            "c1": "12345",
+            "c2": "TABLE",
+            "c3": "order_db",
+            "c4": "orders",
+            "c5": "EXCLUSIVE",
+            "c6": "PENDING"
+          },
+          {
+            "c1": "12346",
+            "c2": "TABLE",
+            "c3": "order_db",
+            "c4": "orders",
+            "c5": "SHARED_READ",
+            "c6": "GRANTED"
+          }
+        ],
+        "row_count": 2
+      },
+      "innodb_lock_waits": {
+        "check_id": "11.3",
+        "headers": {
+          "c1": "proc_id",
+          "c2": "obj_type",
+          "c3": "obj_sch",
+          "c4": "obj_name",
+          "c5": "lck_type",
+          "c6": "lck_stat"
+        },
+        "rows": [
+          {
+            "c1": "12345",
+            "c2": "TABLE",
+            "c3": "order_db",
+            "c4": "orders",
+            "c5": "EXCLUSIVE",
+            "c6": "PENDING"
+          },
+          {
+            "c1": "12346",
+            "c2": "TABLE",
+            "c3": "order_db",
+            "c4": "orders",
+            "c5": "SHARED_READ",
+            "c6": "GRANTED"
+          }
+        ],
+        "row_count": 2
+      },
+      "innodb_trx": {
+        "check_id": "11.4",
+        "headers": {
+          "c1": "trx_id",
+          "c2": "user",
+          "c3": "db",
+          "c4": "sec",
+          "c5": "state",
+          "c6": "sql_head"
+        },
+        "rows": [
+          {
+            "c1": "8139201",
+            "c2": "app_rw",
+            "c3": "order_db",
+            "c4": "680",
+            "c5": "RUNNING",
+            "c6": "UPDATE orders SET ..."
+          },
+          {
+            "c1": "8139202",
+            "c2": "batch_job",
+            "c3": "log_db",
+            "c4": "1240",
+            "c5": "LOCK WAIT",
+            "c6": "DELETE FROM event_log ..."
+          }
+        ],
+        "row_count": 2
+      },
+      "lock_wait_chain": {
+        "source": "information_schema.innodb_lock_waits + innodb_trx + innodb_locks",
+        "rows": [
+          {
+            "waiting_trx_id": "8139202",
+            "waiting_thread": 12345,
+            "blocking_trx_id": "8139201",
+            "blocking_thread": 12346,
+            "lock_table": "order_db.orders"
+          }
+        ]
+      },
+      "metadata_lock_waits": {
+        "check_id": "11.5",
+        "headers": {
+          "c1": "proc_id",
+          "c2": "obj_type",
+          "c3": "obj_sch",
+          "c4": "obj_name",
+          "c5": "lck_dur",
+          "c6": "lck_stat"
+        },
+        "rows": [
+          {
+            "c1": "12345",
+            "c2": "TABLE",
+            "c3": "testdb",
+            "c4": "t1",
+            "c5": "TRANSACTION",
+            "c6": "GRANTED"
+          },
+          {
+            "c1": "12347",
+            "c2": "TABLE",
+            "c3": "order_db",
+            "c4": "orders",
+            "c5": "TRANSACTION",
+            "c6": "PENDING"
+          }
+        ],
+        "row_count": 2
+      },
+      "metadata_lock_waits_short": {
+        "rows": [
+          {
+            "proc_id": 12345,
+            "obj_type": "TABLE",
+            "obj_sch": "testdb",
+            "obj_name": "t1",
+            "lck_type": "SHARED_WRITE",
+            "lck_dur": "TRANSACTION",
+            "lck_stat": "GRANTED"
+          }
+        ]
+      },
+      "sys_schema_table_lock_waits": {
+        "rows": [
+          {
+            "object_schema": "order_db",
+            "object_name": "orders",
+            "waiting_pid": 12345,
+            "blocking_pid": 12346
+          }
+        ]
+      },
+      "lock_status_counters": {
+        "innodb_row_lock_waits": 391,
+        "innodb_row_lock_time_ms": 83212,
+        "innodb_row_lock_time_avg_ms": {
+          "value": 419,
+          "unit": "ms"
+        },
+        "innodb_row_lock_time_max_ms": 4268
+      }
+    },
+    "index_health": {
+      "redundant_indexes": {
+        "check_id": "9.3",
+        "headers": {
+          "c1": "db",
+          "c2": "tbl",
+          "c3": "redundant",
+          "c4": "covered",
+          "c5": "drop_sql",
+          "c6": "note"
+        },
+        "rows": [
+          {
+            "c1": "order_db",
+            "c2": "orders",
+            "c3": "idx_a_b",
+            "c4": "idx_a_b_c",
+            "c5": "DROP INDEX idx_a_b ON orders",
+            "c6": "先灰度验证"
+          }
+        ],
+        "row_count": 1
+      },
+      "unused_indexes": {
+        "check_id": "9.2",
+        "headers": {
+          "c1": "db",
+          "c2": "tbl",
+          "c3": "index",
+          "c4": "cols",
+          "c5": "size_mb",
+          "c6": "note"
+        },
+        "rows": [
+          {
+            "c1": "order_db",
+            "c2": "orders",
+            "c3": "idx_old_flag",
+            "c4": "old_flag",
+            "c5": "512",
+            "c6": "近30天未命中"
+          }
+        ],
+        "row_count": 1
+      },
+      "low_selectivity_indexes": {
+        "source": "mysql.innodb_index_stats + mysql.innodb_table_stats",
+        "rows": [
+          {
+            "db": "order_db",
+            "table": "orders",
+            "index_name": "idx_status",
+            "cols": "status",
+            "sel_percent": 0.04
+          },
+          {
+            "db": "crm_db",
+            "table": "customer",
+            "index_name": "idx_gender",
+            "cols": "gender",
+            "sel_percent": 0.02
+          }
+        ]
+      }
+    },
+    "replication_detail": {
+      "replication_variables": {
+        "server_id": 1013306,
+        "server_uuid": "f2c76a7b-2b74-11ef-8f10-00163e1a5f11",
+        "log_bin": "ON",
+        "log_bin_basename": "/data/mysql/binlog/mysql-bin",
+        "sql_log_bin": "ON",
+        "log_bin_index": "/data/mysql/binlog/mysql-bin.index",
+        "log_slave_updates": "ON",
+        "read_only": "OFF",
+        "slave_skip_errors": "OFF",
+        "max_allowed_packet": 67108864,
+        "slave_max_allowed_packet": 1073741824,
+        "auto_increment_increment": 1,
+        "auto_increment_offset": 1,
+        "sync_binlog": 1,
+        "binlog_format": "ROW",
+        "expire_logs_days": 7,
+        "max_binlog_size": 1073741824,
+        "sql_slave_skip_counter": 0,
+        "slave_exec_mode": "STRICT"
+      },
+      "replication_threads": {
+        "rows": [
+          {
+            "name": "thread/sql/slave_io",
+            "processlist_state": "Waiting for source to send event"
+          },
+          {
+            "name": "thread/sql/slave_sql",
+            "processlist_state": "Slave has read all relay log"
+          }
+        ]
+      },
+      "master_status": {
+        "file": "mysql-bin.008213",
+        "position": 178921112,
+        "binlog_do_db": "",
+        "binlog_ignore_db": "",
+        "executed_gtid_set": "b7f5a5f2-4c7d-11ee-8f72-00163e1a5f11:1-812331"
+      },
+      "slave_status_key_fields": {
+        "master_host": "192.168.1.100",
+        "master_port": 3307,
+        "slave_io_running": "Yes",
+        "slave_sql_running": "Yes",
+        "seconds_behind_master": 0,
+        "last_io_error": "",
+        "last_sql_error": ""
+      },
+      "binary_logs": {
+        "total_files": 96,
+        "total_size_mb": 245760,
+        "latest_files": [
+          "mysql-bin.008211",
+          "mysql-bin.008212",
+          "mysql-bin.008213"
+        ]
+      },
+      "binlog_events_sample": {
+        "source_file": "mysql-bin.008213",
+        "rows": [
+          {
+            "pos": 4,
+            "event_type": "Format_desc",
+            "server_id": 1013306,
+            "info": "Server ver: 8.0.36"
+          },
+          {
+            "pos": 126,
+            "event_type": "Previous_gtids",
+            "server_id": 1013306,
+            "info": "GTID set"
+          }
+        ]
+      },
+      "mgr_members": {
+        "rows": [
+          {
+            "member_id": "192.168.1.101",
+            "member_host": "192.168.1.101",
+            "member_port": 3306,
+            "member_state": "ONLINE"
+          }
+        ]
+      },
+      "slave_hosts": {
+        "rows": [
+          {
+            "server_id": 1013307,
+            "host": "192.168.1.102",
+            "port": 3306,
+            "master_id": 1013306
+          }
+        ]
+      }
+    },
+    "observability": {
+      "performance_schema_setup_consumers": {
+        "rows": [
+          {
+            "name": "events_statements_history",
+            "enabled": "YES"
+          },
+          {
+            "name": "events_statements_history_long",
+            "enabled": "YES"
+          },
+          {
+            "name": "events_waits_history",
+            "enabled": "YES"
+          }
+        ]
+      },
+      "performance_schema_setup_instruments_mdl": {
+        "name": "wait/lock/metadata/sql/mdl",
+        "enabled": "YES",
+        "timed": "YES"
+      },
+      "performance_schema_hosts": {
+        "rows": [
+          {
+            "host": "10.20.31.18",
+            "current_connections": 142,
+            "total_connections": 129001,
+            "total_errors": 3
+          },
+          {
+            "host": "10.20.31.15",
+            "current_connections": 189,
+            "total_connections": 188622,
+            "total_errors": 5
+          }
+        ]
+      }
+    },
+    "security": {
+      "accounts_overview": {
+        "total_accounts": 26,
+        "root_accounts": 2,
+        "anonymous_accounts": 0,
+        "accounts_with_wildcard_host": 3
+      },
+      "high_privilege_accounts": {
+        "rows": [
+          {
+            "user": "root",
+            "host": "localhost",
+            "super_priv": "Y",
+            "create_user_priv": "Y",
+            "grant_priv": "Y"
+          },
+          {
+            "user": "dba_admin",
+            "host": "10.20.31.%",
+            "super_priv": "Y",
+            "create_user_priv": "N",
+            "grant_priv": "Y"
+          }
+        ]
+      },
+      "account_host_matrix": {
+        "rows": [
+          {
+            "user": "app_rw",
+            "host": "10.20.31.%"
+          },
+          {
+            "user": "app_ro",
+            "host": "10.20.31.%"
+          },
+          {
+            "user": "reporter",
+            "host": "10.20.31.44"
+          }
+        ]
+      },
+      "user_auth_plugins": {
+        "rows": [
+          {
+            "user": "root",
+            "host": "localhost",
+            "plugin": "caching_sha2_password",
+            "account_locked": "N",
+            "password_expired": "N"
+          },
+          {
+            "user": "app_rw",
+            "host": "10.20.31.%",
+            "plugin": "mysql_native_password",
+            "account_locked": "N",
+            "password_expired": "N"
+          }
+        ]
+      },
+      "admin_option_grants": {
+        "rows": [
+          {
+            "user": "dba_admin",
+            "host": "10.20.31.%",
+            "privilege_type": "SYSTEM_USER",
+            "admin_option": "YES"
+          },
+          {
+            "user": "ops_admin",
+            "host": "10.20.31.%",
+            "privilege_type": "REPLICATION SLAVE",
+            "admin_option": "YES"
+          }
+        ]
+      },
+      "password_policy": {
+        "validate_password": "ON",
+        "policy": "MEDIUM",
+        "length": 12,
+        "mixed_case_count": 1,
+        "number_count": 1,
+        "special_char_count": 1
+      },
+      "ssl_tls": {
+        "have_ssl": "YES",
+        "have_openssl": "YES",
+        "tls_version": "TLSv1.2,TLSv1.3"
+      }
+    },
+    "backup_recovery": {
+      "backup_strategy": {
+        "tool": "xtrabackup",
+        "full_backup_cycle_days": 1,
+        "incremental_layers": 3,
+        "binlog_shipping": "ON",
+        "backup_storage": "NFS+ObjectStorage"
+      },
+      "latest_backup_jobs": {
+        "rows": [
+          {
+            "backup_type": "FULL",
+            "start_time": "2026-03-04T02:00:00",
+            "end_time": "2026-03-04T02:41:12",
+            "status": "SUCCESS",
+            "size_gb": 182.4
+          },
+          {
+            "backup_type": "INCR",
+            "start_time": "2026-03-04T14:00:00",
+            "end_time": "2026-03-04T14:08:23",
+            "status": "SUCCESS",
+            "size_gb": 11.6
+          }
+        ]
+      },
+      "restore_drill": {
+        "last_restore_test_time": "2026-02-28T03:20:00",
+        "restore_test_status": "SUCCESS",
+        "rto_minutes": 37,
+        "rpo_minutes": 5
+      },
+      "binlog_continuity": {
+        "latest_binlog_file": "mysql-bin.008213",
+        "latest_binlog_pos": 178921112,
+        "binlog_gap_detected": "NO"
+      }
+    }
+  },
+  "collect_config": {
+    "sample_mode": "periodic",
+    "sample_interval_seconds": 300,
+    "sample_period_seconds": 600,
+    "expected_samples": 3
+  },
+  "collect_window": {
+    "window_start": "2026-03-03T16:45:00+08:00",
+    "window_end": "2026-03-03T16:55:00+08:00",
+    "duration_seconds": 600
+  }
+}

@@ -1,0 +1,21 @@
+services:
+  mysql:
+    image: mysql:5.7
+    platform: linux/amd64
+    command:
+      - --performance_schema=ON
+      - --slow_query_log=ON
+      - --long_query_time=0.05
+      - --log_output=TABLE
+      - --innodb_print_all_deadlocks=ON
+      - --innodb_status_output_locks=ON
+      - --innodb_lock_wait_timeout=5
+      - --innodb_flush_method=O_DIRECT
+      - --log_bin=mysql-bin
+      - --binlog_format=ROW
+      - --expire_logs_days=7
+      - --server-id=157
+      - --local_infile=ON
+      - --skip-name-resolve=ON
+    ports:
+      - "13357:3306"

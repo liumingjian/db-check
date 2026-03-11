@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/contracts/schemas/rule.schema.json",
+  "title": "Inspection Rule Schema (Draft)",
+  "type": "object",
+  "required": ["rule_meta", "dimensions"],
+  "properties": {
+    "rule_meta": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "rule_version",
+        "rule_name",
+        "db_type",
+        "target_versions",
+        "updated_at"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "minLength": 1},
+        "rule_version": {"type": "string", "minLength": 1},
+        "rule_name": {"type": "string", "minLength": 1},
+        "db_type": {"type": "string", "enum": ["mysql", "oracle"]},
+        "target_versions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "updated_at": {"type": "string"},
+        "total_checks": {"type": "integer", "minimum": 0},
+        "priority_summary": {
+          "type": "object",
+          "properties": {
+            "P0": {"type": "integer", "minimum": 0},
+            "P1": {"type": "integer", "minimum": 0},
+            "P2": {"type": "integer", "minimum": 0},
+            "P3": {"type": "integer", "minimum": 0}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "dimensions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["dimension_id", "name", "checks"],
+        "properties": {
+          "dimension_id": {"type": ["integer", "string"]},
+          "name": {"type": "string", "minLength": 1},
+          "description": {"type": "string"},
+          "checks": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["check_id", "name", "priority", "extract"],
+              "properties": {
+                "check_id": {"type": "string", "minLength": 1},
+                "name": {"type": "string", "minLength": 1},
+                "description": {"type": "string"},
+                "priority": {"type": "string", "enum": ["P0", "P1", "P2", "P3"]},
+                "result_type": {
+                  "type": "string",
+                  "enum": ["numeric", "percentage", "boolean", "string", "list", "object", "info"]
+                },
+                "extract": {
+                  "type": "object",
+                  "required": ["json_path", "aggregation"],
+                  "properties": {
+                    "json_path": {"type": "string", "minLength": 1},
+                    "aggregation": {
+                      "type": "string",
+                      "enum": ["raw", "avg", "max", "min", "last", "p95", "sum", "count"]
+                    },
+                    "expected_type": {
+                      "type": "string",
+                      "enum": ["number", "boolean", "string", "list", "object", "any"]
+                    },
+                    "unit": {"type": "string"}
+                  },
+                  "additionalProperties": true
+                },
+                "thresholds": {
+                  "type": "object",
+                  "properties": {
+                    "normal": {"$ref": "#/$defs/threshold_item"},
+                    "warning": {"$ref": "#/$defs/threshold_item"},
+                    "critical": {"$ref": "#/$defs/threshold_item"},
+                    "info": {"$ref": "#/$defs/threshold_item"}
+                  },
+                  "additionalProperties": false
+                },
+                "evaluation": {
+                  "type": "object",
+                  "required": ["method"],
+                  "properties": {
+                    "method": {
+                      "type": "string",
+                      "enum": ["threshold", "exists", "row_count", "info", "gate", "custom"]
+                    },
+                    "thresholds": {
+                      "type": "object",
+                      "properties": {
+                        "normal": {"$ref": "#/$defs/threshold_item"},
+                        "warning": {"$ref": "#/$defs/threshold_item"},
+                        "critical": {"$ref": "#/$defs/threshold_item"},
+                        "info": {"$ref": "#/$defs/threshold_item"}
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": true
+                },
+                "applicability": {
+                  "type": "object",
+                  "properties": {
+                    "when": {"type": ["string", "null"]},
+                    "not_applicable_when": {"type": ["string", "null"]}
+                  },
+                  "additionalProperties": true
+                },
+                "version_compatibility": {
+                  "type": "array",
+                  "items": {"type": "string", "minLength": 1}
+                },
+                "optimization_advice": {"type": "string"},
+                "source_module": {"type": "string", "minLength": 1},
+                "owner": {"type": "string"},
+                "tags": {
+                  "type": "array",
+                  "items": {"type": "string", "minLength": 1}
+                }
+              },
+              "allOf": [
+                {
+                  "anyOf": [
+                    {"required": ["thresholds"]},
+                    {"required": ["evaluation"]}
+                  ]
+                }
+              ],
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "$defs": {
+    "threshold_item": {
+      "type": "object",
+      "properties": {
+        "operator": {
+          "type": "string",
+          "enum": [">", ">=", "<", "<=", "==", "!="]
+        },
+        "value": {
+          "oneOf": [
+            {"type": "number"},
+            {"type": "string"},
+            {"type": "boolean"},
+            {"type": "null"}
+          ]
+        },
+        "value_expr": {"type": "string"},
+        "description": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}

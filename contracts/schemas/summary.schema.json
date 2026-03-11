@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/contracts/schemas/summary.schema.json",
+  "title": "Analyzer Summary Schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "rule_version",
+    "generated_at",
+    "overall_risk",
+    "counts",
+    "abnormal_items",
+    "unevaluated_items",
+    "na_items"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "run_id": {"type": "string", "minLength": 1},
+    "rule_version": {"type": "string", "minLength": 1},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "overall_risk": {"type": "string", "enum": ["low", "medium", "high"]},
+    "counts": {
+      "type": "object",
+      "required": [
+        "total_checks",
+        "normal",
+        "warning",
+        "critical",
+        "unevaluated",
+        "not_applicable"
+      ],
+      "properties": {
+        "total_checks": {"type": "integer", "minimum": 0},
+        "normal": {"type": "integer", "minimum": 0},
+        "warning": {"type": "integer", "minimum": 0},
+        "critical": {"type": "integer", "minimum": 0},
+        "unevaluated": {"type": "integer", "minimum": 0},
+        "not_applicable": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "abnormal_items": {"type": "array"},
+    "unevaluated_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["check_id", "reason_type", "reason"],
+        "properties": {
+          "check_id": {"type": "string", "minLength": 1},
+          "reason_type": {"type": "string", "enum": ["failed", "skipped"]},
+          "reason": {"type": "string", "minLength": 1},
+          "source_module": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "na_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["check_id", "reason_type", "reason"],
+        "properties": {
+          "check_id": {"type": "string", "minLength": 1},
+          "reason_type": {"const": "not_applicable"},
+          "reason": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": true
+      }
+    },
+    "failure": {
+      "type": "object",
+      "required": ["exit_code", "reason_type", "message"],
+      "properties": {
+        "exit_code": {"type": "integer", "enum": [20, 30]},
+        "reason_type": {"type": "string", "enum": ["collector_failed", "precheck_failed"]},
+        "message": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

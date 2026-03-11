@@ -1,0 +1,32 @@
+{
+  "doc_info": {
+    "document_name": "MySQL巡检报告",
+    "inspection_time": "2026/03/10 10:26:59",
+    "issue_date": "2026/03/10",
+    "author": "待补充",
+    "version": "v1.0"
+  },
+  "change_log": [
+    {
+      "date": "2026/03/10",
+      "author": "db-check",
+      "version": "v1.0",
+      "change": "初始化报告内容层样例"
+    }
+  ],
+  "review_log": [
+    {
+      "name": "待补充",
+      "title": "待补充",
+      "contact": "待补充",
+      "email": "待补充"
+    }
+  ],
+  "scope": {
+    "inspection_target": "待补充",
+    "instances": [],
+    "database_version": "待补充",
+    "architecture_role": "待补充",
+    "data_dir": "待补充"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/contracts/schemas/manifest.schema.json",
+  "title": "Collector Manifest Schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "db_type",
+    "start_time",
+    "end_time",
+    "exit_code",
+    "overall_status",
+    "module_stats",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "run_id": {"type": "string", "minLength": 1},
+    "db_type": {"type": "string", "enum": ["mysql", "oracle"]},
+    "start_time": {"type": "string", "format": "date-time"},
+    "end_time": {"type": "string", "format": "date-time"},
+    "exit_code": {"type": "integer", "enum": [0, 10, 20, 30]},
+    "overall_status": {
+      "type": "string",
+      "enum": ["success", "partial_success", "failed"]
+    },
+    "module_stats": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status", "duration_ms", "error"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["success", "partial", "failed", "skipped"]
+          },
+          "duration_ms": {"type": "integer", "minimum": 0},
+          "error": {"type": ["string", "null"]}
+        },
+        "additionalProperties": true
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["log", "result"],
+      "properties": {
+        "log": {"type": "string", "minLength": 1},
+        "result": {"type": ["string", "null"]},
+        "summary": {"type": ["string", "null"]},
+        "report": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

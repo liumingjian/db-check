@@ -1,0 +1,3619 @@
+{
+  "rule_meta": {
+    "schema_version": "1.0",
+    "rule_version": "2.0",
+    "rule_name": "MySQL 数据库深度巡检指标模板",
+    "db_type": "mysql",
+    "target_versions": [
+      "5.6",
+      "5.7",
+      "8.0",
+      "8.4"
+    ],
+    "updated_at": "2026-03-03",
+    "target": "自建 MySQL 5.6 / 5.7 / 8.0 / 8.4",
+    "compliance": "等保2.0三级",
+    "total_checks": 128,
+    "priority_summary": {
+      "P0": 20,
+      "P1": 45,
+      "P2": 48,
+      "P3": 15
+    }
+  },
+  "dimensions": [
+    {
+      "dimension_id": 1,
+      "name": "操作系统资源",
+      "description": "数据库运行依赖的底层 OS 资源，是所有上层指标的基础保障",
+      "checks": [
+        {
+          "check_id": "1.1",
+          "name": "CPU 使用率",
+          "description": "CPU 持续高使用率可能导致 SQL 响应变慢、连接排队，需排查是否存在低效 SQL 或异常进程",
+          "priority": "P1",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "os.cpu.samples[*].usage_percent",
+            "aggregation": "avg",
+            "unit": ""
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "<=",
+              "value": 70
+            },
+            "warning": {
+              "operator": ">",
+              "value": 70
+            },
+            "critical": {
+              "operator": ">",
+              "value": 90
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "排查慢 SQL 和异常进程；考虑升级 CPU 或优化高 CPU 消耗的查询",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "1.2",
+          "name": "CPU iowait",
+          "description": "iowait 高表示 CPU 在等待磁盘 I/O 完成，常见于慢磁盘、大量随机读写或 checkpoint 风暴",
+          "priority": "P1",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "os.cpu.samples[*].iowait_percent",
+            "aggregation": "avg",
+            "unit": ""
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "<=",
+              "value": 20
+            },
+            "warning": {
+              "operator": ">",
+              "value": 20
+            },
+            "critical": {
+              "operator": ">",
+              "value": 40
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "检查磁盘性能，排查大量随机 I/O 的 SQL；考虑使用 SSD 或优化 InnoDB 刷脏策略",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "1.3",
+          "name": "内存使用率",
+          "description": "内存不足会触发 OOM Killer 杀掉 MySQL 进程，需确保预留足够可用内存",
+          "priority": "P1",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "os.memory.samples[*].usage_percent",
+            "aggregation": "avg",
+            "unit": ""
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "<=",
+              "value": 85
+            },
+            "warning": {
+              "operator": ">",
+              "value": 85
+            },
+            "critical": {
+              "operator": ">",
+              "value": 95
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "检查 InnoDB Buffer Pool 是否过大；排查内存泄漏；考虑增加物理内存",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "1.4",
+          "name": "Swap 使用量",
+          "description": "MySQL 使用 Swap 会导致严重性能下降，InnoDB Buffer Pool 页面被换出到磁盘是致命的性能杀手",
+          "priority": "P0",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "os.memory.samples[*].swap_used_bytes",
+            "aggregation": "max",
+            "unit": "MB"
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "==",
+              "value": 0
+            },
+            "warning": {
+              "operator": ">",
+              "value": 100
+            },
+            "critical": {
+              "operator": ">",
+              "value": 1024
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "检查 MySQL 内存分配是否超过物理内存；设置 vm.swappiness=1；考虑增加内存",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "1.5",
+          "name": "Swap 活动 (si/so)",
+          "description": "即使 Swap 使用量不大，频繁的 swap in/out 也会严重影响性能",
+          "priority": "P1",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "os.memory.samples[*].swap_in_per_sec",
+            "aggregation": "max",
+            "unit": "pages/s"
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "==",
+              "value": 0,
+              "description": "si=0, so=0"
+            },
+            "warning": {
+              "operator": ">",
+              "value": 0,
+              "description": "持续 >0"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "紧急排查哪些进程占用大量内存；调低 Buffer Pool 或其他内存参数",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "1.6",
+          "name": "磁盘使用率",
+          "description": "磁盘满会导致 MySQL 无法写入 binlog、redo log 而崩溃，需重点关注数据目录和日志目录所在分区",
+          "priority": "P0",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "os.filesystem.samples[*].mountpoints[*].usage_percent",
+            "aggregation": "last",
+            "unit": ""
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "<=",
+              "value": 80
+            },
+            "warning": {
+              "operator": ">",
+              "value": 80
+            },
+            "critical": {
+              "operator": ">",
+              "value": 90
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "清理过期日志、binlog、临时文件；扩容磁盘；配置合理的 binlog 过期策略",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "1.7",
+          "name": "磁盘 I/O 延迟",
+          "description": "磁盘响应延迟直接影响 SQL 执行时间，SSD 正常 await 应在亚毫秒级，HDD 在 5-10ms",
+          "priority": "P1",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "os.disk_io.samples[*].devices[*].avg_read_latency_ms",
+            "aggregation": "p95",
+            "unit": "ms"
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "<=",
+              "value": 10
+            },
+            "warning": {
+              "operator": ">",
+              "value": 10
+            },
+            "critical": {
+              "operator": ">",
+              "value": 30
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "检查是否使用 SSD；优化随机 I/O 密集的 SQL；调整 innodb_io_capacity",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "1.8",
+          "name": "磁盘 I/O 利用率",
+          "description": "%util 持续接近 100% 表示磁盘已成为瓶颈，即使 IOPS 未打满也需关注",
+          "priority": "P1",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "os.disk_io.samples[*].devices[*].io_util_percent",
+            "aggregation": "max",
+            "unit": ""
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "<=",
+              "value": 70
+            },
+            "warning": {
+              "operator": ">",
+              "value": 70
+            },
+            "critical": {
+              "operator": ">",
+              "value": 90
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "升级存储设备（SSD/NVMe）；减少不必要的全表扫描；优化 I/O 密集查询",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "1.9",
+          "name": "网络丢包/错误",
+          "description": "网络丢包会导致主从复制延迟、客户端连接超时，影响数据库可用性",
+          "priority": "P2",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "os.network.samples[*].interfaces[*].errin",
+            "aggregation": "max",
+            "unit": ""
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "==",
+              "value": 0
+            },
+            "warning": {
+              "operator": ">",
+              "value": 0.1
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "检查网络硬件和线缆；排查网络拥塞；确认网卡驱动和固件版本",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "1.10",
+          "name": "文件描述符使用率",
+          "description": "文件描述符耗尽会导致 MySQL 无法打开新连接和表文件",
+          "priority": "P1",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "os.system_info.file_descriptor_usage_percent",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "<=",
+              "value": 70
+            },
+            "warning": {
+              "operator": ">",
+              "value": 70
+            },
+            "critical": {
+              "operator": ">",
+              "value": 90
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "增大系统级 file-max；检查是否有进程泄漏 fd",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "1.11",
+          "name": "MySQL 进程打开的 fd 数",
+          "description": "MySQL 进程级别的 fd 使用情况，需与 open_files_limit 对照",
+          "priority": "P1",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "os.system_info.mysql_fd_usage_percent",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 70
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "增大 open_files_limit（my.cnf + ulimit）；减少不必要的表文件打开",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "1.12",
+          "name": "OOM Killer 记录",
+          "description": "OOM Killer 杀掉 MySQL 进程是致命事件，需检查历史是否发生过，并排查内存分配问题",
+          "priority": "P0",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "os.system_info.oom_killer_detected",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "==",
+              "value": false,
+              "description": "无 OOM 记录"
+            },
+            "critical": {
+              "operator": "==",
+              "value": true,
+              "description": "存在 OOM 记录即 P0"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "增加物理内存；调低 MySQL 内存参数（Buffer Pool 等）；配置合理的 OOM Score",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "1.13",
+          "name": "NUMA 配置",
+          "description": "NUMA 架构下内存分配不均衡会导致局部内存不足触发 Swap，即使总内存充足",
+          "priority": "P2",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "os.system_info.numa_imbalance_percent",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 20,
+              "description": "跨节点内存分配差异 >20%"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "使用 numactl --interleave=all 启动 MySQL；或绑定到单个 NUMA 节点",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "1.14",
+          "name": "透明大页 (THP) 状态",
+          "description": "THP 会导致 InnoDB 内存分配延迟抖动，MySQL 官方建议关闭",
+          "priority": "P2",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "os.system_info.transparent_hugepages",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "==",
+              "value": "[never]"
+            },
+            "warning": {
+              "operator": "!=",
+              "value": "[never]"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "关闭 THP：echo never > /sys/kernel/mm/transparent_hugepage/enabled",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "1.15",
+          "name": "NTP/时间同步",
+          "description": "时间不同步会导致主从复制延迟计算错误、binlog 时间戳混乱、证书验证失败",
+          "priority": "P1",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "os.system_info.ntp_offset_seconds",
+            "aggregation": "raw",
+            "unit": "seconds"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 1,
+              "description": "偏差 >1s"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "配置 NTP 或 chrony 服务；确保时间偏差 <1s 以保证复制和证书有效性",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "1.16",
+          "name": "系统基础信息",
+          "description": "采集主机名、操作系统、内核版本、CPU 型号/核数/线程数、总内存等基础信息，用于巡检报告",
+          "priority": "P3",
+          "result_type": "info",
+          "extract": {
+            "json_path": "os.system_info",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "记录系统基础信息供巡检报告使用",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "1.17",
+          "name": "系统负载 (Load Average)",
+          "description": "系统负载反映 CPU 运行队列长度，持续高于 CPU 核数表示系统过载",
+          "priority": "P1",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "os.process.samples[*].load_avg_1",
+            "aggregation": "max",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "排查导致高负载的进程和 SQL；考虑升级 CPU 核数",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        }
+      ]
+    },
+    {
+      "dimension_id": 2,
+      "name": "高可用与复制",
+      "description": "检查主从复制、MGR 等高可用架构的健康状态，确保数据一致性和故障切换能力",
+      "checks": [
+        {
+          "check_id": "2.0",
+          "name": "复制状态检测",
+          "description": "检测当前实例是否配置了复制关系，若未配置则跳过 Dim 2 其余检查项",
+          "priority": "P2",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.replication.enabled",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "未检测到复制配置，跳过复制相关检查",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "gate",
+            "gate": {
+              "json_path": "db.replication.enabled",
+              "aggregation": "raw",
+              "operator": "==",
+              "value": true,
+              "reason": "replication is not configured on this instance"
+            },
+            "na_dimension": "2"
+          }
+        },
+        {
+          "check_id": "2.1",
+          "name": "复制拓扑完整性",
+          "description": "复制 IO 线程或 SQL 线程停止意味着数据同步中断，是最高优先级故障",
+          "priority": "P0",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.replication.io_thread_running",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "==",
+              "value": true,
+              "description": "两项均为 Yes"
+            },
+            "critical": {
+              "operator": "==",
+              "value": false,
+              "description": "任一为 No 即 P0"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "立即检查 IO/SQL 线程停止原因；查看 SHOW REPLICA STATUS 错误信息",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "2.2",
+          "name": "复制延迟",
+          "description": "复制延迟过大意味着从库数据落后主库，切换时有数据丢失风险",
+          "priority": "P0",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.replication.seconds_behind_master",
+            "aggregation": "raw",
+            "unit": "seconds"
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "<=",
+              "value": 5
+            },
+            "warning": {
+              "operator": ">",
+              "value": 10
+            },
+            "critical": {
+              "operator": ">",
+              "value": 60
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "排查从库性能瓶颈；启用并行复制；考虑升级从库硬件",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "2.3",
+          "name": "GTID 一致性",
+          "description": "GTID 不一致表明主从存在事务差异，可能导致切换后数据不一致",
+          "priority": "P1",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.replication.gtid_consistent",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "==",
+              "value": true,
+              "description": "主从 GTID 集合一致"
+            },
+            "warning": {
+              "operator": "==",
+              "value": false,
+              "description": "主从 GTID 集合不一致"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "检查 GTID 跳过记录；使用 pt-table-checksum 验证数据一致性",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "2.4",
+          "name": "半同步复制状态",
+          "description": "半同步复制降级为异步后，主库故障时从库可能丢失已提交事务",
+          "priority": "P1",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.replication.semi_sync_status",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "==",
+              "value": "ON"
+            },
+            "warning": {
+              "operator": "==",
+              "value": "OFF",
+              "description": "status=OFF 或 no_tx 持续增长"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "确认半同步插件已安装并启用；检查网络延迟是否导致半同步退化",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "2.5",
+          "name": "半同步等待超时",
+          "description": "超时设置过大影响主库可用性，过小则频繁降级为异步复制",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.replication.semi_sync_timeout_ms",
+            "aggregation": "raw",
+            "unit": "ms"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 10000,
+              "description": ">10s 需评估合理性"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "根据网络延迟调整超时时间；过短会频繁退化为异步，过长影响写入性能",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "2.6",
+          "name": "并行复制配置",
+          "description": "未开启并行复制会导致从库单线程回放，在高写入场景下容易产生复制延迟",
+          "priority": "P2",
+          "result_type": "string",
+          "extract": {
+            "json_path": "db.replication.parallel_workers",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "启用 LOGICAL_CLOCK 并行复制；适当增加 worker 数量（建议 4-16）",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": ">",
+                "value": 1
+              },
+              "warning": {
+                "operator": "<=",
+                "value": 1
+              }
+            }
+          }
+        },
+        {
+          "check_id": "2.7",
+          "name": "MGR 成员状态",
+          "description": "MGR 成员非 ONLINE 状态表示集群不完整，影响容错能力",
+          "priority": "P0",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.replication.mgr.member_state",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "检查网络连通性和节点状态；必要时重新加入故障节点",
+          "version_compatibility": [
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": "ONLINE"
+              },
+              "critical": {
+                "operator": "!=",
+                "value": "ONLINE"
+              }
+            },
+            "na_when": {
+              "json_path": "db.replication.mgr.enabled",
+              "aggregation": "raw",
+              "operator": "==",
+              "value": false,
+              "reason": "group replication is not enabled"
+            }
+          }
+        },
+        {
+          "check_id": "2.8",
+          "name": "MGR 事务一致性级别",
+          "description": "一致性级别影响读写性能和数据一致性保证，需与业务需求匹配",
+          "priority": "P2",
+          "result_type": "string",
+          "extract": {
+            "json_path": "db.replication.mgr.consistency_level",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "根据业务需求选择一致性级别：EVENTUAL（高性能）或 BEFORE_AND_AFTER（强一致）",
+          "version_compatibility": [
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info",
+            "na_when": {
+              "json_path": "db.replication.mgr.enabled",
+              "aggregation": "raw",
+              "operator": "==",
+              "value": false,
+              "reason": "group replication is not enabled"
+            }
+          }
+        },
+        {
+          "check_id": "2.11",
+          "name": "relay_log 空间管理",
+          "description": "relay log 堆积过大会占用从库磁盘空间，可能导致磁盘满",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.replication.relay_log_space_bytes",
+            "aggregation": "raw",
+            "unit": "GB"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 10737418240,
+              "description": "relay log 占用 >10GB 且持续增长"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "调整 relay_log_space_limit；清理过期 relay log；检查磁盘空间",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "2.12",
+          "name": "复制过滤规则",
+          "description": "复制过滤可能导致从库数据不完整，故障切换后业务异常",
+          "priority": "P3",
+          "result_type": "string",
+          "extract": {
+            "json_path": "db.replication.has_filter_rules",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "避免使用复制过滤规则，容易导致数据不一致；如必须使用，确保主从规则一致",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": false
+              },
+              "warning": {
+                "operator": "==",
+                "value": true
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "dimension_id": 3,
+      "name": "数据库可用性",
+      "description": "确认数据库实例处于正常运行状态，排查异常重启和连接问题",
+      "checks": [
+        {
+          "check_id": "3.1",
+          "name": "实例运行状态",
+          "description": "最基础的存活检查",
+          "priority": "P0",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.basic_info.is_alive",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "立即排查 MySQL 进程状态；检查系统日志和错误日志",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": true
+              },
+              "critical": {
+                "operator": "==",
+                "value": false
+              }
+            }
+          }
+        },
+        {
+          "check_id": "3.2",
+          "name": "实例运行时长",
+          "description": "运行时间短可能暗示近期发生了异常重启",
+          "priority": "P1",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.basic_info.uptime_seconds",
+            "aggregation": "raw",
+            "unit": "seconds"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": "<",
+              "value": 86400,
+              "description": "<24小时 需确认是否计划内重启"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "调查最近重启原因；检查是否存在 OOM、崩溃或人为重启",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "3.3",
+          "name": "异常重启检测",
+          "description": "error log 中的崩溃恢复记录是判断非计划重启的关键依据",
+          "priority": "P0",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.basic_info.crash_recovery_detected",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "检查错误日志中的崩溃恢复记录；排查导致崩溃的根因（OOM/Bug/硬件）",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": false
+              },
+              "warning": {
+                "operator": "==",
+                "value": true
+              }
+            }
+          }
+        },
+        {
+          "check_id": "3.4",
+          "name": "连接可达性",
+          "description": "从应用服务器或监控网络验证 MySQL 端口可达性",
+          "priority": "P0",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.basic_info.is_connectable",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "检查网络连通性、用户权限、max_connections 是否已满",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": true
+              },
+              "critical": {
+                "operator": "==",
+                "value": false
+              }
+            }
+          }
+        },
+        {
+          "check_id": "3.5",
+          "name": "错误日志近期告警",
+          "description": "error log 是 MySQL 故障排查的第一手资料，需定期审查",
+          "priority": "P1",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.basic_info.recent_errors",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "逐条分析错误日志告警；重点关注 InnoDB 崩溃、表损坏、权限异常",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "exists"
+          }
+        },
+        {
+          "check_id": "3.6",
+          "name": "当前活跃线程数",
+          "description": "Threads_running 持续过高表示数据库负载过大或存在锁等待",
+          "priority": "P1",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.performance.threads_running",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "排查慢 SQL 导致的线程堆积；检查是否存在锁等待",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "3.7",
+          "name": "连接数使用率",
+          "description": "连接数用尽会导致新连接被拒绝，应用报 Too many connections 错误",
+          "priority": "P1",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "db.performance.connection_usage_percent",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "<=",
+              "value": 70
+            },
+            "warning": {
+              "operator": ">",
+              "value": 70
+            },
+            "critical": {
+              "operator": ">",
+              "value": 90
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "评估 max_connections 设置是否合理；排查连接泄漏；使用连接池",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "3.8",
+          "name": "Aborted 连接",
+          "description": "大量 Aborted 连接可能指示认证失败、网络中断或应用未正确关闭连接",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.performance.aborted_connects",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 100,
+              "description": "每小时增量 >100"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "排查客户端异常断开原因；检查网络稳定性和应用连接池配置",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        }
+      ]
+    },
+    {
+      "dimension_id": 4,
+      "name": "数据库性能",
+      "description": "深度分析 SQL 执行效率、缓存命中率、等待事件，含 Top N 慢 SQL 执行计划抽样",
+      "checks": [
+        {
+          "check_id": "4.1",
+          "name": "慢查询是否开启",
+          "description": "慢查询日志是性能分析的基础，未开启则无法追踪慢 SQL",
+          "priority": "P1",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.config_check.slow_query_log",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": "==",
+              "value": "OFF"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "开启慢查询日志：SET GLOBAL slow_query_log = ON",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "4.2",
+          "name": "慢查询阈值",
+          "description": "阈值设置不合理会遗漏慢 SQL 或产生过多噪音",
+          "priority": "P3",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.config_check.long_query_time",
+            "aggregation": "raw",
+            "unit": "seconds"
+          },
+          "thresholds": {
+            "info": {
+              "operator": ">",
+              "value": 2,
+              "description": ">2s 建议调低; OLTP 建议 1s"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "建议设置 long_query_time = 1（秒），根据业务调整",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "4.3",
+          "name": "慢查询数量趋势",
+          "description": "慢查询数量的变化趋势比绝对值更有意义",
+          "priority": "P1",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.performance.slow_queries_count",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "分析慢查询日志，优化 Top N 慢 SQL；定期清理慢查询日志文件",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            },
+            "sample_mode_required": "periodic",
+            "min_expected_samples": 2
+          }
+        },
+        {
+          "check_id": "4.4",
+          "name": "Top N 慢 SQL 分析",
+          "description": "识别执行时间最长、调用最频繁的 SQL，是性能优化的核心依据",
+          "priority": "P1",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.sql_analysis.top_sql_by_time",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "逐条分析 Top SQL 的执行计划；添加缺失索引；优化 SQL 写法",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "4.5",
+          "name": "Top N 慢 SQL 执行计划抽样",
+          "description": "对 Top N 慢 SQL 进行执行计划分析，识别全表扫描、文件排序、临时表等低效操作",
+          "priority": "P1",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.sql_analysis.top_sql_explain",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "根据执行计划优化：添加索引、改写 SQL、避免全表扫描",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "4.6",
+          "name": "全表扫描比例",
+          "description": "全表扫描比例过高说明大量查询未走索引，消耗大量 I/O 和 CPU",
+          "priority": "P2",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "db.performance.full_scan_ratio",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 30
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "为频繁全表扫描的查询添加合适的索引",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "4.7",
+          "name": "InnoDB Buffer Pool 命中率",
+          "description": "命中率过低说明大量数据需要从磁盘读取，Buffer Pool 可能偏小",
+          "priority": "P1",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "db.performance.innodb.buffer_pool_hit_ratio",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "normal": {
+              "operator": ">=",
+              "value": 95
+            },
+            "warning": {
+              "operator": "<",
+              "value": 95
+            },
+            "critical": {
+              "operator": "<",
+              "value": 90
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "增大 innodb_buffer_pool_size（建议物理内存的 60%-80%）",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "4.8",
+          "name": "InnoDB Buffer Pool 脏页比例",
+          "description": "脏页比例过高可能导致 checkpoint 风暴，影响写入性能",
+          "priority": "P2",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "db.performance.innodb.dirty_page_ratio",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "<=",
+              "value": 50
+            },
+            "warning": {
+              "operator": ">",
+              "value": 50
+            },
+            "critical": {
+              "operator": ">",
+              "value": 75
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "调整 innodb_io_capacity 和 innodb_max_dirty_pages_pct 以加速刷脏",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "4.9",
+          "name": "线程缓存命中率",
+          "description": "命中率低说明频繁创建销毁线程，增加系统开销",
+          "priority": "P2",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "db.performance.thread_cache_hit_ratio",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": "<",
+              "value": 90
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "增大 thread_cache_size（建议 16-64）以减少线程创建开销",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "4.10",
+          "name": "表缓存命中率",
+          "description": "Opened_tables 频繁增长表示 table_open_cache 不足",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.performance.opened_tables_per_second",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 10,
+              "description": "Opened_tables 每分钟增量 >10 建议增大 table_open_cache"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "增大 table_open_cache；检查是否有大量小表被频繁打开关闭",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "sample_mode_required": "periodic",
+            "min_expected_samples": 2
+          }
+        },
+        {
+          "check_id": "4.11",
+          "name": "临时表溢出磁盘",
+          "description": "内存临时表溢出到磁盘会严重降低 SQL 执行速度",
+          "priority": "P2",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "db.performance.tmp_disk_table_ratio",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 25
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "增大 tmp_table_size 和 max_heap_table_size；优化产生大临时表的 SQL",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "4.12",
+          "name": "排序溢出磁盘",
+          "description": "Sort_merge_passes 增长意味着排序操作无法在内存中完成",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.performance.sort_merge_passes",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "增大 sort_buffer_size；优化 ORDER BY 查询，添加覆盖索引",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            },
+            "sample_mode_required": "periodic",
+            "min_expected_samples": 2
+          }
+        },
+        {
+          "check_id": "4.13",
+          "name": "等待事件 Top N",
+          "description": "等待事件揭示数据库性能瓶颈的根因(I/O、锁、CPU等)",
+          "priority": "P1",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.performance.top_wait_events",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "根据 Top 等待事件针对性优化：I/O等待优化存储、锁等待优化SQL和索引",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "4.14",
+          "name": "QPS / TPS",
+          "description": "QPS/TPS 是数据库负载的核心度量，异常波动需要排查原因",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.performance.qps",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "记录基线数据；QPS/TPS 突变时排查业务变化或异常 SQL",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info",
+            "sample_mode_required": "periodic",
+            "min_expected_samples": 2
+          }
+        },
+        {
+          "check_id": "4.15",
+          "name": "InnoDB 行锁等待时间",
+          "description": "行锁平均等待时间过长说明存在严重的锁竞争",
+          "priority": "P1",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.performance.innodb.row_lock_time_avg_ms",
+            "aggregation": "raw",
+            "unit": "ms"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 100
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "优化热点数据访问模式；减少锁竞争范围；缩短事务持有时间",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "4.16",
+          "name": "performance_schema 开启状态",
+          "description": "performance_schema 是 MySQL 性能分析的核心基础设施，关闭后大量诊断能力缺失",
+          "priority": "P2",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.config_check.performance_schema",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": "==",
+              "value": "OFF"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "启用 performance_schema 以获取完整的性能诊断数据",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "4.17",
+          "name": "Top SQL 按执行次数",
+          "description": "按执行次数排序的 Top SQL 有助于发现高频查询，优化这些查询可显著降低数据库负载",
+          "priority": "P2",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.sql_analysis.top_sql_by_count",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "分析高频 SQL 是否可以缓存或合并；检查是否存在不必要的重复查询",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "4.18",
+          "name": "Top SQL 按扫描行数",
+          "description": "扫描行数远大于返回行数的 SQL 是索引优化的首要目标",
+          "priority": "P2",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.sql_analysis.top_sql_by_rows_scanned",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "为扫描行数过多的 SQL 添加索引；优化 WHERE 条件",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "4.19",
+          "name": "全表扫描 SQL 详情",
+          "description": "列出实际执行全表扫描的 SQL 语句，便于逐条优化",
+          "priority": "P2",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.sql_analysis.full_scan_sqls",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "为全表扫描 SQL 添加合适的索引；改写低效查询",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "exists"
+          }
+        },
+        {
+          "check_id": "4.20",
+          "name": "无索引 SQL",
+          "description": "执行时未使用任何索引的 SQL 是性能隐患，需逐条分析并添加索引",
+          "priority": "P2",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.sql_analysis.no_index_sqls",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "为未使用索引的 SQL 添加索引；检查索引是否因类型转换失效",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "exists"
+          }
+        }
+      ]
+    },
+    {
+      "dimension_id": 5,
+      "name": "安全与审计",
+      "description": "对标等保2.0三级要求，覆盖身份鉴别、访问控制、安全审计、通信保密、安全加固",
+      "checks": [
+        {
+          "check_id": "5.1",
+          "name": "root 远程登录",
+          "description": "root 允许远程登录是最高风险安全漏洞",
+          "priority": "P0",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.security.root_remote_login",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "禁止 root 远程登录；创建专用管理账户并限制来源 IP",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": false
+              },
+              "critical": {
+                "operator": "==",
+                "value": true
+              }
+            }
+          }
+        },
+        {
+          "check_id": "5.2",
+          "name": "空密码账户",
+          "description": "空密码账户可被任何人直接登录",
+          "priority": "P0",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.security.empty_password_users",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "为所有账户设置强密码；删除无用的空密码账户",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "critical": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          }
+        },
+        {
+          "check_id": "5.3",
+          "name": "密码复杂度策略",
+          "description": "未启用密码复杂度策略可能导致弱密码账户存在",
+          "priority": "P1",
+          "result_type": "string",
+          "extract": {
+            "json_path": "db.security.password_policy.enabled",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "安装 validate_password 组件并配置密码策略（长度>=8，含大小写和特殊字符）",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": true
+              },
+              "warning": {
+                "operator": "==",
+                "value": false
+              }
+            }
+          }
+        },
+        {
+          "check_id": "5.4",
+          "name": "密码过期策略",
+          "description": "密码长期不更换增加被暴力破解或泄露后被利用的风险",
+          "priority": "P1",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.security.password_expiry_days",
+            "aggregation": "raw",
+            "unit": "days"
+          },
+          "best_practice": "",
+          "optimization_advice": "设置 default_password_lifetime = 90 或根据安全策略调整",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": ">",
+                "value": 0
+              },
+              "warning": {
+                "operator": "==",
+                "value": 0
+              }
+            }
+          }
+        },
+        {
+          "check_id": "5.5",
+          "name": "登录失败锁定",
+          "description": "无登录失败锁定机制使得暴力破解攻击成为可能",
+          "priority": "P1",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.security.login_failure_lockout",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "配置 connection_control 插件实现登录失败锁定",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": true
+              },
+              "warning": {
+                "operator": "==",
+                "value": false
+              }
+            }
+          }
+        },
+        {
+          "check_id": "5.6",
+          "name": "超级权限账户",
+          "description": "SUPER 权限可跳过只读模式、终止其他会话，应严格控制",
+          "priority": "P1",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.security.super_privilege_users",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "收回不必要的 SUPER 权限；遵循最小权限原则",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          }
+        },
+        {
+          "check_id": "5.7",
+          "name": "全库权限账户",
+          "description": "拥有全库全表权限的账户违反最小权限原则",
+          "priority": "P1",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.security.all_db_privilege_users",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "收回 *.* 级别权限；按数据库粒度授权",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          }
+        },
+        {
+          "check_id": "5.8",
+          "name": "匿名账户",
+          "description": "匿名账户允许无用户名登录，是严重安全隐患",
+          "priority": "P0",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.security.anonymous_users",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "删除所有匿名账户：DROP USER ''@'localhost'",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          }
+        },
+        {
+          "check_id": "5.9",
+          "name": "test 数据库",
+          "description": "test 数据库默认对所有用户开放，可被利用进行攻击",
+          "priority": "P2",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.security.test_database_exists",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "删除 test 数据库：DROP DATABASE test",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": false
+              },
+              "warning": {
+                "operator": "==",
+                "value": true
+              }
+            }
+          }
+        },
+        {
+          "check_id": "5.10",
+          "name": "认证插件",
+          "description": "旧认证插件安全性低，容易被暴力破解",
+          "priority": "P1",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.security.legacy_auth_plugin_users",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "将 mysql_native_password 迁移到 caching_sha2_password",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          }
+        },
+        {
+          "check_id": "5.11",
+          "name": "SSL/TLS 加密连接",
+          "description": "未加密的连接可被中间人攻击窃取敏感数据和密码",
+          "priority": "P2",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.security.ssl_enabled",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "配置 SSL 证书并启用 require_secure_transport",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": "ON"
+              },
+              "warning": {
+                "operator": "==",
+                "value": "OFF"
+              }
+            }
+          }
+        },
+        {
+          "check_id": "5.12",
+          "name": "审计日志",
+          "description": "等保要求对数据库操作进行审计",
+          "priority": "P1",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.security.audit_log_enabled",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "安装审计插件（社区版可用 MariaDB Audit Plugin 或 Percona Audit Log）",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": "ON"
+              },
+              "warning": {
+                "operator": "==",
+                "value": "OFF"
+              }
+            }
+          }
+        },
+        {
+          "check_id": "5.13",
+          "name": "binlog 是否开启",
+          "description": "binlog 是复制和数据恢复的基础",
+          "priority": "P0",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.security.binlog_enabled",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "critical": {
+              "operator": "==",
+              "value": "OFF"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "开启 binlog：设置 log-bin 和 server-id",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "5.14",
+          "name": "local_infile",
+          "description": "开启 local_infile 允许客户端读取服务器本地文件，存在安全风险",
+          "priority": "P2",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.security.local_infile",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": "==",
+              "value": "ON"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "关闭 local_infile：SET GLOBAL local_infile = OFF",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "5.15",
+          "name": "skip_name_resolve",
+          "description": "开启后跳过 DNS 反向解析，提升连接速度并避免 DNS 劫持风险",
+          "priority": "P3",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.security.skip_name_resolve",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "启用 skip_name_resolve 以提升连接性能和安全性",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": "ON"
+              },
+              "warning": {
+                "operator": "==",
+                "value": "OFF"
+              }
+            }
+          }
+        },
+        {
+          "check_id": "5.16",
+          "name": "symbolic_links",
+          "description": "符号链接可被利用进行目录遍历攻击",
+          "priority": "P2",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.security.symbolic_links",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "关闭符号链接支持以防止安全风险",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": "OFF"
+              },
+              "warning": {
+                "operator": "==",
+                "value": "ON"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "dimension_id": 6,
+      "name": "备份与恢复",
+      "description": "验证备份策略的有效性和恢复能力，确保灾难场景下的数据安全",
+      "checks": [
+        {
+          "check_id": "6.1",
+          "name": "备份策略存在性",
+          "description": "无定期备份策略是数据安全最大的风险",
+          "priority": "P0",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.backup.strategy_exists",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "制定并执行备份策略；建议全备+增量备的组合方案",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": true
+              },
+              "critical": {
+                "operator": "==",
+                "value": false
+              }
+            }
+          }
+        },
+        {
+          "check_id": "6.2",
+          "name": "最近一次全备时间",
+          "description": "全备时间超出备份周期意味着备份可能已中断",
+          "priority": "P0",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.backup.last_full_backup_age_hours",
+            "aggregation": "raw",
+            "unit": "hours_since_last_backup"
+          },
+          "best_practice": "",
+          "optimization_advice": "立即执行全量备份；配置自动备份计划",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "<=",
+                "value": 24
+              },
+              "warning": {
+                "operator": ">",
+                "value": 24
+              },
+              "critical": {
+                "operator": ">",
+                "value": 72
+              }
+            }
+          }
+        },
+        {
+          "check_id": "6.3",
+          "name": "备份文件完整性",
+          "description": "备份文件损坏在恢复时才发现，为时已晚",
+          "priority": "P0",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.backup.last_backup_integrity",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "检查备份工具输出日志；使用 xtrabackup --prepare 验证备份",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": true
+              },
+              "critical": {
+                "operator": "==",
+                "value": false
+              }
+            }
+          }
+        },
+        {
+          "check_id": "6.4",
+          "name": "备份大小趋势",
+          "description": "备份大小异常缩小可能意味着备份不完整",
+          "priority": "P1",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "db.backup.backup_size_trend",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "监控备份大小变化趋势；确保备份存储空间充足",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "6.5",
+          "name": "binlog 保留策略",
+          "description": "binlog 保留过短影响按时间点恢复能力",
+          "priority": "P1",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.backup.binlog_retention_policy",
+            "aggregation": "raw",
+            "unit": "days"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": "<",
+              "value": 7,
+              "description": "未设置或 <7天; 建议保留至少两个全备周期"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "配置合理的 binlog 过期时间（建议 7-14 天）",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "6.6",
+          "name": "binlog 格式",
+          "description": "STATEMENT 格式在非确定性 SQL 下会导致主从数据不一致",
+          "priority": "P1",
+          "result_type": "string",
+          "extract": {
+            "json_path": "db.backup.binlog_format",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": "==",
+              "value": "STATEMENT",
+              "description": "建议使用 ROW 格式"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "将 binlog_format 设置为 ROW 以保证复制安全性",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "6.7",
+          "name": "binlog 写入量",
+          "description": "binlog 写入量异常增长可能指示大批量数据变更或 SQL 注入",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.backup.binlog_write_rate",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "监控 binlog 写入量；异常增长时排查批量操作或大事务",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info",
+            "sample_mode_required": "periodic",
+            "min_expected_samples": 2
+          }
+        }
+      ]
+    },
+    {
+      "dimension_id": 7,
+      "name": "参数配置",
+      "description": "核心 MySQL 参数与最佳实践对比，识别配置偏差和潜在风险",
+      "checks": [
+        {
+          "check_id": "7.1",
+          "name": "innodb_buffer_pool_size",
+          "description": "InnoDB 最关键的参数，决定了热数据在内存中的缓存量",
+          "priority": "P1",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.config_check.innodb_buffer_pool_size",
+            "aggregation": "raw",
+            "unit": "bytes"
+          },
+          "best_practice": "专用 DB 服务器: 物理内存的 50%-75%",
+          "optimization_advice": "调整 innodb_buffer_pool_size 为物理内存的 60%-80%",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "7.2",
+          "name": "innodb_log_file_size",
+          "description": "redo log 文件过小会导致频繁 checkpoint，过大会增加崩溃恢复时间",
+          "priority": "P1",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.config_check.innodb_log_file_size",
+            "aggregation": "raw",
+            "unit": "bytes"
+          },
+          "best_practice": "单个文件 1-2GB; 总大小应能容纳 1-2 小时的写入量",
+          "optimization_advice": "8.0 使用 innodb_redo_log_capacity（建议 1-4GB）；5.7 调整 innodb_log_file_size",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "7.3",
+          "name": "innodb_flush_log_at_trx_commit",
+          "description": "控制事务提交时 redo log 的刷盘策略，直接关系到数据安全性",
+          "priority": "P0",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.config_check.innodb_flush_log_at_trx_commit",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "critical": {
+              "operator": "!=",
+              "value": 1,
+              "description": "非1即P0; =2允许少量数据丢失场景"
+            }
+          },
+          "best_practice": "生产必须 =1",
+          "optimization_advice": "生产环境建议设置为 1（每次提交刷盘），保证数据安全",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "7.4",
+          "name": "sync_binlog",
+          "description": "控制 binlog 的刷盘频率，与 innodb_flush_log_at_trx_commit 配合保证双1安全",
+          "priority": "P0",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.config_check.sync_binlog",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "critical": {
+              "operator": "!=",
+              "value": 1
+            }
+          },
+          "best_practice": "生产必须 =1",
+          "optimization_advice": "生产环境建议设置为 1，与 innodb_flush_log_at_trx_commit=1 配合保证不丢数据",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "7.5",
+          "name": "innodb_file_per_table",
+          "description": "关闭时所有表数据存储在共享表空间 ibdata1 中，无法收缩空间",
+          "priority": "P2",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.config_check.innodb_file_per_table",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": "==",
+              "value": "OFF"
+            }
+          },
+          "best_practice": "ON",
+          "optimization_advice": "确保 innodb_file_per_table = ON 以便独立管理表空间",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "7.6",
+          "name": "innodb_flush_method",
+          "description": "控制 InnoDB 数据文件和日志文件的 I/O 方式",
+          "priority": "P1",
+          "result_type": "string",
+          "extract": {
+            "json_path": "db.config_check.innodb_flush_method",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": "!=",
+              "value": "O_DIRECT"
+            }
+          },
+          "best_practice": "Linux 下建议 O_DIRECT",
+          "optimization_advice": "Linux 建议使用 O_DIRECT 避免双重缓存",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "7.7",
+          "name": "max_connections",
+          "description": "设置过低导致连接不够用，过高可能导致 OOM",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.config_check.max_connections",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "根据业务评估 500-2000; 关注 Max_used_connections 是否接近上限",
+          "optimization_advice": "根据实际最大连接数设置，预留 20% 余量；过大浪费内存",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "7.8",
+          "name": "innodb_buffer_pool_instances",
+          "description": "多实例可减少 Buffer Pool 的互斥锁竞争",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.config_check.innodb_buffer_pool_instances",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "5.7: buffer_pool_size/1GB (最大64); 8.0: 默认值通常足够",
+          "optimization_advice": "Buffer Pool > 1GB 时建议设置为 8（5.7）；8.0 自动调整",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "7.9",
+          "name": "innodb_io_capacity / innodb_io_capacity_max",
+          "description": "控制 InnoDB 后台 I/O 操作的速率上限",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.config_check.innodb_io_capacity",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "SSD: 2000-10000 / HDD: 200-800; max建议为capacity的2倍",
+          "optimization_advice": "SSD 建议 innodb_io_capacity=2000, max=4000；HDD 建议 200/400",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "7.10",
+          "name": "innodb_page_cleaners",
+          "description": "脏页清理线程数，不足会导致脏页堆积",
+          "priority": "P3",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.config_check.innodb_page_cleaners",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "等于 innodb_buffer_pool_instances",
+          "optimization_advice": "建议与 innodb_buffer_pool_instances 保持一致",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "7.11",
+          "name": "innodb_undo_tablespaces",
+          "description": "独立 undo 表空间便于空间回收和管理",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.config_check.innodb_undo_tablespaces",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "8.0 建议 >=2",
+          "optimization_advice": "8.0 建议至少 2 个 undo 表空间以支持在线截断",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "7.12",
+          "name": "innodb_undo_log_truncate",
+          "description": "开启后可自动截断 undo 表空间，防止持续膨胀",
+          "priority": "P2",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.config_check.innodb_undo_log_truncate",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": "==",
+              "value": "OFF"
+            }
+          },
+          "best_practice": "ON",
+          "optimization_advice": "启用 innodb_undo_log_truncate = ON 防止 undo 表空间无限增长",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "7.13",
+          "name": "tmp_table_size / max_heap_table_size",
+          "description": "决定内存临时表的最大大小",
+          "priority": "P3",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.config_check.tmp_table_size",
+            "aggregation": "raw",
+            "unit": "bytes"
+          },
+          "best_practice": "两者取最小值生效，建议 64-256MB",
+          "optimization_advice": "建议 64M-256M；过大浪费内存，过小导致频繁溢出磁盘",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "7.14",
+          "name": "join_buffer_size",
+          "description": "用于无索引的 join 操作",
+          "priority": "P3",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.config_check.join_buffer_size",
+            "aggregation": "raw",
+            "unit": "bytes"
+          },
+          "best_practice": "建议 256K-4MB; 每个 join 操作分配一次",
+          "optimization_advice": "建议 256K-1M；过大的 join_buffer 反而降低性能",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "7.15",
+          "name": "sort_buffer_size",
+          "description": "排序操作使用的缓冲区",
+          "priority": "P3",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.config_check.sort_buffer_size",
+            "aggregation": "raw",
+            "unit": "bytes"
+          },
+          "best_practice": "建议 256K-2MB",
+          "optimization_advice": "建议 256K-2M；过大会增加内存使用和排序开销",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "7.16",
+          "name": "character_set / collation",
+          "description": "字符集不一致会导致乱码、索引失效、隐式转换等问题",
+          "priority": "P2",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.config_check.character_set",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "统一使用 utf8mb4; 8.0建议 utf8mb4_0900_ai_ci; 5.7建议 utf8mb4_general_ci",
+          "optimization_advice": "统一使用 utf8mb4 字符集和 utf8mb4_0900_ai_ci（8.0）或 utf8mb4_general_ci（5.7）排序规则",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "7.17",
+          "name": "lower_case_table_names",
+          "description": "该参数在首次初始化后不可更改，主从环境必须一致",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.config_check.lower_case_table_names",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "生产环境需统一，通常 =1",
+          "optimization_advice": "部署后不可更改；新环境建议设置为 1（Linux）",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "7.18",
+          "name": "transaction_isolation",
+          "description": "隔离级别影响并发性能和数据一致性",
+          "priority": "P2",
+          "result_type": "string",
+          "extract": {
+            "json_path": "db.config_check.transaction_isolation",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "OLTP 用 REPEATABLE-READ(默认); 高并发写入可评估 READ-COMMITTED",
+          "optimization_advice": "默认 REPEATABLE-READ 适合大多数场景；特殊需求可用 READ-COMMITTED",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "7.19",
+          "name": "innodb_print_all_deadlocks",
+          "description": "开启后所有死锁信息记录到 error log",
+          "priority": "P3",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.config_check.innodb_print_all_deadlocks",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "info": {
+              "operator": "==",
+              "value": "OFF"
+            }
+          },
+          "best_practice": "ON",
+          "optimization_advice": "启用 innodb_print_all_deadlocks = ON 以便分析死锁原因",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "7.20",
+          "name": "innodb_deadlock_detect",
+          "description": "死锁检测在超高并发场景下本身可能成为性能瓶颈",
+          "priority": "P3",
+          "result_type": "boolean",
+          "extract": {
+            "json_path": "db.config_check.innodb_deadlock_detect",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "默认 ON; 仅在确认无死锁风险且超高并发场景下可考虑关闭",
+          "optimization_advice": "保持默认 ON；仅在极高并发且很少死锁时考虑关闭",
+          "version_compatibility": [
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        }
+      ]
+    },
+    {
+      "dimension_id": 8,
+      "name": "存储与空间管理",
+      "description": "监控数据文件、日志文件、表空间的空间使用情况，预防磁盘空间问题",
+      "checks": [
+        {
+          "check_id": "8.1",
+          "name": "各数据库大小",
+          "description": "掌握各数据库的大小分布，为容量规划提供基线数据",
+          "priority": "P3",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.storage.database_sizes",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "识别大库并制定数据归档策略；考虑分库分表",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "8.2",
+          "name": "Top N 大表",
+          "description": "大表是性能优化和空间管理的重点对象",
+          "priority": "P2",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.storage.top_tables",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "对大表制定归档和清理策略；考虑分区表",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "8.3",
+          "name": "InnoDB 碎片率",
+          "description": "碎片率高会浪费磁盘空间并降低扫描效率",
+          "priority": "P2",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.storage.fragmented_tables",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 30,
+              "description": "碎片率 >30%"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "对碎片率高的表执行 OPTIMIZE TABLE 或 ALTER TABLE ... ENGINE=InnoDB",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "8.4",
+          "name": "ibdata1 大小(共享表空间)",
+          "description": "ibdata1 存储 undo log(5.6)、change buffer、系统表空间等，膨胀后无法收缩",
+          "priority": "P1",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.storage.ibdata1_size_bytes",
+            "aggregation": "raw",
+            "unit": "GB"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 1,
+              "description": ">1GB 且 innodb_file_per_table=OFF"
+            },
+            "critical": {
+              "operator": ">",
+              "value": 10,
+              "description": ">10GB 需重点关注"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "启用 innodb_file_per_table 后新表不再使用共享表空间；历史数据需逻辑导出导入",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "8.5",
+          "name": "undo 表空间大小",
+          "description": "undo 表空间持续膨胀通常由长事务导致",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.storage.undo_tablespace_size_bytes",
+            "aggregation": "raw",
+            "unit": "MB"
+          },
+          "best_practice": "",
+          "optimization_advice": "启用 innodb_undo_log_truncate；检查是否存在长事务阻止 undo 回收",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "8.6",
+          "name": "临时表空间大小",
+          "description": "大查询可能导致临时表空间膨胀，占用大量磁盘",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.storage.temp_tablespace_size_bytes",
+            "aggregation": "raw",
+            "unit": "GB"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 10,
+              "description": "异常膨胀 >10GB"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "检查是否存在大量临时表操作；优化产生临时表的 SQL",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "8.7",
+          "name": "binlog 磁盘占用",
+          "description": "binlog 是最大的磁盘空间消耗源之一",
+          "priority": "P1",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.storage.binlog_disk_usage_bytes",
+            "aggregation": "raw",
+            "unit": "GB"
+          },
+          "best_practice": "",
+          "optimization_advice": "调整 binlog 过期策略；检查是否有大事务产生过多 binlog",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "8.8",
+          "name": "general_log / slow_log 文件大小",
+          "description": "日志文件未轮转可能增长到 GB 级别",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.storage.log_file_sizes",
+            "aggregation": "raw",
+            "unit": "GB"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 1,
+              "description": "单个日志文件 >1GB 建议轮转"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "配置日志轮转；关闭不需要的 general_log",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        }
+      ]
+    },
+    {
+      "dimension_id": 9,
+      "name": "对象与索引",
+      "description": "检查数据库对象的健康状态，识别冗余索引、无主键表等设计缺陷",
+      "checks": [
+        {
+          "check_id": "9.1",
+          "name": "无主键表",
+          "description": "无主键表影响行级复制效率(从库全表扫描定位行)",
+          "priority": "P1",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.storage.tables_without_pk",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "为所有表添加主键（推荐自增 BIGINT 或 UUID）；无主键影响复制性能",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          }
+        },
+        {
+          "check_id": "9.2",
+          "name": "未使用索引",
+          "description": "未使用的索引浪费磁盘空间并降低写入性能",
+          "priority": "P2",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.storage.unused_indexes",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "评估后删除未使用的索引以减少写入开销和存储空间",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          }
+        },
+        {
+          "check_id": "9.3",
+          "name": "冗余索引",
+          "description": "冗余索引浪费资源",
+          "priority": "P2",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.storage.redundant_indexes",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "删除冗余索引（如已有 (a,b) 索引则 (a) 索引冗余）",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          }
+        },
+        {
+          "check_id": "9.4",
+          "name": "宽表(列数过多)",
+          "description": "列数过多影响查询性能和 DDL 效率",
+          "priority": "P3",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.storage.wide_tables",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 50,
+              "description": "列数 >50"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "考虑垂直拆分宽表；将不常用列分离到扩展表",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "9.5",
+          "name": "无索引大表",
+          "description": "大表无二级索引，任何非主键查询都将全表扫描",
+          "priority": "P2",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.storage.large_tables_without_index",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "为大表创建合适的索引；至少有一个主键和常用查询的覆盖索引",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          }
+        },
+        {
+          "check_id": "9.6",
+          "name": "外键约束",
+          "description": "外键在高并发场景下会增加锁开销和 DDL 复杂度",
+          "priority": "P3",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.storage.foreign_keys",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "生产环境建议避免使用外键约束；在应用层保证数据一致性",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "9.7",
+          "name": "存储引擎混用",
+          "description": "非 InnoDB 表不支持事务和崩溃恢复",
+          "priority": "P2",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.storage.mixed_engines",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "统一使用 InnoDB 引擎；将 MyISAM 表迁移到 InnoDB",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          }
+        },
+        {
+          "check_id": "9.8",
+          "name": "触发器 / 存储过程 / 事件",
+          "description": "这些对象可能引入隐藏的业务逻辑和性能问题",
+          "priority": "P3",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.storage.triggers_procedures_events",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "审查触发器和存储过程的必要性；优先使用应用层逻辑",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "9.9",
+          "name": "表 / 索引总数量",
+          "description": "对象数量过多会增加 information_schema 查询开销",
+          "priority": "P3",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.storage.table_index_counts",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "关注表和索引总数；过多会影响 schema 操作性能和 Buffer Pool 效率",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        }
+      ]
+    },
+    {
+      "dimension_id": 10,
+      "name": "容量规划",
+      "description": "基于当前数据和趋势，预测未来资源消耗，提前规划扩容",
+      "checks": [
+        {
+          "check_id": "10.2",
+          "name": "连接数增长趋势",
+          "description": "连接数持续增长可能需要调整 max_connections 或引入连接池",
+          "priority": "P1",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "db.performance.max_used_connections_ratio",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 80
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "评估连接数增长趋势；提前调整 max_connections 或引入连接池",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "10.3",
+          "name": "自增 ID 消耗率",
+          "description": "INT 类型自增 ID 上限为 2^31-1，耗尽后插入失败导致业务中断",
+          "priority": "P0",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.storage.auto_increment_usage",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 50,
+              "description": "INT 已用 >50%"
+            },
+            "critical": {
+              "operator": ">",
+              "value": 80,
+              "description": "INT 已用 >80% 需尽快迁移至 BIGINT"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "对消耗率高的自增列改用 BIGINT；或重新规划 ID 生成策略",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "10.5",
+          "name": "binlog 增长速率",
+          "description": "辅助评估备份存储需求和 binlog 保留策略",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.storage.binlog_growth_rate_mb_per_day",
+            "aggregation": "raw",
+            "unit": "MB/day"
+          },
+          "best_practice": "",
+          "optimization_advice": "评估 binlog 增长是否正常；异常增长需排查大事务或批量操作",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info",
+            "sample_mode_required": "periodic",
+            "min_expected_samples": 2
+          }
+        },
+        {
+          "check_id": "10.6",
+          "name": "表行数分布",
+          "description": "超大表需要特殊的运维策略",
+          "priority": "P2",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.storage.top_tables_by_rows",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "识别行数过多的表，制定归档和分区策略",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        }
+      ]
+    },
+    {
+      "dimension_id": 11,
+      "name": "锁与并发",
+      "description": "检测死锁、长事务、锁等待等并发问题，保障数据库在高并发场景下的稳定性",
+      "checks": [
+        {
+          "check_id": "11.1",
+          "name": "死锁频率",
+          "description": "频繁死锁说明应用层存在锁竞争设计缺陷",
+          "priority": "P1",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.performance.deadlock_frequency",
+            "aggregation": "raw",
+            "unit": "deadlocks/hour"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 1,
+              "description": "每小时 >1次"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "分析死锁日志，优化事务访问顺序；减少事务持有锁的时间",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "11.2",
+          "name": "最近死锁详情",
+          "description": "死锁详情包含涉及的事务、SQL、锁类型",
+          "priority": "P1",
+          "result_type": "string",
+          "extract": {
+            "json_path": "db.performance.latest_deadlock_info",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "根据死锁详情调整 SQL 执行顺序和索引设计",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "11.3",
+          "name": "当前锁等待",
+          "description": "巡检时刻存在锁等待说明有阻塞正在发生",
+          "priority": "P1",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.performance.current_lock_waits",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "排查持有锁的 SQL，必要时 KILL 阻塞会话；优化索引减少锁范围",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          }
+        },
+        {
+          "check_id": "11.4",
+          "name": "长事务",
+          "description": "长事务持有锁时间过长导致阻塞，同时阻止 undo log 清理",
+          "priority": "P0",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.performance.long_transactions",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 60,
+              "description": ">60s"
+            },
+            "critical": {
+              "operator": ">",
+              "value": 300,
+              "description": ">300s"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "排查长事务原因（未提交/慢SQL/锁等待）；设置合理的事务超时",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        },
+        {
+          "check_id": "11.5",
+          "name": "元数据锁 (MDL)",
+          "description": "DDL 操作会请求 MDL 排他锁，如果被长事务阻塞会导致后续查询全部排队",
+          "priority": "P1",
+          "result_type": "list",
+          "extract": {
+            "json_path": "db.performance.metadata_lock_waits",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "Kill 持有 MDL 锁的长时间查询；避免在业务高峰执行 DDL",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          }
+        },
+        {
+          "check_id": "11.6",
+          "name": "innodb_lock_wait_timeout",
+          "description": "锁等待超时设置过短导致频繁回滚，过长导致长时间阻塞",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.performance.innodb_lock_wait_timeout",
+            "aggregation": "raw",
+            "unit": "seconds"
+          },
+          "best_practice": "",
+          "optimization_advice": "根据业务特点调整锁等待超时（建议 50-120 秒）",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "info"
+          }
+        },
+        {
+          "check_id": "11.7",
+          "name": "行锁等待次数",
+          "description": "行锁等待次数的增长趋势反映并发冲突的严重程度",
+          "priority": "P1",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.performance.row_lock_waits_delta",
+            "aggregation": "raw",
+            "unit": ""
+          },
+          "best_practice": "",
+          "optimization_advice": "监控行锁等待趋势；增长过快时排查热点数据和锁竞争",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ],
+          "evaluation": {
+            "method": "threshold",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            },
+            "sample_mode_required": "periodic",
+            "min_expected_samples": 2
+          }
+        },
+        {
+          "check_id": "11.8",
+          "name": "历史锁等待统计",
+          "description": "平均锁等待时间反映整体锁竞争情况",
+          "priority": "P2",
+          "result_type": "numeric",
+          "extract": {
+            "json_path": "db.performance.row_lock_time_stats",
+            "aggregation": "raw",
+            "unit": "ms"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 100,
+              "description": "平均等待 >100ms"
+            }
+          },
+          "best_practice": "",
+          "optimization_advice": "综合分析锁等待统计，定位锁竞争最严重的表和操作",
+          "version_compatibility": [
+            "5.7",
+            "8.0",
+            "8.4"
+          ]
+        }
+      ]
+    }
+  ]
+}

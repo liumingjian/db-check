@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "run_id": "mysql-192.168.1.101-20260303T085500Z",
+  "db_type": "mysql",
+  "start_time": "2026-03-03T16:45:00+08:00",
+  "end_time": "2026-03-03T16:55:00+08:00",
+  "exit_code": 0,
+  "overall_status": "success",
+  "module_stats": {
+    "os": {"status": "success", "duration_ms": 1200, "error": null},
+    "db_basic": {"status": "success", "duration_ms": 800, "error": null},
+    "db_perf": {"status": "success", "duration_ms": 1200, "error": null},
+    "db_security": {"status": "success", "duration_ms": 600, "error": null},
+    "db_backup": {"status": "success", "duration_ms": 500, "error": null},
+    "db_replication": {"status": "success", "duration_ms": 700, "error": null},
+    "db_storage": {"status": "success", "duration_ms": 900, "error": null},
+    "db_lock": {"status": "success", "duration_ms": 700, "error": null}
+  },
+  "artifacts": {
+    "log": "collector.log",
+    "result": "result.sample.json",
+    "summary": "summary.sample.json",
+    "report": null
+  }
+}

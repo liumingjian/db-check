@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/contracts/schemas/result.schema.json",
+  "title": "Collector Result Schema",
+  "type": "object",
+  "required": ["meta", "collect_config", "collect_window", "os", "db"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "collector_version",
+        "db_type",
+        "db_host",
+        "db_port",
+        "timezone",
+        "collect_time"
+      ],
+      "properties": {
+        "schema_version": {"const": "2.0"},
+        "collector_version": {"type": "string", "minLength": 1},
+        "db_type": {"type": "string", "enum": ["mysql", "oracle"]},
+        "db_host": {"type": "string", "minLength": 1},
+        "db_port": {"type": "integer", "minimum": 1},
+        "db_name": {"type": "string"},
+        "environment": {"type": "string"},
+        "timezone": {"type": "string", "minLength": 1},
+        "collect_time": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": true
+    },
+    "collect_config": {
+      "type": "object",
+      "required": [
+        "sample_mode",
+        "sample_interval_seconds",
+        "sample_period_seconds",
+        "expected_samples"
+      ],
+      "properties": {
+        "sample_mode": {"type": "string", "enum": ["single", "periodic"]},
+        "sample_interval_seconds": {"type": ["integer", "null"], "minimum": 1},
+        "sample_period_seconds": {"type": ["integer", "null"], "minimum": 1},
+        "expected_samples": {"type": "integer", "minimum": 1}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"sample_mode": {"const": "single"}},
+            "required": ["sample_mode"]
+          },
+          "then": {
+            "properties": {
+              "sample_interval_seconds": {"type": "null"},
+              "sample_period_seconds": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"sample_mode": {"const": "periodic"}},
+            "required": ["sample_mode"]
+          },
+          "then": {
+            "properties": {
+              "sample_interval_seconds": {"type": "integer", "minimum": 1},
+              "sample_period_seconds": {"type": "integer", "minimum": 1}
+            }
+          }
+        }
+      ],
+      "additionalProperties": true
+    },
+    "collect_window": {
+      "type": "object",
+      "required": ["window_start", "window_end", "duration_seconds"],
+      "properties": {
+        "window_start": {"type": "string", "format": "date-time"},
+        "window_end": {"type": "string", "format": "date-time"},
+        "duration_seconds": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "os": {"type": "object"},
+    "db": {"type": "object"}
+  },
+  "allOf": [
+    {"not": {"required": ["exit_code"]}},
+    {"not": {"required": ["overall_status"]}},
+    {"not": {"required": ["module_stats"]}}
+  ],
+  "additionalProperties": true
+}

@@ -1,0 +1,30 @@
+# macOS / Windows
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Local runtime artifacts
+tests/e2e/runs/
+bin/db-collector
+tmp/
+
+# Agent task artifacts
+.codex-tasks/
+.codex/

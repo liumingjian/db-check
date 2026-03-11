@@ -1,0 +1,666 @@
+{
+  "schema_version": "1.0",
+  "run_id": "mysql-192.168.1.101-20260303T085500Z",
+  "rule_version": "2.0",
+  "generated_at": "2026-03-05T17:53:04.665905+08:00",
+  "overall_risk": "medium",
+  "counts": {
+    "total_checks": 128,
+    "normal": 25,
+    "warning": 2,
+    "critical": 0,
+    "unevaluated": 101,
+    "not_applicable": 0
+  },
+  "abnormal_items": [
+    {
+      "check_id": "4.13",
+      "name": "等待事件 Top N",
+      "dimension_id": "4",
+      "dimension_name": "数据库性能",
+      "level": "warning",
+      "current_value": [
+        {
+          "event": "wait/io/file/innodb/innodb_log_file",
+          "pct": 31.0
+        },
+        {
+          "event": "wait/io/table/sql/handler",
+          "pct": 28.0
+        }
+      ],
+      "reason": "rows found",
+      "advice": "根据 Top 等待事件针对性优化：I/O等待优化存储、锁等待优化SQL和索引"
+    },
+    {
+      "check_id": "8.2",
+      "name": "Top N 大表",
+      "dimension_id": "8",
+      "dimension_name": "存储与空间管理",
+      "level": "warning",
+      "current_value": [
+        {
+          "db": "order_db",
+          "table": "orders",
+          "size_gb": 120.0
+        },
+        {
+          "db": "log_db",
+          "table": "event_log",
+          "size_gb": 98.0
+        }
+      ],
+      "reason": "rows found",
+      "advice": "对大表制定归档和清理策略；考虑分区表"
+    }
+  ],
+  "unevaluated_items": [
+    {
+      "check_id": "1.5",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: os.memory.samples[*].swap_in_per_sec",
+      "source_module": "os"
+    },
+    {
+      "check_id": "1.10",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: os.system_info.file_descriptor_usage_percent",
+      "source_module": "os"
+    },
+    {
+      "check_id": "1.11",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: os.system_info.mysql_fd_usage_percent",
+      "source_module": "os"
+    },
+    {
+      "check_id": "1.12",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: os.system_info.oom_killer_detected",
+      "source_module": "os"
+    },
+    {
+      "check_id": "1.13",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: os.system_info.numa_imbalance_percent",
+      "source_module": "os"
+    },
+    {
+      "check_id": "1.14",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: os.system_info.transparent_hugepages",
+      "source_module": "os"
+    },
+    {
+      "check_id": "1.15",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: os.system_info.ntp_offset_seconds",
+      "source_module": "os"
+    },
+    {
+      "check_id": "2.1",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.replication.io_thread_running",
+      "source_module": "db_replication"
+    },
+    {
+      "check_id": "2.3",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.replication.gtid_consistent",
+      "source_module": "db_replication"
+    },
+    {
+      "check_id": "2.4",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.replication.semi_sync_status",
+      "source_module": "db_replication"
+    },
+    {
+      "check_id": "2.5",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.replication.semi_sync_timeout_ms",
+      "source_module": "db_replication"
+    },
+    {
+      "check_id": "2.6",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.replication.parallel_workers",
+      "source_module": "db_replication"
+    },
+    {
+      "check_id": "2.7",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.replication.mgr.member_state",
+      "source_module": "db_replication"
+    },
+    {
+      "check_id": "2.8",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.replication.mgr.consistency_level",
+      "source_module": "db_replication"
+    },
+    {
+      "check_id": "2.11",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.replication.relay_log_space_bytes",
+      "source_module": "db_replication"
+    },
+    {
+      "check_id": "2.12",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.replication.filter_rules",
+      "source_module": "db_replication"
+    },
+    {
+      "check_id": "3.1",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.basic_info.is_alive",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "3.2",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.basic_info.uptime_seconds",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "3.3",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.basic_info.crash_recovery_detected",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "3.4",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.basic_info.is_connectable",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "3.5",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.basic_info.recent_errors",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "3.7",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.connection_usage_percent",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "3.8",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.aborted_connects",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "4.3",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.slow_queries_count",
+      "source_module": "db_perf"
+    },
+    {
+      "check_id": "4.4",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.sql_analysis.top_sql_by_time",
+      "source_module": "db_perf"
+    },
+    {
+      "check_id": "4.5",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.sql_analysis.top_sql_explain",
+      "source_module": "db_perf"
+    },
+    {
+      "check_id": "4.6",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.full_scan_ratio",
+      "source_module": "db_perf"
+    },
+    {
+      "check_id": "4.7",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.innodb.buffer_pool_hit_ratio",
+      "source_module": "db_perf"
+    },
+    {
+      "check_id": "4.8",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.innodb.dirty_page_ratio",
+      "source_module": "db_perf"
+    },
+    {
+      "check_id": "4.9",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.thread_cache_hit_ratio",
+      "source_module": "db_perf"
+    },
+    {
+      "check_id": "4.10",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.opened_tables_per_second",
+      "source_module": "db_perf"
+    },
+    {
+      "check_id": "4.11",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.tmp_disk_table_ratio",
+      "source_module": "db_perf"
+    },
+    {
+      "check_id": "4.12",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.sort_merge_passes",
+      "source_module": "db_perf"
+    },
+    {
+      "check_id": "4.15",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.innodb.row_lock_time_avg_ms",
+      "source_module": "db_perf"
+    },
+    {
+      "check_id": "4.16",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.config_check.performance_schema",
+      "source_module": "db_perf"
+    },
+    {
+      "check_id": "4.17",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.sql_analysis.top_sql_by_count",
+      "source_module": "db_perf"
+    },
+    {
+      "check_id": "4.18",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.sql_analysis.top_sql_by_rows_scanned",
+      "source_module": "db_perf"
+    },
+    {
+      "check_id": "4.19",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.sql_analysis.full_scan_sqls",
+      "source_module": "db_perf"
+    },
+    {
+      "check_id": "4.20",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.sql_analysis.no_index_sqls",
+      "source_module": "db_perf"
+    },
+    {
+      "check_id": "5.1",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.security.root_remote_login",
+      "source_module": "db_security"
+    },
+    {
+      "check_id": "5.2",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.security.empty_password_users",
+      "source_module": "db_security"
+    },
+    {
+      "check_id": "5.4",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.security.password_expiry_days",
+      "source_module": "db_security"
+    },
+    {
+      "check_id": "5.5",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.security.login_failure_lockout",
+      "source_module": "db_security"
+    },
+    {
+      "check_id": "5.6",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.security.super_privilege_users",
+      "source_module": "db_security"
+    },
+    {
+      "check_id": "5.7",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.security.all_db_privilege_users",
+      "source_module": "db_security"
+    },
+    {
+      "check_id": "5.8",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.security.anonymous_users",
+      "source_module": "db_security"
+    },
+    {
+      "check_id": "5.9",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.security.test_database_exists",
+      "source_module": "db_security"
+    },
+    {
+      "check_id": "5.10",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.security.auth_plugin_check",
+      "source_module": "db_security"
+    },
+    {
+      "check_id": "5.11",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.security.ssl_enabled",
+      "source_module": "db_security"
+    },
+    {
+      "check_id": "5.12",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.security.audit_log_enabled",
+      "source_module": "db_security"
+    },
+    {
+      "check_id": "5.13",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.security.binlog_enabled",
+      "source_module": "db_security"
+    },
+    {
+      "check_id": "5.14",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.security.local_infile",
+      "source_module": "db_security"
+    },
+    {
+      "check_id": "5.15",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.security.skip_name_resolve",
+      "source_module": "db_security"
+    },
+    {
+      "check_id": "5.16",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.security.symbolic_links",
+      "source_module": "db_security"
+    },
+    {
+      "check_id": "6.1",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.backup.strategy_exists",
+      "source_module": "db_backup"
+    },
+    {
+      "check_id": "6.2",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.backup.last_full_backup_age_hours",
+      "source_module": "db_backup"
+    },
+    {
+      "check_id": "6.3",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.backup.last_backup_integrity",
+      "source_module": "db_backup"
+    },
+    {
+      "check_id": "6.4",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.backup.backup_size_trend",
+      "source_module": "db_backup"
+    },
+    {
+      "check_id": "6.5",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.backup.binlog_retention_policy",
+      "source_module": "db_backup"
+    },
+    {
+      "check_id": "6.6",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.backup.binlog_format",
+      "source_module": "db_backup"
+    },
+    {
+      "check_id": "6.7",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.backup.binlog_write_rate",
+      "source_module": "db_backup"
+    },
+    {
+      "check_id": "7.2",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.config_check.innodb_log_file_size",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "7.8",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.config_check.innodb_buffer_pool_instances",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "7.10",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.config_check.innodb_page_cleaners",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "7.11",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.config_check.innodb_undo_tablespaces",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "7.12",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.config_check.innodb_undo_log_truncate",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "7.13",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.config_check.tmp_table_size",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "7.14",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.config_check.join_buffer_size",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "7.15",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.config_check.sort_buffer_size",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "7.16",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.config_check.character_set",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "7.18",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.config_check.transaction_isolation",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "7.19",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.config_check.innodb_print_all_deadlocks",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "7.20",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.config_check.innodb_deadlock_detect",
+      "source_module": "db_basic"
+    },
+    {
+      "check_id": "8.1",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.database_sizes",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "8.3",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.fragmented_tables",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "8.4",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.ibdata1_size_bytes",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "8.5",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.undo_tablespace_size_bytes",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "8.6",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.temp_tablespace_size_bytes",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "8.7",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.binlog_disk_usage_bytes",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "8.8",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.log_file_sizes",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "9.1",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.tables_without_pk",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "9.2",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.unused_indexes",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "9.3",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.redundant_indexes",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "9.4",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.wide_tables",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "9.5",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.large_tables_without_index",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "9.6",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.foreign_keys",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "9.7",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.mixed_engines",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "9.8",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.triggers_procedures_events",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "9.9",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.table_index_counts",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "10.2",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.max_used_connections_ratio",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "10.3",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.auto_increment_usage",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "10.5",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.binlog_growth_rate_mb_per_day",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "10.6",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.storage.top_tables_by_rows",
+      "source_module": "db_storage"
+    },
+    {
+      "check_id": "11.1",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.deadlock_frequency",
+      "source_module": "db_lock"
+    },
+    {
+      "check_id": "11.2",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.latest_deadlock_info",
+      "source_module": "db_lock"
+    },
+    {
+      "check_id": "11.3",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.current_lock_waits",
+      "source_module": "db_lock"
+    },
+    {
+      "check_id": "11.4",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.long_transactions",
+      "source_module": "db_lock"
+    },
+    {
+      "check_id": "11.5",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.metadata_lock_waits",
+      "source_module": "db_lock"
+    },
+    {
+      "check_id": "11.6",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.innodb_lock_wait_timeout",
+      "source_module": "db_lock"
+    },
+    {
+      "check_id": "11.7",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.row_lock_waits_delta",
+      "source_module": "db_lock"
+    },
+    {
+      "check_id": "11.8",
+      "reason_type": "failed",
+      "reason": "no data extracted from path: db.performance.row_lock_time_stats",
+      "source_module": "db_lock"
+    }
+  ],
+  "na_items": []
+}
