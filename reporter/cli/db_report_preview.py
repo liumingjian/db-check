@@ -29,7 +29,7 @@ def build_parser() -> _ArgumentParser:
     parser.add_argument("--result", type=Path, required=True)
     parser.add_argument("--summary", type=Path, required=True)
     parser.add_argument("--meta", type=Path, required=True)
-    parser.add_argument("--out-md", type=Path, required=True)
+    parser.add_argument("--out-md", type=Path)
     parser.add_argument("--out-json", type=Path, required=True)
     return parser
 
@@ -45,9 +45,11 @@ def run(argv: Sequence[str] | None = None) -> int:
         meta = load_object(args.meta, "meta")
         validate_inputs(result, summary)
         report = build_mysql_report_view(result, summary, meta)
-        _write_text(args.out_md, render_markdown_preview(report))
+        if args.out_md is not None:
+            _write_text(args.out_md, render_markdown_preview(report))
         _write_text(args.out_json, json.dumps(report.to_dict(), ensure_ascii=False, indent=2) + "\n")
-        print(f"generated: {args.out_md}")
+        if args.out_md is not None:
+            print(f"generated: {args.out_md}")
         print(f"generated: {args.out_json}")
         return EXIT_OK
     except ReporterFailure as exc:

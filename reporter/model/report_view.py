@@ -11,6 +11,7 @@ class TableBlock:
     title: str
     columns: tuple[str, ...]
     rows: tuple[tuple[str, ...], ...] = ()
+    column_width_weights: tuple[int, ...] = ()
     field_notes: tuple[tuple[str, str], ...] = ()
     status: str = "collected"
     note: str = ""

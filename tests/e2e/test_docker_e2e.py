@@ -8,13 +8,37 @@ import unittest
 from pathlib import Path
 from typing import Any
 
+from docx import Document
+
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "tests" / "e2e" / "run_docker_e2e.sh"
 EXPECTED_VERSIONS = ("5.6", "5.7", "8.0")
 ARTIFACT_PATTERN = re.compile(r"^\[INFO\] artifacts\[(?P<version>[^\]]+)\]: (?P<path>.+)$", re.MULTILINE)
+SYSTEM_METRIC_LABELS = (
+    "CPU 使用率",
+    "CPU iowait",
+    "内存使用率",
+    "磁盘使用率",
+    "文件描述符使用率",
+    "MySQL fd 使用率",
+)
 
 
 class DockerE2ETests(unittest.TestCase):
+    def test_e2e_script_configures_remote_os_target(self) -> None:
+        script = SCRIPT.read_text(encoding="utf-8")
+        for expected in (
+            'OS_TARGET_HOST="127.0.0.1"',
+            'OS_TARGET_PORT="12222"',
+            'OS_TARGET_USER="root"',
+            'OS_TARGET_PASSWORD="rootpwd"',
+            '--os-host "$OS_TARGET_HOST"',
+            '--os-port "$OS_TARGET_PORT"',
+            '--os-username "$OS_TARGET_USER"',
+            '--os-password "$OS_TARGET_PASSWORD"',
+        ):
+            self.assertIn(expected, script)
+
     def test_run_docker_e2e_script(self) -> None:
         if os.getenv("DBCHECK_RUN_DOCKER_E2E") != "1":
             self.skipTest("set DBCHECK_RUN_DOCKER_E2E=1 to enable docker e2e")
@@ -36,10 +60,13 @@ class DockerE2ETests(unittest.TestCase):
                 report_meta = self._load_json(run_dir / "report-meta.json")
                 report_view = self._load_json(run_dir / "report-view.json")
                 report_markdown = self._load_text(run_dir / "report.md")
+                report_docx = self._load_docx(run_dir / "report.docx")
                 self._assert_db_path_coverage(summary)
                 self._assert_summary_semantics(summary)
                 self._assert_scenario_hits(result)
+                self._assert_remote_os_collection(result)
                 self._assert_markdown_report(version, report_markdown, report_meta, report_view, summary)
+                self._assert_docx_system_metrics(report_docx)
 
     def _extract_run_dirs(self, stdout_text: str) -> dict[str, Path]:
         matches = ARTIFACT_PATTERN.findall(stdout_text)
@@ -54,6 +81,10 @@ class DockerE2ETests(unittest.TestCase):
     def _load_text(self, path: Path) -> str:
         self.assertTrue(path.exists(), msg=f"missing text artifact: {path}")
         return path.read_text(encoding="utf-8")
+
+    def _load_docx(self, path: Path) -> Document:
+        self.assertTrue(path.exists(), msg=f"missing docx artifact: {path}")
+        return Document(str(path))
 
     def _items(self, payload: dict[str, Any], key: str) -> list[dict[str, Any]]:
         value = payload.get(key, {})
@@ -88,6 +119,14 @@ class DockerE2ETests(unittest.TestCase):
         self.assertNotIn("4.17", abnormal_ids)
         self.assertNotIn("4.18", abnormal_ids)
         self.assertNotIn("10.5", abnormal_ids)
+
+    def _assert_remote_os_collection(self, result: dict[str, Any]) -> None:
+        os_section = result.get("os", {}) if isinstance(result.get("os"), dict) else {}
+        system_info = os_section.get("system_info", {}) if isinstance(os_section.get("system_info"), dict) else {}
+        self.assertEqual("os-target", system_info.get("hostname"))
+        self.assertEqual("linux", str(system_info.get("os", "")).lower())
+        self.assertTrue(os_section.get("filesystem", {}).get("samples"))
+        self.assertTrue(os_section.get("network", {}).get("samples"))
 
     def _assert_scenario_hits(self, result: dict[str, Any]) -> None:
         db = result.get("db", {}) if isinstance(result.get("db"), dict) else {}
@@ -125,6 +164,12 @@ class DockerE2ETests(unittest.TestCase):
     ) -> None:
         title = report_meta.get("doc_info", {}).get("document_name", "")
         self.assertIn(title, report_markdown)
+        self.assertEqual("report.docx", title)
+        self.assertEqual("db-check", report_meta.get("doc_info", {}).get("author", ""))
+        self.assertEqual("db-check", report_meta.get("change_log", [{}])[0].get("author", ""))
+        self.assertEqual("mysql巡检报告", report_meta.get("change_log", [{}])[0].get("change", ""))
+        self.assertEqual("周海波", report_meta.get("review_log", [{}])[0].get("name", ""))
+        self.assertEqual(version, report_meta.get("scope", {}).get("database_version", ""))
         self.assertIn("## 文档控制", report_markdown)
         self.assertIn("## 第一章 巡检总结", report_markdown)
         self.assertIn("## 第二章 巡检明细", report_markdown)
@@ -162,12 +207,29 @@ class DockerE2ETests(unittest.TestCase):
         if version in {"5.7", "8.0"}:
             self.assertIn("ddl_lock_case", report_markdown)
         self.assertIn(str(summary.get("counts", {}).get("total_checks", "")), report_markdown)
-        self.assertIn(version, title)
         sections = report_view.get("sections", [])
         self.assertTrue(sections)
+        alarm_table = self._find_table(sections, "巡检告警定义")
+        self.assertIsNotNone(alarm_table)
+        self.assertEqual([12, 8, 58, 22], alarm_table.get("column_width_weights"))
+        health_table = self._find_table(sections, "综合健康评估")
+        self.assertIsNotNone(health_table)
+        self.assertEqual([18, 12, 70], health_table.get("column_width_weights"))
         metadata_lock_table = self._find_table(sections, "元数据锁信息")
         self.assertIsNotNone(metadata_lock_table)
         self.assertTrue(metadata_lock_table.get("field_notes"))
+
+    def _assert_docx_system_metrics(self, document: Document) -> None:
+        table = self._find_docx_table(document, "指标", "当前值", "说明")
+        self.assertIsNotNone(table, msg="系统指标表未生成到 report.docx")
+        value_by_label = {
+            row.cells[0].text.strip(): row.cells[1].text.strip()
+            for row in table.rows[1:]
+            if len(row.cells) >= 2
+        }
+        for label in SYSTEM_METRIC_LABELS:
+            self.assertIn(label, value_by_label, msg=f"系统指标缺少行: {label}")
+            self.assertNotEqual("", value_by_label[label], msg=f"系统指标值为空: {label}")
 
     def _find_table(self, sections: list[dict[str, Any]], table_title: str) -> dict[str, Any] | None:
         for section in sections:
@@ -185,6 +247,13 @@ class DockerE2ETests(unittest.TestCase):
                 continue
             table = self._find_table_in_section(child, table_title)
             if table:
+                return table
+        return None
+
+    def _find_docx_table(self, document: Document, *headers: str):
+        expected = list(headers)
+        for table in document.tables:
+            if [cell.text for cell in table.rows[0].cells] == expected:
                 return table
         return None
 

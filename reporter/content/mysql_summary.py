@@ -38,7 +38,7 @@ def build_summary_section(result: dict[str, Any], summary: dict[str, Any], meta:
 
 
 def _build_alarm_definitions() -> SectionBlock:
-    table = full_table("巡检告警定义", ("风险等级", "标识", "定义", "建议响应时效"), ALARM_DEFINITIONS, status="derived")
+    table = full_table("巡检告警定义", ("风险等级", "风险标识", "定义", "建议响应时效"), ALARM_DEFINITIONS, status="derived")
     return SectionBlock(title="1.1 巡检告警定义", status="derived", tables=(table,))
 
 
@@ -66,7 +66,7 @@ def _join_instances(instances: Any, meta_info: dict[str, Any]) -> str:
 def _build_health_assessment(result: dict[str, Any], summary: dict[str, Any]) -> SectionBlock:
     grouped = group_abnormal_items(summary)
     rows = tuple(_health_row(label, names, grouped, result) for label, names in business_dimensions())
-    table = full_table("综合健康评估", ("检查维度", "风险", "关键发现"), rows, status="derived")
+    table = full_table("综合健康评估", ("检查维度", "风险标识", "关键发现"), rows, status="derived")
     return SectionBlock(title="1.3 综合健康评估", status="derived", tables=(table,))
 
 
@@ -75,15 +75,14 @@ def _health_row(label: str, dimension_names: set[str], grouped: dict[str, list[d
     for name in dimension_names:
         items.extend(grouped.get(display_dimension_name(name), []))
     level, finding = health_summary(label, result, items)
-    risk_text = {"critical": "🔴 高风险", "warning": "🟡 中风险", "normal": "🟢 正常"}[level]
-    return (label, risk_text, finding)
+    return (label, {"critical": "🔴", "warning": "🟡", "normal": "🟢"}[level], finding)
 
 
 def _build_risk_findings(summary: dict[str, Any]) -> SectionBlock:
     rows = tuple(_risk_row(item) for item in _abnormal_items(summary))
     if not rows:
-        rows = (("🟢 正常", "-", "未发现异常项", "-", "无需整改"),)
-    table = full_table("风险发现与整改建议", ("风险等级", "检查维度", "风险描述", "影响分析", "整改建议"), rows, status="derived")
+        rows = (("🟢", "-", "未发现异常项", "-", "无需整改"),)
+    table = full_table("风险发现与整改建议", ("风险标识", "检查维度", "风险描述", "影响分析", "整改建议"), rows, status="derived")
     note = "仅列出存在风险的检查项，正常项不在此表展示。"
     return SectionBlock(title="1.4 风险发现与整改建议", status="derived", tables=(table,), note=note)
 
@@ -98,7 +97,7 @@ def _abnormal_items(summary: dict[str, Any]) -> list[dict[str, Any]]:
 def _risk_row(item: dict[str, Any]) -> tuple[str, str, str, str, str]:
     level = str(item.get("level", "warning"))
     return (
-        {"critical": "🔴 高风险", "warning": "🟡 中风险", "normal": "🟢 正常"}.get(level, level),
+        {"critical": "🔴", "warning": "🟡", "normal": "🟢"}.get(level, level),
         display_dimension_name(str(item.get("dimension_name", "-"))),
         risk_description(item),
         impact_analysis(item),

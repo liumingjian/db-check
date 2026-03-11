@@ -1,11 +1,12 @@
 package osinfo
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
-	"github.com/shirou/gopsutil/v3/net"
+	gnet "github.com/shirou/gopsutil/v3/net"
 )
 
 func collectFilesystemSample(s *snapshot) map[string]any {
@@ -47,7 +48,7 @@ func collectDiskIOSample(s *snapshot) map[string]any {
 		}
 		ioUtil := 0.0
 		if uptimeSeconds > 0 {
-			ioUtil = (float64(item.IoTime) / (uptimeSeconds * 10))
+			ioUtil = float64(item.IoTime) / (uptimeSeconds * 10)
 		}
 		devices = append(devices, map[string]any{
 			"name":                name,
@@ -61,7 +62,7 @@ func collectDiskIOSample(s *snapshot) map[string]any {
 }
 
 func collectNetworkSample(s *snapshot) map[string]any {
-	stats, err := net.IOCounters(true)
+	stats, err := safeNetworkCounters()
 	if err != nil {
 		s.addErr("network.counters", err)
 	}
@@ -79,6 +80,15 @@ func collectNetworkSample(s *snapshot) map[string]any {
 		})
 	}
 	return map[string]any{"timestamp": s.timestamp, "interfaces": interfaces}
+}
+
+func safeNetworkCounters() (_ []gnet.IOCountersStat, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("network counters panic: %v", recovered)
+		}
+	}()
+	return gnet.IOCounters(true)
 }
 
 func hostUptimeSeconds(s *snapshot) float64 {

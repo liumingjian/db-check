@@ -1,9 +1,9 @@
 {
   "doc_info": {
-    "document_name": "MySQL巡检报告",
+    "document_name": "report.docx",
     "inspection_time": "2026/03/10 10:26:59",
     "issue_date": "2026/03/10",
-    "author": "待补充",
+    "author": "db-check",
     "version": "v1.0"
   },
   "change_log": [
@@ -11,15 +11,15 @@
       "date": "2026/03/10",
       "author": "db-check",
       "version": "v1.0",
-      "change": "初始化报告内容层样例"
+      "change": "mysql巡检报告"
     }
   ],
   "review_log": [
     {
-      "name": "待补充",
-      "title": "待补充",
-      "contact": "待补充",
-      "email": "待补充"
+      "name": "周海波",
+      "title": "数据库技术经理",
+      "contact": "13570391044",
+      "email": "haibo.zhou@antute.com.cn"
     }
   ],
   "scope": {

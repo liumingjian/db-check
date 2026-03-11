@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Iterable, Sequence
 
+from reporter.content.table_layouts import resolve_column_width_weights
 from reporter.model.report_view import SectionBlock, TableBlock
 
 STATUS_LABELS = {
@@ -126,7 +127,7 @@ def format_time(value: str) -> str:
 
 def ensure_rows(rows: Iterable[tuple[str, ...]], note: str, status: str) -> TableBlock:
     items = tuple(rows)
-    return TableBlock(title="", columns=("说明",), rows=items, status=status, note=note)
+    return TableBlock(title="", columns=("说明",), rows=items, column_width_weights=(100,), status=status, note=note)
 
 
 def missing_table(title: str, note: str) -> TableBlock:
@@ -134,6 +135,7 @@ def missing_table(title: str, note: str) -> TableBlock:
         title=title,
         columns=("说明",),
         rows=((note,),),
+        column_width_weights=(100,),
         status="missing",
         note=note,
     )
@@ -144,13 +146,21 @@ def na_table(title: str, note: str) -> TableBlock:
         title=title,
         columns=("说明",),
         rows=((note,),),
+        column_width_weights=(100,),
         status="na",
         note=note,
     )
 
 
 def key_value_table(title: str, rows: Iterable[tuple[str, str]], status: str = "collected") -> TableBlock:
-    return TableBlock(title=title, columns=("参数名称", "当前值"), rows=tuple(rows), status=status)
+    columns = ("参数名称", "当前值")
+    return TableBlock(
+        title=title,
+        columns=columns,
+        rows=tuple(rows),
+        column_width_weights=resolve_column_width_weights(title, columns),
+        status=status,
+    )
 
 
 def full_table(
@@ -160,7 +170,15 @@ def full_table(
     status: str = "collected",
     note: str = "",
 ) -> TableBlock:
-    return TableBlock(title=title, columns=tuple(columns), rows=tuple(rows), status=status, note=note)
+    resolved_columns = tuple(columns)
+    return TableBlock(
+        title=title,
+        columns=resolved_columns,
+        rows=tuple(rows),
+        column_width_weights=resolve_column_width_weights(title, resolved_columns),
+        status=status,
+        note=note,
+    )
 
 
 def compact_table(
@@ -171,10 +189,12 @@ def compact_table(
     status: str = "collected",
     note: str = "",
 ) -> TableBlock:
+    resolved_columns = tuple(columns)
     return TableBlock(
         title=title,
-        columns=tuple(columns),
+        columns=resolved_columns,
         rows=tuple(rows),
+        column_width_weights=resolve_column_width_weights(title, resolved_columns),
         field_notes=tuple(field_notes),
         status=status,
         note=note,

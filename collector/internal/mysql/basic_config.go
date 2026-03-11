@@ -7,10 +7,17 @@ const recentErrorLimit = 20
 func (c *metricsCollector) collectBasicInfo(ctx context.Context) map[string]any {
 	uptime := c.statusInt64(ctx, "Uptime")
 	recentErrors := c.collectRecentErrors(ctx)
+	versionInfo := c.collectVersionInfo(ctx)
 	return map[string]any{
 		"is_alive":                true,
 		"is_connectable":          true,
 		"uptime_seconds":          uptime,
+		"version":                 versionInfo["version"],
+		"version_comment":         versionInfo["version_comment"],
+		"version_vars":            versionInfo["version_vars"],
+		"datadir":                 c.variableString(ctx, "datadir"),
+		"socket":                  c.variableString(ctx, "socket"),
+		"log_error":               c.variableString(ctx, "log_error"),
 		"crash_recovery_detected": c.detectCrashRecovery(ctx),
 		"recent_errors":           rowsPayload(recentErrors),
 		"connectivity_status":     "reachable",
@@ -18,6 +25,19 @@ func (c *metricsCollector) collectBasicInfo(ctx context.Context) map[string]any 
 		"db_port":                 c.cfg.DBPort,
 		"db_name":                 c.cfg.DBName,
 		"top_n":                   c.cfg.TopN,
+	}
+}
+
+func (c *metricsCollector) collectVersionInfo(ctx context.Context) map[string]any {
+	version := c.variableString(ctx, "version")
+	return map[string]any{
+		"version":         version,
+		"version_comment": c.variableString(ctx, "version_comment"),
+		"version_vars": map[string]any{
+			"version":                 version,
+			"version_compile_os":      c.variableString(ctx, "version_compile_os"),
+			"version_compile_machine": c.variableString(ctx, "version_compile_machine"),
+		},
 	}
 }
 
@@ -81,6 +101,9 @@ func (c *metricsCollector) collectConfigCheck(ctx context.Context) map[string]an
 		"tmp_table_size":                 c.variableInt64(ctx, "tmp_table_size"),
 		"join_buffer_size":               c.variableInt64(ctx, "join_buffer_size"),
 		"sort_buffer_size":               c.variableInt64(ctx, "sort_buffer_size"),
+		"datadir":                        c.variableString(ctx, "datadir"),
+		"socket":                         c.variableString(ctx, "socket"),
+		"log_error":                      c.variableString(ctx, "log_error"),
 		"character_set":                  characterSet,
 		"lower_case_table_names":         c.variableInt64(ctx, "lower_case_table_names"),
 		"transaction_isolation":          transactionIsolation,

@@ -3,14 +3,17 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 BASE_COMPOSE_FILE="$ROOT_DIR/tests/e2e/docker/docker-compose.yml"
-RULE_FILE="$ROOT_DIR/rules/mysql/rule.json"
-TEMPLATE_FILE="$ROOT_DIR/reporter/templates/mysql-template.docx"
 SCENARIO_SCRIPT="$ROOT_DIR/tests/e2e/docker/mysql/apply_scenarios.sh"
 RUNS_ROOT="$ROOT_DIR/tests/e2e/runs"
+BUILD_BIN_DIR="${BUILD_BIN_DIR:-$ROOT_DIR/tmp/e2e-bin}"
 TIMESTAMP="$(date +%Y%m%dT%H%M%S)"
 OUTPUT_DIR="$RUNS_ROOT/$TIMESTAMP"
 SUPPORTED_VERSIONS=("5.6" "5.7" "8.0")
 REQUESTED_VERSIONS=()
+OS_TARGET_HOST="127.0.0.1"
+OS_TARGET_PORT="12222"
+OS_TARGET_USER="root"
+OS_TARGET_PASSWORD="rootpwd"
 
 assert_commands() {
   command -v docker >/dev/null
@@ -109,20 +112,26 @@ stop_runtime_scenarios() {
 run_collector() {
   local db_port="$1"
   local output_dir="$2"
-  "$ROOT_DIR/bin/db-collector" \
+  "$BUILD_BIN_DIR/db-collector" \
     --db-type mysql \
     --db-host 127.0.0.1 \
     --db-port "$db_port" \
     --db-username root \
     --db-password rootpwd \
     --dbname dbcheck \
+    --os-host "$OS_TARGET_HOST" \
+    --os-port "$OS_TARGET_PORT" \
+    --os-username "$OS_TARGET_USER" \
+    --os-password "$OS_TARGET_PASSWORD" \
     --output-dir "$output_dir"
 }
 
-build_collector() {
+build_binaries() {
   echo "[INFO] building db-collector"
-  mkdir -p "$ROOT_DIR/bin"
-  GOCACHE=/tmp/go-cache go build -o "$ROOT_DIR/bin/db-collector" "$ROOT_DIR/collector/cmd/db-collector"
+  mkdir -p "$BUILD_BIN_DIR"
+  GOCACHE=/tmp/go-cache go build -o "$BUILD_BIN_DIR/db-collector" "$ROOT_DIR/collector/cmd/db-collector"
+  echo "[INFO] building db-reporter"
+  GOCACHE=/tmp/go-cache go build -o "$BUILD_BIN_DIR/db-reporter" "$ROOT_DIR/reporter/cmd/db-reporter"
 }
 
 extract_run_id() {
@@ -198,43 +207,14 @@ run_version_e2e() (
   report_view="$run_dir/report-view.json"
   report="$run_dir/report.docx"
 
-  echo "[INFO] running analyzer for MySQL $version"
-  python3 "$ROOT_DIR/analyzer/cli/db_analyzer.py" \
-    --manifest "$manifest" \
-    --result "$result" \
-    --rule "$RULE_FILE" \
-    --strict-schema \
-    --out "$summary"
-
-  echo "[INFO] generating report meta for MySQL $version"
-  python3 "$ROOT_DIR/reporter/cli/generate_report_meta.py" \
-    --result "$result" \
-    --summary "$summary" \
-    --mysql-version "$version" \
-    --out "$report_meta"
-
-  echo "[INFO] generating markdown report for MySQL $version"
-  python3 "$ROOT_DIR/reporter/cli/db_report_preview.py" \
-    --result "$result" \
-    --summary "$summary" \
-    --meta "$report_meta" \
+  echo "[INFO] running db-reporter for MySQL $version"
+  "$BUILD_BIN_DIR/db-reporter" \
+    --run-dir "$run_dir" \
     --out-md "$report_md" \
-    --out-json "$report_view"
-
-  echo "[INFO] rendering template docx for MySQL $version"
-  python3 "$ROOT_DIR/reporter/cli/render_template_docx.py" \
-    --report-md "$report_md" \
-    --report-view "$report_view" \
-    --template "$TEMPLATE_FILE" \
-    --out "$report"
-
-  echo "[INFO] validating contracts for MySQL $version"
-  python3 "$ROOT_DIR/tasks/validate_frozen_contracts.py" \
-    --manifest "$manifest" \
-    --result "$result" \
-    --summary "$summary" \
-    --rule "$RULE_FILE" \
-    --strict-schema
+    --out-docx "$report" \
+    --document-name "$(basename "$report")" \
+    --inspector "db-check" \
+    --mysql-version "$version"
 
   echo "[INFO] docker e2e succeeded for MySQL $version"
   echo "[INFO] artifacts[$version]: $run_dir"
@@ -246,7 +226,7 @@ main() {
   assert_commands
   assert_venv
   assert_python_deps
-  build_collector
+  build_binaries
   mkdir -p "$OUTPUT_DIR"
 
   for version in "${REQUESTED_VERSIONS[@]}"; do

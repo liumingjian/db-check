@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render a template-styled DOCX from report.md/report-view.json."""
+"""Render a template-styled DOCX from report-view.json."""
 
 from __future__ import annotations
 
@@ -23,11 +23,10 @@ class _ArgumentParser(argparse.ArgumentParser):
 
 
 def build_parser() -> _ArgumentParser:
-    parser = _ArgumentParser(description="Render template-styled docx from report markdown")
-    parser.add_argument("--report-md", type=Path, required=True)
+    parser = _ArgumentParser(description="Render template-styled docx from report view")
     parser.add_argument("--template", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--report-view", type=Path)
+    parser.add_argument("--report-view", type=Path, required=True)
     return parser
 
 
@@ -38,11 +37,9 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
 def run(argv: Sequence[str] | None = None) -> int:
     try:
         args = parse_args(argv)
-        ensure_file(args.report_md, "report-md")
         ensure_file(args.template, "template")
-        report_view = args.report_view or args.report_md.with_name("report-view.json")
-        ensure_file(report_view, "report-view")
-        render_template_docx(args.template, report_view, args.out)
+        ensure_file(args.report_view, "report-view")
+        render_template_docx(args.template, args.report_view, args.out)
         print(f"generated: {args.out}")
         return EXIT_OK
     except ReporterFailure as exc:

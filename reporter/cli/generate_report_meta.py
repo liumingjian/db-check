@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Sequence
@@ -17,9 +18,27 @@ if __package__ in {None, ""}:
 from reporter.model.errors import EXIT_INTERNAL_ERROR, EXIT_OK, EXIT_PARAM_ERROR, ReporterFailure  # noqa: E402
 from reporter.parser.contracts import ensure_file, load_object, validate_inputs  # noqa: E402
 
-DEFAULT_AUTHOR = "db-check"
+DEFAULT_INSPECTOR = "db-check"
 DEFAULT_TEMPLATE_VERSION = "v1.0"
-DEFAULT_DATA_DIR = "/var/lib/mysql"
+DEFAULT_CHANGE_DESCRIPTION = "mysql巡检报告"
+DEFAULT_REVIEW_NAME = "周海波"
+DEFAULT_REVIEW_TITLE = "数据库技术经理"
+DEFAULT_REVIEW_CONTACT = "13570391044"
+DEFAULT_REVIEW_EMAIL = "haibo.zhou@antute.com.cn"
+
+
+@dataclass(frozen=True)
+class MetaOptions:
+    mysql_version: str
+    inspector: str = DEFAULT_INSPECTOR
+    data_dir: str = ""
+    version_label: str = DEFAULT_TEMPLATE_VERSION
+    document_name: str = ""
+    change_description: str = DEFAULT_CHANGE_DESCRIPTION
+    review_name: str = DEFAULT_REVIEW_NAME
+    review_title: str = DEFAULT_REVIEW_TITLE
+    review_contact: str = DEFAULT_REVIEW_CONTACT
+    review_email: str = DEFAULT_REVIEW_EMAIL
 
 
 class _ArgumentParser(argparse.ArgumentParser):
@@ -33,8 +52,15 @@ def build_parser() -> _ArgumentParser:
     parser.add_argument("--summary", type=Path, required=True)
     parser.add_argument("--mysql-version", required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--author", default=DEFAULT_AUTHOR)
-    parser.add_argument("--data-dir", default=DEFAULT_DATA_DIR)
+    parser.add_argument("--inspector", default=DEFAULT_INSPECTOR)
+    parser.add_argument("--author", dest="inspector")
+    parser.add_argument("--document-name", default="")
+    parser.add_argument("--change-description", default=DEFAULT_CHANGE_DESCRIPTION)
+    parser.add_argument("--review-name", default=DEFAULT_REVIEW_NAME)
+    parser.add_argument("--review-title", default=DEFAULT_REVIEW_TITLE)
+    parser.add_argument("--review-contact", default=DEFAULT_REVIEW_CONTACT)
+    parser.add_argument("--review-email", default=DEFAULT_REVIEW_EMAIL)
+    parser.add_argument("--data-dir", default="")
     parser.add_argument("--version-label", default=DEFAULT_TEMPLATE_VERSION)
     return parser
 
@@ -47,7 +73,19 @@ def run(argv: Sequence[str] | None = None) -> int:
         result = load_object(args.result, "result")
         summary = load_object(args.summary, "summary")
         validate_inputs(result, summary)
-        meta = build_e2e_meta(result, summary, args.mysql_version, args.author, args.data_dir, args.version_label)
+        options = MetaOptions(
+            mysql_version=args.mysql_version,
+            inspector=args.inspector,
+            data_dir=args.data_dir,
+            version_label=args.version_label,
+            document_name=args.document_name or args.out.name,
+            change_description=args.change_description,
+            review_name=args.review_name,
+            review_title=args.review_title,
+            review_contact=args.review_contact,
+            review_email=args.review_email,
+        )
+        meta = build_report_meta(result, summary, options)
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"generated: {args.out}")
@@ -60,13 +98,10 @@ def run(argv: Sequence[str] | None = None) -> int:
         return EXIT_INTERNAL_ERROR
 
 
-def build_e2e_meta(
+def build_report_meta(
     result: dict[str, Any],
     summary: dict[str, Any],
-    mysql_version: str,
-    author: str,
-    data_dir: str,
-    version_label: str,
+    options: MetaOptions,
 ) -> dict[str, Any]:
     result_meta = result.get("meta", {}) if isinstance(result.get("meta"), dict) else {}
     collect_time = str(result_meta.get("collect_time", ""))
@@ -77,29 +112,34 @@ def build_e2e_meta(
     instance = f"{db_host}:{db_port}".strip(":")
     return {
         "doc_info": {
-            "document_name": f"MySQL {mysql_version} Docker E2E 巡检报告",
+            "document_name": options.document_name or "report.docx",
             "inspection_time": _inspection_time(collect_time),
             "issue_date": issue_date,
-            "author": author,
-            "version": version_label,
+            "author": options.inspector,
+            "version": options.version_label,
         },
         "change_log": [
             {
                 "date": issue_date,
-                "author": author,
-                "version": version_label,
-                "change": "基于 Docker e2e 真实采集结果生成 Markdown 巡检报告",
+                "author": options.inspector,
+                "version": options.version_label,
+                "change": options.change_description,
             }
         ],
         "review_log": [
-            {"name": "待补充", "title": "待补充", "contact": "待补充", "email": "待补充"}
+            {
+                "name": options.review_name,
+                "title": options.review_title,
+                "contact": options.review_contact,
+                "email": options.review_email,
+            }
         ],
         "scope": {
-            "inspection_target": f"Docker E2E MySQL {mysql_version}",
+            "inspection_target": _inspection_target(instance, options.mysql_version),
             "instances": [instance] if instance else [],
-            "database_version": mysql_version,
+            "database_version": options.mysql_version,
             "architecture_role": architecture_role,
-            "data_dir": data_dir,
+            "data_dir": _resolve_data_dir(result, options.data_dir),
         },
     }
 
@@ -130,6 +170,34 @@ def _architecture_role(result: dict[str, Any], summary: dict[str, Any]) -> str:
     if snapshot.get("Master_Host"):
         return "Replica"
     return "Replication Enabled / Unknown"
+
+
+def _inspection_target(instance: str, mysql_version: str) -> str:
+    if instance:
+        return instance
+    return f"MySQL {mysql_version}"
+
+
+def _resolve_data_dir(result: dict[str, Any], override: str) -> str:
+    if override:
+        return override
+    candidates = (
+        _nested_string(result, "db", "basic_info", "datadir"),
+        _nested_string(result, "db", "config_check", "datadir"),
+    )
+    for value in candidates:
+        if value:
+            return value
+    return "待补充"
+
+
+def _nested_string(node: dict[str, Any], *keys: str) -> str:
+    current: Any = node
+    for key in keys:
+        if not isinstance(current, dict):
+            return ""
+        current = current.get(key)
+    return current.strip() if isinstance(current, str) else ""
 
 
 if __name__ == "__main__":

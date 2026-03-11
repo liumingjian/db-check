@@ -471,7 +471,7 @@ def _resolve_artifact(run_dir: Path, p: Any) -> Path | None:
     return candidate
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Validate frozen contracts v1")
     parser.add_argument("--run-dir", type=Path, help="run directory containing manifest/result/summary artifacts")
     parser.add_argument("--manifest", type=Path, help="manifest.json path")
@@ -483,7 +483,12 @@ def main() -> int:
         action="store_true",
         help="fail validation when JSON Schema checks cannot be executed (e.g. missing jsonschema package)",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def run(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
 
     if not args.run_dir and not args.manifest:
         parser.error("either --run-dir or --manifest is required")
@@ -587,6 +592,10 @@ def main() -> int:
 
     print(f"Validation passed: 0 error(s), {len(v.warnings)} warning(s)")
     return 0
+
+
+def main() -> int:
+    return run()
 
 
 if __name__ == "__main__":

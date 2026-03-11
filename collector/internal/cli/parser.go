@@ -155,10 +155,6 @@ func applySSHArg(cfg *Config, state *parsedState, args []string, index int, arg 
 		state.SSHFlagsProvided = true
 		next, err := setStringValue(args, index, value, hasValue, &cfg.OSSSHKeyPath)
 		return true, next, err
-	case "--remote-collector-path":
-		state.SSHFlagsProvided = true
-		next, err := setStringValue(args, index, value, hasValue, &cfg.RemoteCollectorPath)
-		return true, next, err
 	default:
 		return false, index, nil
 	}

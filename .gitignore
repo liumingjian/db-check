@@ -20,9 +20,10 @@ __pycache__/
 coverage.xml
 htmlcov/
 
-# Local runtime artifacts
+# Local runtime / build artifacts
 tests/e2e/runs/
-bin/db-collector
+dist/
+bin/
 tmp/
 
 # Agent task artifacts

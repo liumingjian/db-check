@@ -5,10 +5,13 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/shirou/gopsutil/v3/process"
 )
+
+type fdLimit struct {
+	Cur uint64
+}
 
 func collectSystemInfo(s *snapshot, hostname string) map[string]any {
 	fdUsage, fdErr := processFDUsage()
@@ -42,9 +45,9 @@ func processFDUsage() (float64, error) {
 	if fdErr != nil {
 		return 0, fdErr
 	}
-	var limit syscall.Rlimit
-	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &limit); err != nil {
-		return 0, err
+	limit, limitErr := processFDLimit()
+	if limitErr != nil {
+		return 0, limitErr
 	}
 	if limit.Cur == 0 {
 		return 0, nil

@@ -61,7 +61,7 @@ func TestRunnerSuccessWithOSOnly(t *testing.T) {
 		DBCollector: stubCollector{},
 		OSCollector: stubCollector{payload: map[string]any{"system_info": map[string]any{"hostname": "demo"}}},
 		Writer:      writer,
-		Version:     "2.0.0",
+		Version:     "1.0.0",
 	})
 	if err != nil {
 		t.Fatalf("NewRunner failed: %v", err)
@@ -86,7 +86,7 @@ func TestRunnerPrecheckFailureReturnsExit30(t *testing.T) {
 		DBCollector: stubCollector{err: PrecheckError{Message: "ping failed"}},
 		OSCollector: stubCollector{payload: map[string]any{"system_info": map[string]any{"hostname": "demo"}}},
 		Writer:      writer,
-		Version:     "2.0.0",
+		Version:     "1.0.0",
 	})
 	if err != nil {
 		t.Fatalf("NewRunner failed: %v", err)
@@ -114,7 +114,7 @@ func TestRunnerWritesStructuredCollectorLog(t *testing.T) {
 		DBCollector: stubCollector{payload: map[string]any{"basic_info": map[string]any{"is_alive": true}}},
 		OSCollector: stubCollector{payload: map[string]any{"system_info": map[string]any{"hostname": "demo"}}},
 		Writer:      writer,
-		Version:     "2.0.0",
+		Version:     "1.0.0",
 	})
 	if err != nil {
 		t.Fatalf("NewRunner failed: %v", err)

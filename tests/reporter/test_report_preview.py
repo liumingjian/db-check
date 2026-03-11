@@ -4,9 +4,10 @@ import json
 import shutil
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
-from reporter.cli.generate_report_meta import build_e2e_meta
+from reporter.cli.generate_report_meta import MetaOptions, build_report_meta
 from reporter.cli.db_report_preview import run
 from reporter.content.mysql_report_builder import build_mysql_report_view
 from reporter.renderer.markdown_preview import render_markdown_preview
@@ -27,7 +28,9 @@ class ReportPreviewTests(unittest.TestCase):
         self.assertIn("## 第一章 巡检总结", markdown)
         self.assertIn("## 第二章 巡检明细", markdown)
         self.assertIn("### 2.2 MySQL基础信息", markdown)
-        self.assertIn("| 风险等级 | 标识 | 定义 | 建议响应时效 |", markdown)
+        self.assertIn("| 风险等级 | 风险标识 | 定义 | 建议响应时效 |", markdown)
+        self.assertIn("| 检查维度 | 风险标识 | 关键发现 |", markdown)
+        self.assertIn("| 风险标识 | 检查维度 | 风险描述 | 影响分析 | 整改建议 |", markdown)
         self.assertIn("| 指标 | 当前值 | 说明 |", markdown)
         self.assertIn("本次巡检共检查", markdown)
         self.assertIn("占用空间top 10的索引", markdown)
@@ -66,15 +69,45 @@ class ReportPreviewTests(unittest.TestCase):
         self.assertIn("当前实例未配置复制，本节按不适用处理。", markdown)
         self.assertIn("状态: 不适用", markdown)
 
-    def test_build_e2e_meta_uses_result_and_summary_defaults(self) -> None:
+    def test_build_report_meta_uses_result_and_summary_defaults(self) -> None:
+        result = json.loads((ROOT / "contracts" / "result.sample.json").read_text(encoding="utf-8"))
+        summary = json.loads((ROOT / "contracts" / "summary.sample.json").read_text(encoding="utf-8"))
+        options = MetaOptions(mysql_version="8.0", document_name="report.docx")
+
+        meta = build_report_meta(result, summary, options)
+
+        self.assertEqual("report.docx", meta["doc_info"]["document_name"])
+        self.assertEqual("db-check", meta["doc_info"]["author"])
+        self.assertEqual("db-check", meta["change_log"][0]["author"])
+        self.assertEqual("mysql巡检报告", meta["change_log"][0]["change"])
+        self.assertEqual("周海波", meta["review_log"][0]["name"])
+        self.assertEqual("Standalone", meta["scope"]["architecture_role"])
+        self.assertEqual("/data/mysql/", meta["scope"]["data_dir"])
+        self.assertEqual("192.168.1.101:3306", meta["scope"]["inspection_target"])
+
+    def test_build_report_meta_supports_custom_inspector_and_change_log(self) -> None:
+        result = json.loads((ROOT / "contracts" / "result.sample.json").read_text(encoding="utf-8"))
+        summary = json.loads((ROOT / "contracts" / "summary.sample.json").read_text(encoding="utf-8"))
+        options = replace(
+            MetaOptions(mysql_version="8.0", document_name="mysql巡检报告.docx"),
+            inspector="刘明建",
+            change_description="巡检报告首次出具",
+        )
+
+        meta = build_report_meta(result, summary, options)
+
+        self.assertEqual("mysql巡检报告.docx", meta["doc_info"]["document_name"])
+        self.assertEqual("刘明建", meta["doc_info"]["author"])
+        self.assertEqual("刘明建", meta["change_log"][0]["author"])
+        self.assertEqual("巡检报告首次出具", meta["change_log"][0]["change"])
+
+    def test_build_report_meta_uses_override_data_dir_when_provided(self) -> None:
         result = json.loads((ROOT / "contracts" / "result.sample.json").read_text(encoding="utf-8"))
         summary = json.loads((ROOT / "contracts" / "summary.sample.json").read_text(encoding="utf-8"))
 
-        meta = build_e2e_meta(result, summary, "8.0", "db-check", "/var/lib/mysql", "v1.0")
+        meta = build_report_meta(result, summary, MetaOptions(mysql_version="8.0", data_dir="/custom/mysql"))
 
-        self.assertEqual("MySQL 8.0 Docker E2E 巡检报告", meta["doc_info"]["document_name"])
-        self.assertEqual("Standalone", meta["scope"]["architecture_role"])
-        self.assertEqual("/var/lib/mysql", meta["scope"]["data_dir"])
+        self.assertEqual("/custom/mysql", meta["scope"]["data_dir"])
 
     def test_preview_cli_generates_report_markdown_and_json(self) -> None:
         temp_path = Path(tempfile.mkdtemp())
@@ -113,9 +146,40 @@ class ReportPreviewTests(unittest.TestCase):
             self.assertIn("当前 contracts 在 MySQL 5.6/5.7/8.0 上尚未形成一致的组件级内存分布明细", markdown)
             payload = json.loads(out_json.read_text(encoding="utf-8"))
             self.assertIn("sections", payload)
+            alarm_table = self._find_table(payload["sections"], "巡检告警定义")
+            self.assertIsNotNone(alarm_table)
+            self.assertEqual([12, 8, 58, 22], alarm_table["column_width_weights"])
+            health_table = self._find_table(payload["sections"], "综合健康评估")
+            self.assertIsNotNone(health_table)
+            self.assertEqual([18, 12, 70], health_table["column_width_weights"])
             metadata_lock_table = self._find_table(payload["sections"], "元数据锁信息")
             self.assertIsNotNone(metadata_lock_table)
             self.assertTrue(metadata_lock_table["field_notes"])
+            self.assertEqual([10, 12, 12, 16, 18, 16, 16], metadata_lock_table["column_width_weights"])
+        finally:
+            shutil.rmtree(temp_path, ignore_errors=True)
+
+    def test_preview_cli_can_generate_report_view_without_markdown(self) -> None:
+        temp_path = Path(tempfile.mkdtemp())
+        try:
+            out_json = temp_path / "report-view.json"
+            code = run(
+                [
+                    "--result",
+                    str(ROOT / "contracts" / "result.sample.json"),
+                    "--summary",
+                    str(ROOT / "contracts" / "summary.sample.json"),
+                    "--meta",
+                    str(ROOT / "reporter" / "templates" / "report-meta.sample.json"),
+                    "--out-json",
+                    str(out_json),
+                ]
+            )
+            self.assertEqual(code, 0)
+            self.assertTrue(out_json.exists())
+            self.assertFalse((temp_path / "report.md").exists())
+            payload = json.loads(out_json.read_text(encoding="utf-8"))
+            self.assertIn("sections", payload)
         finally:
             shutil.rmtree(temp_path, ignore_errors=True)
 
