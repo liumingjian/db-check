@@ -68,7 +68,7 @@ func Usage() string {
   --rule-file            自定义规则文件，默认使用内置规则
   --template-file        自定义 Word 模板，默认使用内置模板
   --python-bin           指定 Python 可执行文件，默认 python3
-  --mysql-version        无法自动识别版本时手动指定
+  --mysql-version        无法自动识别版本时手动指定数据库版本
   --help                 显示帮助
 `
 }
@@ -77,7 +77,7 @@ func defaultConfig() Config {
 	return Config{
 		DocumentName:      "",
 		Inspector:         "db-check",
-		ChangeDescription: "mysql巡检报告",
+		ChangeDescription: "",
 		ReviewName:        "周海波",
 		ReviewTitle:       "数据库技术经理",
 		ReviewContact:     "13570391044",

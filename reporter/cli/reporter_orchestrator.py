@@ -97,10 +97,10 @@ def run(argv: Sequence[str] | None = None) -> int:
         options = parse_args(argv)
         paths = build_paths(options.run_dir)
         ensure_inputs(options, paths)
-        mysql_version = options.mysql_version or detect_mysql_version(paths.result)
-        if not mysql_version:
-            raise RuntimeError("无法从 result.json 自动识别 MySQL 版本，请显式传入 --mysql-version")
-        report_view_code = run_pipeline(options, paths, mysql_version)
+        db_version = options.mysql_version or detect_db_version(paths.result)
+        if not db_version:
+            raise RuntimeError("无法从 result.json 自动识别数据库版本，请显式传入 --mysql-version")
+        report_view_code = run_pipeline(options, paths, db_version)
         if report_view_code != EXIT_OK:
             return report_view_code
         return validate_outputs(paths, options.rule_file)
@@ -151,7 +151,7 @@ def required_paths(paths: Paths, options: Options) -> list[tuple[str, Path]]:
     ]
 
 
-def detect_mysql_version(result_path: Path) -> str | None:
+def detect_db_version(result_path: Path) -> str | None:
     result = load_json(result_path)
     candidates = [
         nested_value(result, "db", "basic_info", "version"),
@@ -172,7 +172,7 @@ def nested_value(node: dict[str, Any], *keys: str) -> Any:
     return current
 
 
-def run_pipeline(options: Options, paths: Paths, mysql_version: str) -> int:
+def run_pipeline(options: Options, paths: Paths, db_version: str) -> int:
     summary_code = run_stage(
         "analyze",
         run_analyzer,
@@ -181,7 +181,7 @@ def run_pipeline(options: Options, paths: Paths, mysql_version: str) -> int:
     )
     if summary_code != EXIT_OK:
         return summary_code
-    meta_code = run_stage("meta", run_meta, meta_args(paths, options, mysql_version), EXIT_REPORT_ERROR)
+    meta_code = run_stage("meta", run_meta, meta_args(paths, options, db_version), EXIT_REPORT_ERROR)
     if meta_code != EXIT_OK:
         return meta_code
     view_code = run_stage("report-view", run_report_view, report_view_args(paths, options), EXIT_REPORT_ERROR)
@@ -200,11 +200,11 @@ def analyzer_args(paths: Paths, rule_file: Path) -> list[str]:
     ]
 
 
-def meta_args(paths: Paths, options: Options, mysql_version: str) -> list[str]:
+def meta_args(paths: Paths, options: Options, db_version: str) -> list[str]:
     return [
         "--result", str(paths.result),
         "--summary", str(paths.summary),
-        "--mysql-version", mysql_version,
+        "--mysql-version", db_version,
         "--document-name", options.document_name,
         "--inspector", options.inspector,
         "--change-description", options.change_description,

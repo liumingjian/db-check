@@ -13,7 +13,7 @@ if __package__ in {None, ""}:
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from reporter.content.mysql_report_builder import build_mysql_report_view  # noqa: E402
+from reporter.content.report_builder import build_report_view  # noqa: E402
 from reporter.model.errors import EXIT_INTERNAL_ERROR, EXIT_OK, EXIT_PARAM_ERROR, ReporterFailure  # noqa: E402
 from reporter.parser.contracts import ensure_file, load_object, validate_inputs  # noqa: E402
 from reporter.renderer.markdown_preview import render_markdown_preview  # noqa: E402
@@ -44,7 +44,7 @@ def run(argv: Sequence[str] | None = None) -> int:
         summary = load_object(args.summary, "summary")
         meta = load_object(args.meta, "meta")
         validate_inputs(result, summary)
-        report = build_mysql_report_view(result, summary, meta)
+        report = build_report_view(result, summary, meta)
         if args.out_md is not None:
             _write_text(args.out_md, render_markdown_preview(report))
         _write_text(args.out_json, json.dumps(report.to_dict(), ensure_ascii=False, indent=2) + "\n")

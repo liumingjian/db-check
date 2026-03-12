@@ -1,0 +1,9 @@
+services:
+  oracle:
+    image: wnameless/oracle-xe-11g-r2
+    platform: linux/amd64
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+    ports:
+      - "11521:1521"

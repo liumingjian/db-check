@@ -7,7 +7,7 @@ GO_CACHE ?= /tmp/go-cache
 COLLECTOR_BIN := $(TMP_BIN_DIR)/db-collector
 REPORTER_BIN := $(TMP_BIN_DIR)/db-reporter
 
-.PHONY: help init-python build build-collector build-reporter test-reporter test-integration test-e2e release clean
+.PHONY: help init-python build build-collector build-reporter build-osprobes test-reporter test-integration test-e2e release clean
 
 help: ## 显示可用目标与示例
 	@printf "db-check Make targets\n\n"
@@ -26,8 +26,13 @@ init-python: ## 在已激活的 .venv 中安装 Python 依赖
 
 build: build-collector build-reporter ## 编译两个客户入口到 bin
 
+build-osprobes: ## 生成嵌入式远程 OS helper 资产
+	@./scripts/build_embedded_osprobes.sh
+	@printf "built embedded os probes\n"
+
 build-collector: ## 编译 db-collector 到 bin
 	@mkdir -p "$(TMP_BIN_DIR)"
+	@./scripts/build_embedded_osprobes.sh
 	@GOCACHE=$(GO_CACHE) go build -o "$(COLLECTOR_BIN)" ./collector/cmd/db-collector
 	@printf "built %s\n" "$(COLLECTOR_BIN)"
 

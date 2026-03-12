@@ -37,6 +37,28 @@ def base_rule(checks: list[dict]) -> dict:
 
 
 class RuleEngineTests(unittest.TestCase):
+    def test_source_module_overrides_check_id_mapping(self) -> None:
+        manifest = base_manifest()
+        manifest["module_stats"]["db_backup"] = {"status": "failed", "duration_ms": 1, "error": "backup query failed"}
+        result = base_result()
+        rule = base_rule(
+            [
+                {
+                    "check_id": "99.1",
+                    "name": "backup health",
+                    "priority": "P0",
+                    "source_module": "db_backup",
+                    "extract": {"json_path": "db.backup.jobs", "aggregation": "raw"},
+                    "evaluation": {"method": "row_count"},
+                }
+            ]
+        )
+
+        summary = generate_summary(manifest, result, rule)
+
+        self.assertEqual(1, summary["counts"]["unevaluated"])
+        self.assertEqual("db_backup", summary["unevaluated_items"][0]["source_module"])
+
     def test_gate_marks_dimension_as_not_applicable(self) -> None:
         manifest = base_manifest()
         result = base_result()

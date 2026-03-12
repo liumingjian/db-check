@@ -1,18 +1,26 @@
 # db-check
 
-`db-check` 是一个面向企业内网数据库巡检场景的双入口工具链，用于完成 MySQL 指标采集、规则分析和 Word 巡检报告生成。
+`db-check` 是一个面向企业内网数据库巡检场景的双入口工具链，用于完成数据库与主机指标采集、规则分析和 Word 巡检报告生成。
 
 当前正式入口只有两个：
 - `db-collector`：采集数据库与 OS 指标，产出标准 `run` 目录
 - `db-reporter`：基于 `run` 目录生成 `summary.json`、`report-meta.json`、`report-view.json` 和最终 `report.docx`
 
-当前主实现覆盖 MySQL `5.6 / 5.7 / 8.0`。
+当前正式实现覆盖：
+- MySQL `5.6 / 5.7 / 8.0`
+- Oracle `11g / 19c`
+
+当前版本里，MySQL 与 Oracle 都已经打通以下完整链路：
+- `db-collector` 采集数据库 + OS 指标，生成标准 `run` 目录
+- `db-reporter` 自动识别 `db_type`，生成 `summary.json`、`report-meta.json`、`report-view.json` 和 `report.docx`
+- 第一章“巡检总结”使用统一模板，关键指标会在 Word 报告中加粗高亮显示
 
 ## 核心能力
 
-- 采集 MySQL 与 OS 关键巡检指标，输出标准化 contracts 产物
+- 采集 MySQL / Oracle 与 OS 关键巡检指标，输出标准化 contracts 产物
 - 基于规则自动分析风险，生成结构化 `summary.json`
 - 基于统一 `ReportView` 和 Word 模板生成正式巡检报告
+- 远程 OS 采集通过 SSH 下发临时 `db-osprobe` 二进制执行，避免依赖目标机 `sar/free/vmstat/iostat`
 - 支持 Linux / macOS / Windows 多平台发布包构建
 - 支持 Docker 多版本 e2e 验证，保证采集、分析、报告链路一致
 
@@ -69,6 +77,8 @@ make build
 
 ### 4. 执行采集
 
+MySQL 示例：
+
 ```bash
 ./bin/db-collector \
   --db-type mysql \
@@ -80,7 +90,20 @@ make build
   --output-dir ./runs
 ```
 
-如需同时采集远程主机 OS（Linux over SSH），增加 SSH 参数：
+Oracle 示例：
+
+```bash
+./bin/db-collector \
+  --db-type oracle \
+  --db-host 127.0.0.1 \
+  --db-port 1521 \
+  --db-username system \
+  --db-password oraclepwd \
+  --dbname ORCL \
+  --output-dir ./runs
+```
+
+如需同时采集远程主机 OS（Linux over SSH），增加 SSH 参数。当前远程 OS 采集会通过 SSH 自动上传临时 helper 二进制执行，不依赖目标机预装 `sar/free/vmstat/iostat`：
 
 ```bash
 ./bin/db-collector \
@@ -91,6 +114,23 @@ make build
   --db-password ATT@2022 \
   --dbname mysql \
   --os-host 10.250.0.24 \
+  --os-port 22 \
+  --os-username root \
+  --os-password ATT@2022 \
+  --output-dir ./runs
+```
+
+Oracle + 远程 OS 示例：
+
+```bash
+./bin/db-collector \
+  --db-type oracle \
+  --db-host 10.250.0.222 \
+  --db-port 1522 \
+  --db-username system \
+  --db-password 123456aB \
+  --dbname xe \
+  --os-host 10.250.0.222 \
   --os-port 22 \
   --os-username root \
   --os-password ATT@2022 \
@@ -225,6 +265,28 @@ dist/
 - `assets/`
 - `runtime/`
 - `QUICKSTART.md`
+
+其中：
+- `assets/rules/mysql/rule.json`
+- `assets/rules/oracle/rule.json`
+- `assets/templates/mysql-template.docx`
+
+都会随发布包一起交付。
+
+## E2E 覆盖
+
+当前 Docker e2e 覆盖以下数据库版本：
+- MySQL `5.6 / 5.7 / 8.0`
+- Oracle `11g / 19c`
+
+执行方式：
+
+```bash
+source .venv/bin/activate
+tests/e2e/run_docker_e2e.sh --mysql-version 5.6 --mysql-version 5.7 --mysql-version 8.0
+tests/e2e/run_docker_e2e.sh --db-type oracle --oracle-version 11g
+tests/e2e/run_docker_e2e.sh --db-type oracle --oracle-version 19c
+```
 
 ## run 目录说明
 
@@ -361,7 +423,11 @@ make init-python
 --mysql-version <version>
 ```
 
-### 5. 如何执行完整端到端测试
+### 5. Oracle 的 `--dbname` 表示什么
+
+Oracle 路径下，`--dbname` 表示 `SID/实例名`，不是 `service name`。
+
+### 6. 如何执行完整端到端测试
 
 ```bash
 source .venv/bin/activate

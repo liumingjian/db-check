@@ -12,7 +12,8 @@ from docx import Document
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "tests" / "e2e" / "run_docker_e2e.sh"
-EXPECTED_VERSIONS = ("5.6", "5.7", "8.0")
+EXPECTED_MYSQL_VERSIONS = ("5.6", "5.7", "8.0")
+EXPECTED_ORACLE_VERSIONS = ("11g", "19c")
 ARTIFACT_PATTERN = re.compile(r"^\[INFO\] artifacts\[(?P<version>[^\]]+)\]: (?P<path>.+)$", re.MULTILINE)
 SYSTEM_METRIC_LABELS = (
     "CPU 使用率",
@@ -21,6 +22,14 @@ SYSTEM_METRIC_LABELS = (
     "磁盘使用率",
     "文件描述符使用率",
     "MySQL fd 使用率",
+)
+OS_SECTION_HEADINGS = (
+    "CPU与调度",
+    "系统与进程",
+    "内存明细",
+    "文件系统明细",
+    "磁盘IO明细",
+    "网络接口明细",
 )
 
 
@@ -32,12 +41,29 @@ class DockerE2ETests(unittest.TestCase):
             'OS_TARGET_PORT="12222"',
             'OS_TARGET_USER="root"',
             'OS_TARGET_PASSWORD="rootpwd"',
+            '"$ROOT_DIR/scripts/build_embedded_osprobes.sh"',
             '--os-host "$OS_TARGET_HOST"',
             '--os-port "$OS_TARGET_PORT"',
             '--os-username "$OS_TARGET_USER"',
             '--os-password "$OS_TARGET_PASSWORD"',
         ):
             self.assertIn(expected, script)
+
+    def test_e2e_script_supports_oracle_versions(self) -> None:
+        script = SCRIPT.read_text(encoding="utf-8")
+        for expected in (
+            'DB_TYPE="mysql"',
+            'ORACLE_VERSIONS=("11g" "19c")',
+            '--db-type',
+            '--oracle-version',
+            'docker-compose.oracle11g.yml',
+            'docker-compose.oracle19c.yml',
+            '--db-type oracle',
+            '--rule-file "$ROOT_DIR/rules/oracle/rule.json"',
+        ):
+            self.assertIn(expected, script)
+        compose_19c = (ROOT / "tests" / "e2e" / "docker" / "docker-compose.oracle19c.yml").read_text(encoding="utf-8")
+        self.assertIn("docker.cnb.cool/kangaroohy/open-source/images/oracle:19.19.0-ee-arm64", compose_19c)
 
     def test_run_docker_e2e_script(self) -> None:
         if os.getenv("DBCHECK_RUN_DOCKER_E2E") != "1":
@@ -52,7 +78,7 @@ class DockerE2ETests(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}")
         run_dirs = self._extract_run_dirs(completed.stdout)
-        self.assertEqual(set(EXPECTED_VERSIONS), set(run_dirs))
+        self.assertEqual(set(EXPECTED_MYSQL_VERSIONS), set(run_dirs))
         for version, run_dir in run_dirs.items():
             with self.subTest(mysql_version=version):
                 result = self._load_json(run_dir / "result.json")
@@ -67,6 +93,14 @@ class DockerE2ETests(unittest.TestCase):
                 self._assert_remote_os_collection(result)
                 self._assert_markdown_report(version, report_markdown, report_meta, report_view, summary)
                 self._assert_docx_system_metrics(report_docx)
+
+    def test_oracle_compose_files_exist(self) -> None:
+        self.assertTrue((ROOT / "tests" / "e2e" / "docker" / "docker-compose.oracle-base.yml").exists())
+        self.assertTrue((ROOT / "tests" / "e2e" / "docker" / "docker-compose.oracle11g.yml").exists())
+        self.assertTrue((ROOT / "tests" / "e2e" / "docker" / "docker-compose.oracle19c.yml").exists())
+        self.assertTrue((ROOT / "tests" / "e2e" / "docker" / "oracle" / "apply_scenarios.sh").exists())
+        self.assertTrue((ROOT / "collector" / "internal" / "osprobeassets" / "bin" / "linux-amd64" / "db-osprobe.gz").exists())
+        self.assertTrue((ROOT / "collector" / "internal" / "osprobeassets" / "bin" / "linux-arm64" / "db-osprobe.gz").exists())
 
     def _extract_run_dirs(self, stdout_text: str) -> dict[str, Path]:
         matches = ARTIFACT_PATTERN.findall(stdout_text)
@@ -222,6 +256,9 @@ class DockerE2ETests(unittest.TestCase):
     def _assert_docx_system_metrics(self, document: Document) -> None:
         table = self._find_docx_table(document, "指标", "当前值", "说明")
         self.assertIsNotNone(table, msg="系统指标表未生成到 report.docx")
+        paragraph_texts = {paragraph.text.strip() for paragraph in document.paragraphs if paragraph.text.strip()}
+        for heading in OS_SECTION_HEADINGS:
+            self.assertIn(heading, paragraph_texts, msg=f"系统指标章节缺失: {heading}")
         value_by_label = {
             row.cells[0].text.strip(): row.cells[1].text.strip()
             for row in table.rows[1:]

@@ -47,6 +47,8 @@ class TemplateDocxRendererTests(unittest.TestCase):
             self.assertNotIn("第一章 巡检总结", texts)
             self.assertLess(texts.index("文档控制"), len(texts) - 1)
             self.assertEqual(texts[0], "")
+            for heading in ("CPU与调度", "系统与进程", "内存明细", "文件系统明细", "磁盘IO明细", "网络接口明细"):
+                self.assertIn(heading, texts)
             self.assertGreater(len(document.tables), 5)
             self.assertEqual(document.tables[0].style.name, "Table Grid")
             alarm_table = self._find_table(document, "风险等级", "风险标识", "定义", "建议响应时效")
@@ -61,7 +63,7 @@ class TemplateDocxRendererTests(unittest.TestCase):
             self.assertGreater(health_widths[2], health_widths[1])
             xml = self._document_xml(out_docx)
             self.assertIn("Apple Color Emoji", xml)
-            self.assertIn('w:type="page"', xml)
+            self.assertGreaterEqual(xml.count('w:type="page"'), 2)
             self.assertIn("w:tblBorders", xml)
             self.assertIn('<w:tblW w:type="dxa"', xml)
             self.assertIn('<w:gridCol w:w="996"/>', xml)
@@ -70,6 +72,7 @@ class TemplateDocxRendererTests(unittest.TestCase):
             self.assertIn('<w:gridCol w:w="1829"/>', xml)
             self.assertIn('<w:gridCol w:w="1495"/>', xml)
             self.assertIn('<w:gridCol w:w="5815"/>', xml)
+            self.assertIn('w:highlight w:val="yellow"', xml)
             self.assertIn("风险标识", "\n".join(cell.text for table in document.tables for row in table.rows for cell in row.cells))
             system_table = self._find_table(document, "指标", "当前值", "说明")
             self.assertIsNotNone(system_table)
@@ -82,6 +85,10 @@ class TemplateDocxRendererTests(unittest.TestCase):
             self.assertEqual("3.40%", value_by_label.get("CPU iowait"))
             self.assertEqual("82.00%", value_by_label.get("内存使用率"))
             self.assertEqual("36.00%", value_by_label.get("磁盘使用率"))
+            memory_table = self._find_table(document, "参数名称", "当前值")
+            self.assertIsNotNone(memory_table)
+            io_table = self._find_table(document, "设备", "IOPS", "总吞吐", "平均时延", "IO利用率")
+            self.assertIsNotNone(io_table)
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 

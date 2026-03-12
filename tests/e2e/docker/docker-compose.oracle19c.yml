@@ -1,0 +1,15 @@
+services:
+  oracle:
+    image: docker.cnb.cool/kangaroohy/open-source/images/oracle:19.19.0-ee-arm64
+    platform: linux/arm64
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+    environment:
+      ORACLE_SID: ORCLCDB
+      ORACLE_PDB: ORCLPDB1
+      ORACLE_PWD: oraclepwd
+      ORACLE_CHARACTERSET: AL32UTF8
+      ENABLE_ARCHIVELOG: "true"
+    ports:
+      - "11919:1521"

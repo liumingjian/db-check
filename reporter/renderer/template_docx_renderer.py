@@ -15,6 +15,7 @@ from docx.oxml.ns import qn
 from docx.shared import Pt, RGBColor, Twips
 
 from reporter.model.errors import EXIT_OUTPUT_ERROR, EXIT_RENDER_ERROR, EXIT_TEMPLATE_ERROR, ReporterFailure
+from reporter.renderer.inline_markup import append_inline_runs
 from reporter.renderer.table_widths import apply_table_geometry, column_widths
 
 HEADER_FILL = "DEEAF6"
@@ -102,10 +103,14 @@ def _render_section(
 
 
 def _maybe_add_page_break(document: Document, level: int, doc_control: bool, chapter_state: dict[str, int]) -> None:
-    if doc_control or level != 0:
+    if level != 0:
         return
-    if chapter_state["top_level_count"] > 0:
+    if doc_control:
+        chapter_state["doc_control_rendered"] = 1
+        return
+    if chapter_state["top_level_count"] > 0 or chapter_state.get("doc_control_rendered", 0) > 0:
         document.add_page_break()
+    chapter_state["doc_control_rendered"] = 0
     chapter_state["top_level_count"] += 1
 
 
@@ -133,8 +138,7 @@ def _add_custom_heading(document: Document, title: str, size: int) -> None:
 
 def _add_body_paragraph(document: Document, text: str) -> None:
     paragraph = document.add_paragraph(style="Normal")
-    run = paragraph.add_run(text)
-    _set_run_font(run, "宋体", CAPTION_SIZE, color=BODY_COLOR)
+    append_inline_runs(paragraph, text, "宋体", CAPTION_SIZE, BODY_COLOR, _set_run_font)
 
 
 def _add_quote(document: Document, text: str) -> None:
@@ -187,9 +191,8 @@ def _fill_row(cells: Any, columns: tuple[str, ...], row: tuple[str, ...], widths
         use_emoji = columns[idx] in RISK_ICON_COLUMNS
         _set_cell_alignment(cell, use_emoji)
         paragraph = cell.paragraphs[0]
-        run = paragraph.add_run(row[idx])
         font_name = EMOJI_FONT if use_emoji else "宋体"
-        _set_run_font(run, font_name, TABLE_FONT_SIZE, color=BODY_COLOR)
+        append_inline_runs(paragraph, row[idx], font_name, TABLE_FONT_SIZE, BODY_COLOR, _set_run_font, use_emoji)
 
 
 def _add_field_notes(document: Document, field_notes: list[list[str]] | list[tuple[str, str]]) -> None:
@@ -244,6 +247,7 @@ def _set_run_font(run: Any, font_name: str, size_pt: float, bold: bool | None = 
         run.bold = bold
     if color is not None:
         run.font.color.rgb = color
+
 
 
 def _status_label(status: str) -> str:

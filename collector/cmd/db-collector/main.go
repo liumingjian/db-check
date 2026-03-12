@@ -6,6 +6,7 @@ import (
 	"dbcheck/collector/internal/core"
 	"dbcheck/collector/internal/model"
 	"dbcheck/collector/internal/mysql"
+	"dbcheck/collector/internal/oracle"
 	"dbcheck/collector/internal/osinfo"
 	"dbcheck/collector/internal/output"
 	"errors"
@@ -32,9 +33,14 @@ func run() int {
 		fmt.Println(cli.Version)
 		return core.ExitSuccess
 	}
+	dbCollector, err := newDBCollector(cfg.DBType)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "初始化失败: %v\n", err)
+		return core.ExitPrecheckFailed
+	}
 	runner, err := core.NewRunner(core.Dependencies{
 		Clock:       model.RealClock{},
-		DBCollector: mysql.Collector{},
+		DBCollector: dbCollector,
 		OSCollector: osinfo.Collector{},
 		Writer:      output.FileWriter{},
 		Version:     cli.Version,
@@ -58,4 +64,15 @@ func run() int {
 		fmt.Printf("result=%s\n", artifacts.ResultPath)
 	}
 	return artifacts.Manifest.ExitCode
+}
+
+func newDBCollector(dbType string) (core.DBCollector, error) {
+	switch dbType {
+	case "mysql":
+		return mysql.Collector{}, nil
+	case "oracle":
+		return oracle.Collector{}, nil
+	default:
+		return nil, fmt.Errorf("unsupported db-type: %s", dbType)
+	}
 }

@@ -15,12 +15,13 @@ if __package__ in {None, ""}:
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from reporter.content.helpers import unwrap_items  # noqa: E402
 from reporter.model.errors import EXIT_INTERNAL_ERROR, EXIT_OK, EXIT_PARAM_ERROR, ReporterFailure  # noqa: E402
 from reporter.parser.contracts import ensure_file, load_object, validate_inputs  # noqa: E402
 
 DEFAULT_INSPECTOR = "db-check"
 DEFAULT_TEMPLATE_VERSION = "v1.0"
-DEFAULT_CHANGE_DESCRIPTION = "mysql巡检报告"
+DEFAULT_CHANGE_DESCRIPTION = ""
 DEFAULT_REVIEW_NAME = "周海波"
 DEFAULT_REVIEW_TITLE = "数据库技术经理"
 DEFAULT_REVIEW_CONTACT = "13570391044"
@@ -29,7 +30,8 @@ DEFAULT_REVIEW_EMAIL = "haibo.zhou@antute.com.cn"
 
 @dataclass(frozen=True)
 class MetaOptions:
-    mysql_version: str
+    database_version: str
+    db_type: str
     inspector: str = DEFAULT_INSPECTOR
     data_dir: str = ""
     version_label: str = DEFAULT_TEMPLATE_VERSION
@@ -50,7 +52,7 @@ def build_parser() -> _ArgumentParser:
     parser = _ArgumentParser(description="Generate report-meta.json from result and summary")
     parser.add_argument("--result", type=Path, required=True)
     parser.add_argument("--summary", type=Path, required=True)
-    parser.add_argument("--mysql-version", required=True)
+    parser.add_argument("--mysql-version")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--inspector", default=DEFAULT_INSPECTOR)
     parser.add_argument("--author", dest="inspector")
@@ -73,13 +75,19 @@ def run(argv: Sequence[str] | None = None) -> int:
         result = load_object(args.result, "result")
         summary = load_object(args.summary, "summary")
         validate_inputs(result, summary)
+        db_type = _db_type(result)
+        database_version = str(args.mysql_version or _database_version(result)).strip()
+        if not database_version:
+            raise ReporterFailure(EXIT_PARAM_ERROR, "缺少数据库版本，且无法从 result 中识别")
+        change_description = args.change_description or _default_change_description(db_type)
         options = MetaOptions(
-            mysql_version=args.mysql_version,
+            database_version=database_version,
+            db_type=db_type,
             inspector=args.inspector,
             data_dir=args.data_dir,
             version_label=args.version_label,
             document_name=args.document_name or args.out.name,
-            change_description=args.change_description,
+            change_description=change_description,
             review_name=args.review_name,
             review_title=args.review_title,
             review_contact=args.review_contact,
@@ -108,7 +116,6 @@ def build_report_meta(
     db_host = str(result_meta.get("db_host", ""))
     db_port = result_meta.get("db_port", "")
     issue_date = _issue_date(collect_time)
-    architecture_role = _architecture_role(result, summary)
     instance = f"{db_host}:{db_port}".strip(":")
     return {
         "doc_info": {
@@ -135,10 +142,10 @@ def build_report_meta(
             }
         ],
         "scope": {
-            "inspection_target": _inspection_target(instance, options.mysql_version),
+            "inspection_target": _inspection_target(instance, options.db_type, options.database_version),
             "instances": [instance] if instance else [],
-            "database_version": options.mysql_version,
-            "architecture_role": architecture_role,
+            "database_version": options.database_version,
+            "architecture_role": _architecture_role(result, summary, options.db_type),
             "data_dir": _resolve_data_dir(result, options.data_dir),
         },
     }
@@ -160,7 +167,10 @@ def _parse_time(raw: str) -> datetime:
     return datetime.fromisoformat(raw.replace("Z", "+00:00"))
 
 
-def _architecture_role(result: dict[str, Any], summary: dict[str, Any]) -> str:
+def _architecture_role(result: dict[str, Any], summary: dict[str, Any], db_type: str) -> str:
+    if db_type == "oracle":
+        basic = result.get("db", {}).get("basic_info", {}) if isinstance(result.get("db", {}).get("basic_info"), dict) else {}
+        return "RAC" if bool(basic.get("is_rac")) else "Standalone"
     na_items = summary.get("na_items", []) if isinstance(summary.get("na_items"), list) else []
     na_ids = {item.get("check_id") for item in na_items if isinstance(item, dict)}
     replication = result.get("db", {}).get("replication", {}) if isinstance(result.get("db", {}).get("replication"), dict) else {}
@@ -172,10 +182,11 @@ def _architecture_role(result: dict[str, Any], summary: dict[str, Any]) -> str:
     return "Replication Enabled / Unknown"
 
 
-def _inspection_target(instance: str, mysql_version: str) -> str:
+def _inspection_target(instance: str, db_type: str, database_version: str) -> str:
     if instance:
         return instance
-    return f"MySQL {mysql_version}"
+    label = db_type.upper() if db_type else "DB"
+    return f"{label} {database_version}".strip()
 
 
 def _resolve_data_dir(result: dict[str, Any], override: str) -> str:
@@ -188,7 +199,34 @@ def _resolve_data_dir(result: dict[str, Any], override: str) -> str:
     for value in candidates:
         if value:
             return value
+    oracle_files = result.get("db", {}).get("storage", {}).get("datafiles", {})
+    if isinstance(oracle_files, dict):
+        for item in unwrap_items(oracle_files):
+            file_name = _nested_string(item, "file_name")
+            if "/" in file_name:
+                return file_name.rsplit("/", 1)[0]
     return "待补充"
+
+
+def _db_type(result: dict[str, Any]) -> str:
+    return str(result.get("meta", {}).get("db_type", "")).strip().lower()
+
+
+def _database_version(result: dict[str, Any]) -> str:
+    candidates = (
+        _nested_string(result, "db", "basic_info", "version"),
+        _nested_string(result, "db", "basic_info", "version_vars", "version"),
+    )
+    for value in candidates:
+        if value:
+            return value
+    return ""
+
+
+def _default_change_description(db_type: str) -> str:
+    if db_type == "oracle":
+        return "oracle巡检报告"
+    return "mysql巡检报告"
 
 
 def _nested_string(node: dict[str, Any], *keys: str) -> str:

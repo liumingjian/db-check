@@ -7,14 +7,15 @@ import (
 
 const (
 	DefaultDBType            = "mysql"
-	DefaultDBPort            = 3306
+	DefaultMySQLPort         = 3306
+	DefaultOraclePort        = 1521
 	DefaultOutputDir         = "./output"
 	DefaultLogPath           = "./logs"
 	DefaultLogLevel          = "INFO"
 	DefaultSQLTimeoutSeconds = 180
 	DefaultTopN              = 20
 	DefaultOSPort            = 22
-	Version                  = "1.0.0"
+	Version                  = "1.1.0"
 )
 
 var ErrShowHelp = errors.New("show help")
@@ -63,9 +64,7 @@ func ParseArgs(args []string) (Config, error) {
 	if cfg.ShowHelp {
 		return cfg, ErrShowHelp
 	}
-	if hasOracleInput(cfg, args) {
-		return Config{}, errors.New("检测到 Oracle 专用输入，v2.0 仅支持 mysql，请先完成参数迁移")
-	}
+	fillDerivedPort(&cfg)
 	if err := validateCommon(cfg, state); err != nil {
 		return Config{}, err
 	}
@@ -81,18 +80,19 @@ func ParseArgs(args []string) (Config, error) {
 }
 
 func Usage() string {
-	return `db-collector --db-type mysql [连接参数] [采集参数]
+	return `db-collector --db-type <mysql|oracle> [连接参数] [采集参数]
 
 最短命令：
   db-collector --db-type mysql --db-host 127.0.0.1 --db-port 3306 --db-username root --db-password rootpwd --dbname dbcheck --output-dir ./runs
+  db-collector --db-type oracle --db-host 127.0.0.1 --db-port 1521 --db-username system --db-password oraclepwd --dbname ORCL --output-dir ./runs
 
 核心参数：
-  --db-type/-t                数据库类型，仅支持 mysql
+  --db-type/-t                数据库类型，支持 mysql / oracle
   --db-host/-h                数据库地址（远程模式必填）
-  --db-port/-P                数据库端口，默认 3306
+  --db-port/-P                数据库端口，mysql 默认 3306，oracle 默认 1521
   --db-username/-u            数据库用户名（非 --os-only 必填）
   --db-password/-p            数据库密码（非 --os-only 必填）
-  --dbname/-d                 数据库名（非 --os-only 必填）
+  --dbname/-d                 数据库名；Oracle 路径下表示 SID/实例名（非 --os-only 必填）
   --local                     本地 OS 采集模式
   --os-only                   仅采集 OS（旁路）
   --os-skip                   跳过 OS 采集
@@ -117,7 +117,6 @@ OS 采样参数：
 func defaultConfig() Config {
 	return Config{
 		DBType:            DefaultDBType,
-		DBPort:            DefaultDBPort,
 		OutputDir:         DefaultOutputDir,
 		LogPath:           DefaultLogPath,
 		LogLevel:          DefaultLogLevel,
@@ -127,16 +126,18 @@ func defaultConfig() Config {
 	}
 }
 
-func hasOracleInput(cfg Config, args []string) bool {
-	if strings.EqualFold(cfg.DBType, "oracle") {
-		return true
+func fillDerivedPort(cfg *Config) {
+	if cfg.DBPort > 0 {
+		return
 	}
-	for _, arg := range args {
-		if strings.Contains(strings.ToLower(arg), "oracle") {
-			return true
-		}
+	cfg.DBPort = defaultDBPort(cfg.DBType)
+}
+
+func defaultDBPort(dbType string) int {
+	if dbType == "oracle" {
+		return DefaultOraclePort
 	}
-	return false
+	return DefaultMySQLPort
 }
 
 func fillDerivedDefaults(cfg *Config) {

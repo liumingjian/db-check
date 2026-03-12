@@ -35,11 +35,16 @@ func TestParseArgsRequiresDBInMainFlow(t *testing.T) {
 	}
 }
 
-func TestParseArgsRejectsOracleInput(t *testing.T) {
-	args := []string{"--db-type", "oracle", "--os-only"}
-	_, err := ParseArgs(args)
-	if err == nil {
-		t.Fatalf("expected oracle rejection")
+func TestParseArgsAcceptsOracleInput(t *testing.T) {
+	cfg, err := ParseArgs([]string{"--db-type", "oracle", "--db-host", "10.0.0.1", "--db-username", "system", "--db-password", "secret", "--dbname", "ORCL"})
+	if err != nil {
+		t.Fatalf("ParseArgs failed: %v", err)
+	}
+	if cfg.DBType != "oracle" {
+		t.Fatalf("unexpected db type: %s", cfg.DBType)
+	}
+	if cfg.DBPort != DefaultOraclePort {
+		t.Fatalf("expected oracle default port %d, got %d", DefaultOraclePort, cfg.DBPort)
 	}
 }
 
@@ -79,5 +84,15 @@ func TestParseArgsMainFlowUsesRemoteOSByDefault(t *testing.T) {
 	}
 	if !cfg.UseRemoteOS {
 		t.Fatalf("expected UseRemoteOS=true for remote main flow")
+	}
+}
+
+func TestParseArgsMySQLDefaultsPortTo3306(t *testing.T) {
+	cfg, err := ParseArgs([]string{"--db-type", "mysql", "--db-host", "10.0.0.1", "--db-username", "root", "--db-password", "secret", "--dbname", "mysql"})
+	if err != nil {
+		t.Fatalf("ParseArgs failed: %v", err)
+	}
+	if cfg.DBPort != DefaultMySQLPort {
+		t.Fatalf("expected mysql default port %d, got %d", DefaultMySQLPort, cfg.DBPort)
 	}
 }

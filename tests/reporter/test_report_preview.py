@@ -27,10 +27,15 @@ class ReportPreviewTests(unittest.TestCase):
         self.assertEqual(report.sections[0].title, "文档控制")
         self.assertIn("## 第一章 巡检总结", markdown)
         self.assertIn("## 第二章 巡检明细", markdown)
+        self.assertIn("### 2.1 系统指标", markdown)
+        self.assertIn("#### 2.1.3 内存明细", markdown)
+        self.assertIn("#### 2.1.5 磁盘IO明细", markdown)
         self.assertIn("### 2.2 MySQL基础信息", markdown)
         self.assertIn("| 风险等级 | 风险标识 | 定义 | 建议响应时效 |", markdown)
         self.assertIn("| 检查维度 | 风险标识 | 关键发现 |", markdown)
         self.assertIn("| 风险标识 | 检查维度 | 风险描述 | 影响分析 | 整改建议 |", markdown)
+        self.assertIn("巡检结论摘要", markdown)
+        self.assertIn("**中风险**", markdown)
         self.assertIn("| 指标 | 当前值 | 说明 |", markdown)
         self.assertIn("本次巡检共检查", markdown)
         self.assertIn("占用空间top 10的索引", markdown)
@@ -52,7 +57,7 @@ class ReportPreviewTests(unittest.TestCase):
                 "backup": {},
                 "sql_analysis": {},
             },
-            "os": {"cpu": {"samples": []}, "memory": {"samples": []}, "filesystem": [], "system_info": {}},
+            "os": {"cpu": {"samples": []}, "memory": {"samples": []}, "filesystem": {"samples": []}, "system_info": {}},
         }
         summary = {
             "generated_at": "2026-03-10T10:00:00+08:00",
@@ -72,7 +77,7 @@ class ReportPreviewTests(unittest.TestCase):
     def test_build_report_meta_uses_result_and_summary_defaults(self) -> None:
         result = json.loads((ROOT / "contracts" / "result.sample.json").read_text(encoding="utf-8"))
         summary = json.loads((ROOT / "contracts" / "summary.sample.json").read_text(encoding="utf-8"))
-        options = MetaOptions(mysql_version="8.0", document_name="report.docx")
+        options = MetaOptions(database_version="8.0", db_type="mysql", document_name="report.docx", change_description="mysql巡检报告")
 
         meta = build_report_meta(result, summary, options)
 
@@ -89,7 +94,7 @@ class ReportPreviewTests(unittest.TestCase):
         result = json.loads((ROOT / "contracts" / "result.sample.json").read_text(encoding="utf-8"))
         summary = json.loads((ROOT / "contracts" / "summary.sample.json").read_text(encoding="utf-8"))
         options = replace(
-            MetaOptions(mysql_version="8.0", document_name="mysql巡检报告.docx"),
+            MetaOptions(database_version="8.0", db_type="mysql", document_name="mysql巡检报告.docx"),
             inspector="刘明建",
             change_description="巡检报告首次出具",
         )
@@ -105,7 +110,7 @@ class ReportPreviewTests(unittest.TestCase):
         result = json.loads((ROOT / "contracts" / "result.sample.json").read_text(encoding="utf-8"))
         summary = json.loads((ROOT / "contracts" / "summary.sample.json").read_text(encoding="utf-8"))
 
-        meta = build_report_meta(result, summary, MetaOptions(mysql_version="8.0", data_dir="/custom/mysql"))
+        meta = build_report_meta(result, summary, MetaOptions(database_version="8.0", db_type="mysql", data_dir="/custom/mysql"))
 
         self.assertEqual("/custom/mysql", meta["scope"]["data_dir"])
 
@@ -152,6 +157,10 @@ class ReportPreviewTests(unittest.TestCase):
             health_table = self._find_table(payload["sections"], "综合健康评估")
             self.assertIsNotNone(health_table)
             self.assertEqual([18, 12, 70], health_table["column_width_weights"])
+            conclusion_table = self._find_table(payload["sections"], "巡检结论摘要")
+            self.assertIsNotNone(conclusion_table)
+            self.assertEqual([20, 80], conclusion_table["column_width_weights"])
+            self.assertTrue(any("**" in row[1] for row in conclusion_table["rows"]))
             metadata_lock_table = self._find_table(payload["sections"], "元数据锁信息")
             self.assertIsNotNone(metadata_lock_table)
             self.assertTrue(metadata_lock_table["field_notes"])

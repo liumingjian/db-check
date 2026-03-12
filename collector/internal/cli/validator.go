@@ -6,8 +6,8 @@ import (
 )
 
 func validateCommon(cfg Config, state parsedState) error {
-	if cfg.DBType != "mysql" {
-		return errors.New("--db-type 仅允许 mysql；Oracle 输入已废弃，请使用迁移链路")
+	if cfg.DBType != "mysql" && cfg.DBType != "oracle" {
+		return errors.New("--db-type 仅允许 mysql 或 oracle")
 	}
 	if cfg.DBPort <= 0 {
 		return errors.New("--db-port 必须 > 0")
