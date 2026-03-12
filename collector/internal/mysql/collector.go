@@ -14,7 +14,7 @@ import (
 
 type Collector struct{}
 
-func (Collector) Collect(ctx context.Context, cfg cli.Config) (map[string]any, error) {
+func (Collector) Collect(ctx context.Context, cfg cli.Config, _ string, _ core.ArtifactWriter) (map[string]any, error) {
 	db, err := openDB(ctx, cfg)
 	if err != nil {
 		return nil, err

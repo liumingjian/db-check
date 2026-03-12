@@ -117,6 +117,7 @@ def build_report_meta(
     db_port = result_meta.get("db_port", "")
     issue_date = _issue_date(collect_time)
     instance = f"{db_host}:{db_port}".strip(":")
+    change_description = options.change_description or _default_change_description(options.db_type)
     return {
         "doc_info": {
             "document_name": options.document_name or "report.docx",
@@ -130,7 +131,7 @@ def build_report_meta(
                 "date": issue_date,
                 "author": options.inspector,
                 "version": options.version_label,
-                "change": options.change_description,
+                "change": change_description,
             }
         ],
         "review_log": [
@@ -171,6 +172,10 @@ def _architecture_role(result: dict[str, Any], summary: dict[str, Any], db_type:
     if db_type == "oracle":
         basic = result.get("db", {}).get("basic_info", {}) if isinstance(result.get("db", {}).get("basic_info"), dict) else {}
         return "RAC" if bool(basic.get("is_rac")) else "Standalone"
+    if db_type == "gaussdb":
+        cluster = result.get("db", {}).get("cluster", {}) if isinstance(result.get("db", {}).get("cluster"), dict) else {}
+        visible_count = cluster.get("visible_count", 0)
+        return "Cluster" if isinstance(visible_count, int) and visible_count > 0 else "Standalone"
     na_items = summary.get("na_items", []) if isinstance(summary.get("na_items"), list) else []
     na_ids = {item.get("check_id") for item in na_items if isinstance(item, dict)}
     replication = result.get("db", {}).get("replication", {}) if isinstance(result.get("db", {}).get("replication"), dict) else {}
@@ -195,6 +200,8 @@ def _resolve_data_dir(result: dict[str, Any], override: str) -> str:
     candidates = (
         _nested_string(result, "db", "basic_info", "datadir"),
         _nested_string(result, "db", "config_check", "datadir"),
+        _nested_string(result, "db", "basic_info", "summary", "gausshome"),
+        _nested_string(result, "db", "basic_info", "summary", "pghost"),
     )
     for value in candidates:
         if value:
@@ -216,6 +223,8 @@ def _database_version(result: dict[str, Any]) -> str:
     candidates = (
         _nested_string(result, "db", "basic_info", "version"),
         _nested_string(result, "db", "basic_info", "version_vars", "version"),
+        _nested_string(result, "db", "basic_info", "summary", "version"),
+        _nested_string(result, "db", "basic_info", "summary", "gaussdb_version"),
     )
     for value in candidates:
         if value:
@@ -226,6 +235,8 @@ def _database_version(result: dict[str, Any]) -> str:
 def _default_change_description(db_type: str) -> str:
     if db_type == "oracle":
         return "oracle巡检报告"
+    if db_type == "gaussdb":
+        return "gaussdb巡检报告"
     return "mysql巡检报告"
 
 

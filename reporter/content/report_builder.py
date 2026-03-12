@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from reporter.content.gaussdb_report_builder import build_gaussdb_report_view
 from reporter.content.mysql_report_builder import build_mysql_report_view
 from reporter.content.oracle_report_builder import build_oracle_report_view
 from reporter.model.errors import EXIT_CONTRACT_ERROR, ReporterFailure
@@ -16,6 +17,8 @@ def build_report_view(result: dict[str, Any], summary: dict[str, Any], meta: dic
         return build_mysql_report_view(result, summary, meta)
     if db_type == "oracle":
         return build_oracle_report_view(result, summary, meta)
+    if db_type == "gaussdb":
+        return build_gaussdb_report_view(result, summary, meta)
     raise ReporterFailure(EXIT_CONTRACT_ERROR, f"暂不支持的 db_type: {db_type}")
 
 

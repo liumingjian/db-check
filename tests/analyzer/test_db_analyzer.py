@@ -11,6 +11,198 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class AnalyzerCLITests(unittest.TestCase):
+    def test_generates_summary_for_gaussdb_rule(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            manifest = {
+                "schema_version": "1.0",
+                "run_id": "gaussdb-10.0.0.9-20260312T003000Z",
+                "db_type": "gaussdb",
+                "start_time": "2026-03-12T00:30:00+08:00",
+                "end_time": "2026-03-12T00:30:05+08:00",
+                "exit_code": 0,
+                "overall_status": "success",
+                "module_stats": {
+                    "os": {"status": "success", "duration_ms": 10, "error": None},
+                    "db_basic": {"status": "success", "duration_ms": 10, "error": None},
+                },
+                "artifacts": {"log": "collector.log", "result": "result.json", "summary": None, "report": None},
+            }
+            result = {
+                "meta": {
+                    "schema_version": "2.0",
+                    "collector_version": "1.1.0",
+                    "db_type": "gaussdb",
+                    "db_host": "10.0.0.9",
+                    "db_port": 8000,
+                    "db_name": "postgres",
+                    "collect_time": "2026-03-12T00:30:05+08:00",
+                    "timezone": "Asia/Shanghai",
+                },
+                "collect_config": {
+                    "sample_mode": "single",
+                    "sample_interval_seconds": None,
+                    "sample_period_seconds": None,
+                    "expected_samples": 1,
+                },
+                "collect_window": {
+                    "window_start": "2026-03-12T00:30:00+08:00",
+                    "window_end": "2026-03-12T00:30:05+08:00",
+                    "duration_seconds": 5,
+                },
+                "os": {
+                    "cpu": {"samples": [{"timestamp": "2026-03-12T00:30:05+08:00", "usage_percent": 86.2}]},
+                    "memory": {"samples": [{"timestamp": "2026-03-12T00:30:05+08:00", "usage_percent": 72.5}]},
+                    "filesystem": {"samples": [{"timestamp": "2026-03-12T00:30:05+08:00", "mountpoints": [{"usage_percent": 78.0}]}]},
+                },
+                "db": {
+                    "basic_info": {
+                        "summary": {
+                            "gauss_user": "Ruby",
+                            "gauss_env_file": "~/gauss_env_file",
+                            "checkdbconnection_status": "abnormal",
+                            "checkommonitor_status": "normal",
+                            "checkgaussver_status": "normal",
+                        },
+                        "items": [
+                            {"item": "CheckDBConnection", "normalized_status": "abnormal", "summary": "database connection failed"},
+                            {"item": "CheckGaussVer", "normalized_status": "normal", "summary": "version ok"},
+                        ],
+                        "count": 2,
+                        "visible_count": 2,
+                    },
+                    "cluster": {
+                        "summary": {
+                            "checkclusterstate_status": "normal",
+                            "checkintegrity_status": "normal",
+                            "checkreadonlymode_status": "normal",
+                            "checkcatchup_status": "not_applicable",
+                            "checkdnsync_status": "not_applicable",
+                            "checkdnwait_status": "not_applicable",
+                            "checkpgxcredistb_status": "not_applicable",
+                            "checknodegroupname_status": "not_applicable",
+                        },
+                        "items": [
+                            {"item": "CheckClusterState", "normalized_status": "normal", "summary": "cluster ok"},
+                            {"item": "CheckReadonlyMode", "normalized_status": "normal", "summary": "readwrite"},
+                            {"item": "CheckCatchup", "normalized_status": "not_applicable", "summary": ""},
+                        ],
+                        "count": 3,
+                        "visible_count": 2,
+                    },
+                    "config_check": {
+                        "summary": {
+                            "checkdbparams_status": "abnormal",
+                            "checkgucvalue_status": "normal",
+                            "checkgucconsistent_status": "normal",
+                        },
+                        "items": [
+                            {"item": "CheckDBParams", "normalized_status": "abnormal", "summary": "parameter drift"},
+                            {"item": "CheckGUCConsistent", "normalized_status": "normal", "summary": "consistent"},
+                        ],
+                        "count": 2,
+                        "visible_count": 2,
+                    },
+                    "connection": {
+                        "summary": {
+                            "checkcurconncount_status": "normal",
+                            "checkcursornum_status": "abnormal",
+                            "checkpoolernum_status": "not_applicable",
+                        },
+                        "items": [
+                            {"item": "CheckCurConnCount", "normalized_status": "normal", "summary": "ok"},
+                            {"item": "CheckCursorNum", "normalized_status": "abnormal", "summary": "cursor leak"},
+                            {"item": "CheckPoolerNum", "normalized_status": "not_applicable", "summary": ""},
+                        ],
+                        "count": 3,
+                        "visible_count": 2,
+                    },
+                    "storage": {
+                        "summary": {
+                            "checktablespace_status": "abnormal",
+                            "checkhashindex_status": "normal",
+                            "checkdilatesystab_status": "not_applicable",
+                            "checksystable_status": "normal",
+                            "checkkeydbtablesize_status": "normal",
+                        },
+                        "items": [
+                            {"item": "CheckTableSpace", "normalized_status": "abnormal", "summary": "tablespace full"},
+                            {"item": "CheckHashIndex", "normalized_status": "normal", "summary": "ok"},
+                        ],
+                        "count": 2,
+                        "visible_count": 2,
+                    },
+                    "performance": {
+                        "summary": {
+                            "checkdbstat_status": "not_applicable",
+                            "checkbphitratio_status": "normal",
+                            "checkerrorinlog_status": "normal",
+                        },
+                        "items": [{"item": "CheckBPHitRatio", "normalized_status": "normal", "summary": "buffer hit ratio ok"}],
+                        "count": 1,
+                        "visible_count": 1,
+                    },
+                    "transactions": {
+                        "summary": {
+                            "checklocknum_status": "abnormal",
+                            "checkidlesession_status": "normal",
+                            "checkpgpreparedxacts_status": "abnormal",
+                            "checkworkloadtrx_status": "not_applicable",
+                        },
+                        "items": [
+                            {"item": "CheckLockNum", "normalized_status": "abnormal", "summary": "lock hotspot"},
+                            {"item": "CheckIdleSession", "normalized_status": "normal", "summary": "ok"},
+                            {"item": "CheckPgPreparedXacts", "normalized_status": "abnormal", "summary": "prepared xact remained"},
+                        ],
+                        "count": 3,
+                        "visible_count": 3,
+                    },
+                    "sql_analysis": {
+                        "summary": {
+                            "checkreturntype_status": "normal",
+                            "no_index_table_count": 0,
+                            "no_primary_key_table_count": 0,
+                            "no_statistics_table_count": 0,
+                        },
+                        "items": [{"item": "CheckReturnType", "normalized_status": "normal", "summary": "ok"}],
+                        "count": 1,
+                        "visible_count": 1,
+                    },
+                    "security": {"summary": {}, "items": [], "count": 0, "visible_count": 0},
+                    "gs_check_raw_index": {"items": [], "count": 0},
+                },
+            }
+
+            manifest_path = temp_path / "manifest.json"
+            result_path = temp_path / "result.json"
+            out_path = temp_path / "summary.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            result_path.write_text(json.dumps(result), encoding="utf-8")
+
+            code = run(
+                [
+                    "--manifest",
+                    str(manifest_path),
+                    "--result",
+                    str(result_path),
+                    "--rule",
+                    str(ROOT / "rules" / "gaussdb" / "rule.json"),
+                    "--out",
+                    str(out_path),
+                ]
+            )
+
+            self.assertEqual(code, 0)
+            payload = json.loads(out_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["rule_version"], "1.0.0")
+            self.assertEqual(payload["overall_risk"], "high")
+            abnormal_ids = {item["check_id"] for item in payload["abnormal_items"]}
+            self.assertTrue({"2.1", "3.1", "4.2", "5.1", "6.1", "6.3"}.issubset(abnormal_ids))
+            na_ids = {item["check_id"] for item in payload["na_items"]}
+            self.assertIn("7.1", na_ids)
+            self.assertGreaterEqual(payload["counts"]["critical"], 3)
+            self.assertGreaterEqual(payload["counts"]["warning"], 3)
+
     def test_generates_summary_for_oracle_rule(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)

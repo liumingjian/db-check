@@ -1,0 +1,487 @@
+{
+  "rule_meta": {
+    "schema_version": "1.0",
+    "rule_version": "1.0.0",
+    "rule_name": "GaussDB 数据库巡检规则模板",
+    "db_type": "gaussdb",
+    "target_versions": ["505.2.1.SPC1000"],
+    "updated_at": "2026-03-12",
+    "target": "GaussDB 505.2.1.SPC1000",
+    "total_checks": 31,
+    "priority_summary": {
+      "P0": 7,
+      "P1": 15,
+      "P2": 8,
+      "P3": 1
+    }
+  },
+  "dimensions": [
+    {
+      "dimension_id": 1,
+      "name": "操作系统资源",
+      "checks": [
+        {
+          "check_id": "1.1",
+          "name": "CPU 使用率",
+          "priority": "P1",
+          "source_module": "os",
+          "extract": {"json_path": "os.cpu.samples[*].usage_percent", "aggregation": "avg"},
+          "thresholds": {"warning": {"operator": ">", "value": 70}, "critical": {"operator": ">", "value": 90}},
+          "optimization_advice": "排查高 CPU 进程与数据库热点操作"
+        },
+        {
+          "check_id": "1.2",
+          "name": "内存使用率",
+          "priority": "P1",
+          "source_module": "os",
+          "extract": {"json_path": "os.memory.samples[*].usage_percent", "aggregation": "avg"},
+          "thresholds": {"warning": {"operator": ">", "value": 85}, "critical": {"operator": ">", "value": 95}},
+          "optimization_advice": "检查共享内存和主机内存压力"
+        },
+        {
+          "check_id": "1.3",
+          "name": "磁盘使用率",
+          "priority": "P0",
+          "source_module": "os",
+          "extract": {"json_path": "os.filesystem.samples[*].mountpoints[*].usage_percent", "aggregation": "max"},
+          "thresholds": {"warning": {"operator": ">", "value": 80}, "critical": {"operator": ">", "value": 90}},
+          "optimization_advice": "检查数据目录、日志目录和备份目录容量"
+        }
+      ]
+    },
+    {
+      "dimension_id": 2,
+      "name": "基础连通性",
+      "checks": [
+        {
+          "check_id": "2.1",
+          "name": "数据库连接状态",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.basic_info.summary.checkdbconnection_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "critical": {"operator": "==", "value": "abnormal"}},
+          "optimization_advice": "立即排查数据库连接可用性与本地环境"
+        },
+        {
+          "check_id": "2.2",
+          "name": "集群状态",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.cluster.summary.checkclusterstate_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "critical": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.cluster.summary.checkclusterstate_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境无集群状态检查结果"}
+          },
+          "optimization_advice": "优先确认实例、节点和服务状态是否正常"
+        },
+        {
+          "check_id": "2.3",
+          "name": "版本信息",
+          "priority": "P3",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.basic_info.summary.checkgaussver_status", "aggregation": "raw"},
+          "evaluation": {"method": "info"},
+          "optimization_advice": "确认版本与补丁基线符合当前维护要求"
+        },
+        {
+          "check_id": "2.4",
+          "name": "数据一致性",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.cluster.summary.checkintegrity_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "critical": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.cluster.summary.checkintegrity_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回数据一致性检查结果"}
+          },
+          "optimization_advice": "优先确认节点间数据校验结果与二进制完整性"
+        },
+        {
+          "check_id": "2.5",
+          "name": "omMonitor 进程",
+          "priority": "P1",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.basic_info.summary.checkommonitor_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "critical": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.basic_info.summary.checkommonitor_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回 omMonitor 进程检查结果"}
+          },
+          "optimization_advice": "确保 omMonitor 进程存活并持续监控实例状态"
+        }
+      ]
+    },
+    {
+      "dimension_id": 3,
+      "name": "参数与配置一致性",
+      "checks": [
+        {
+          "check_id": "3.1",
+          "name": "数据库参数检查",
+          "priority": "P1",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.config_check.summary.checkdbparams_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "optimization_advice": "核对核心参数与标准基线是否一致"
+        },
+        {
+          "check_id": "3.2",
+          "name": "GUC 一致性",
+          "priority": "P1",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.config_check.summary.checkgucconsistent_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "optimization_advice": "保持实例间配置一致，避免参数漂移"
+        },
+        {
+          "check_id": "3.3",
+          "name": "GUC 值检查",
+          "priority": "P1",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.config_check.summary.checkgucvalue_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.config_check.summary.checkgucvalue_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回 GUC 值检查结果"}
+          },
+          "optimization_advice": "检查锁资源预算和核心 GUC 参数组合是否合理"
+        }
+      ]
+    },
+    {
+      "dimension_id": 4,
+      "name": "连接与会话",
+      "checks": [
+        {
+          "check_id": "4.1",
+          "name": "当前连接数",
+          "priority": "P1",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.connection.summary.checkcurconncount_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "optimization_advice": "检查连接峰值与连接池配置"
+        },
+        {
+          "check_id": "4.2",
+          "name": "游标数量",
+          "priority": "P2",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.connection.summary.checkcursornum_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "optimization_advice": "核对游标泄漏和应用游标使用模式"
+        },
+        {
+          "check_id": "4.3",
+          "name": "连接池数量",
+          "priority": "P2",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.connection.summary.checkpoolernum_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.connection.summary.checkpoolernum_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回连接池检查结果"}
+          },
+          "optimization_advice": "检查 pooler 配置和连接复用效率"
+        }
+      ]
+    },
+    {
+      "dimension_id": 5,
+      "name": "存储与容量",
+      "checks": [
+        {
+          "check_id": "5.1",
+          "name": "表空间检查",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.storage.summary.checktablespace_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "critical": {"operator": "==", "value": "abnormal"}},
+          "optimization_advice": "及时扩容或清理高水位表空间"
+        },
+        {
+          "check_id": "5.2",
+          "name": "Hash 索引检查",
+          "priority": "P2",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.storage.summary.checkhashindex_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.storage.summary.checkhashindex_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回 Hash 索引检查结果"}
+          },
+          "optimization_advice": "确认 Hash 索引使用是否符合规范"
+        },
+        {
+          "check_id": "5.3",
+          "name": "系统表膨胀",
+          "priority": "P1",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.storage.summary.checkdilatesystab_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.storage.summary.checkdilatesystab_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回系统表膨胀检查结果"}
+          },
+          "optimization_advice": "检查系统表膨胀并评估维护窗口"
+        },
+        {
+          "check_id": "5.4",
+          "name": "系统表检查",
+          "priority": "P1",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.storage.summary.checksystable_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.storage.summary.checksystable_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回系统表检查结果"}
+          },
+          "optimization_advice": "关注系统目录表规模与异常增长情况"
+        },
+        {
+          "check_id": "5.5",
+          "name": "大表检查",
+          "priority": "P2",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.storage.summary.checkkeydbtablesize_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.storage.summary.checkkeydbtablesize_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回大表检查结果"}
+          },
+          "optimization_advice": "关注大库大表分布，避免单表体量持续失控"
+        },
+        {
+          "check_id": "5.6",
+          "name": "无索引表",
+          "priority": "P2",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.sql_analysis.summary.no_index_table_count", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}},
+          "optimization_advice": "尽快评估无索引表的访问路径和索引建设计划"
+        },
+        {
+          "check_id": "5.7",
+          "name": "无主键表",
+          "priority": "P1",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.sql_analysis.summary.no_primary_key_table_count", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}},
+          "optimization_advice": "尽快补齐主键或唯一标识，降低复制与变更风险"
+        },
+        {
+          "check_id": "5.8",
+          "name": "统计信息缺失",
+          "priority": "P1",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.sql_analysis.summary.no_statistics_table_count", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}},
+          "optimization_advice": "补齐统计信息采集，避免优化器估算失真"
+        }
+      ]
+    },
+    {
+      "dimension_id": 6,
+      "name": "事务与锁",
+      "checks": [
+        {
+          "check_id": "6.1",
+          "name": "锁数量",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.transactions.summary.checklocknum_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "critical": {"operator": "==", "value": "abnormal"}},
+          "optimization_advice": "立即排查锁等待和阻塞链"
+        },
+        {
+          "check_id": "6.2",
+          "name": "空闲会话",
+          "priority": "P2",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.transactions.summary.checkidlesession_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "optimization_advice": "清理长期空闲会话，避免资源占用"
+        },
+        {
+          "check_id": "6.3",
+          "name": "预备事务",
+          "priority": "P1",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.transactions.summary.checkpgpreparedxacts_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "optimization_advice": "检查两阶段事务残留情况"
+        },
+        {
+          "check_id": "6.4",
+          "name": "长事务",
+          "priority": "P1",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.transactions.summary.checkworkloadtrx_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.transactions.summary.checkworkloadtrx_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回长事务检查结果"}
+          },
+          "optimization_advice": "排查长事务和大事务提交行为"
+        }
+      ]
+    },
+    {
+      "dimension_id": 7,
+      "name": "运行性能",
+      "checks": [
+        {
+          "check_id": "7.1",
+          "name": "数据库运行状态",
+          "priority": "P2",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.performance.summary.checkdbstat_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.performance.summary.checkdbstat_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回数据库运行状态检查结果"}
+          },
+          "optimization_advice": "检查数据库状态与关键运行指标"
+        },
+        {
+          "check_id": "7.2",
+          "name": "Buffer 命中率",
+          "priority": "P2",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.performance.summary.checkbphitratio_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.performance.summary.checkbphitratio_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回 Buffer 命中率检查结果"}
+          },
+          "optimization_advice": "核对缓存命中率与热点访问模式"
+        },
+        {
+          "check_id": "7.3",
+          "name": "运行日志",
+          "priority": "P2",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.performance.summary.checkerrorinlog_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.performance.summary.checkerrorinlog_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回运行日志检查结果"}
+          },
+          "optimization_advice": "优先排查近期 ERROR 日志，确认是否存在持续性故障"
+        },
+        {
+          "check_id": "7.4",
+          "name": "自定义函数返回类型",
+          "priority": "P2",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.sql_analysis.summary.checkreturntype_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.sql_analysis.summary.checkreturntype_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回自定义函数检查结果"}
+          },
+          "optimization_advice": "检查自定义函数是否存在非法返回类型"
+        }
+      ]
+    },
+    {
+      "dimension_id": 8,
+      "name": "集群同步与复制",
+      "checks": [
+        {
+          "check_id": "8.0",
+          "name": "cluster gate",
+          "priority": "P3",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.cluster.visible_count", "aggregation": "raw"},
+          "evaluation": {
+            "method": "gate",
+            "gate": {
+              "json_path": "db.cluster.visible_count",
+              "aggregation": "raw",
+              "operator": ">",
+              "value": 0,
+              "reason": "当前环境没有可展示的集群同步检查项"
+            },
+            "na_dimension": "8"
+          },
+          "optimization_advice": "确认当前实例是否需要纳入集群同步巡检"
+        },
+        {
+          "check_id": "8.1",
+          "name": "只读模式",
+          "priority": "P1",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.cluster.summary.checkreadonlymode_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "optimization_advice": "核对只读模式与当前业务角色是否一致"
+        },
+        {
+          "check_id": "8.2",
+          "name": "主备追赶",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.cluster.summary.checkcatchup_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "critical": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.cluster.summary.checkcatchup_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回主备追赶检查结果"}
+          },
+          "optimization_advice": "检查主备追赶延迟和复制状态"
+        },
+        {
+          "check_id": "8.3",
+          "name": "DN 同步状态",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.cluster.summary.checkdnsync_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "critical": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.cluster.summary.checkdnsync_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回 DN 同步检查结果"}
+          },
+          "optimization_advice": "检查 DN 同步模式与复制状态"
+        },
+        {
+          "check_id": "8.4",
+          "name": "DN 等待状态",
+          "priority": "P1",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.cluster.summary.checkdnwait_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.cluster.summary.checkdnwait_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回 DN 等待检查结果"}
+          },
+          "optimization_advice": "检查 DN 等待链路和队列堆积"
+        },
+        {
+          "check_id": "8.5",
+          "name": "分布表检查",
+          "priority": "P2",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.cluster.summary.checkpgxcredistb_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.cluster.summary.checkpgxcredistb_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回分布表检查结果"}
+          },
+          "optimization_advice": "检查分布表定义与数据分布情况"
+        },
+        {
+          "check_id": "8.6",
+          "name": "节点组检查",
+          "priority": "P2",
+          "source_module": "db_basic",
+          "extract": {"json_path": "db.cluster.summary.checknodegroupname_status", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": "normal"}, "warning": {"operator": "==", "value": "abnormal"}},
+          "evaluation": {
+            "method": "threshold",
+            "na_when": {"json_path": "db.cluster.summary.checknodegroupname_status", "aggregation": "raw", "operator": "==", "value": "not_applicable", "reason": "当前环境未返回节点组检查结果"}
+          },
+          "optimization_advice": "核对节点组配置与规划是否一致"
+        }
+      ]
+    }
+  ]
+}

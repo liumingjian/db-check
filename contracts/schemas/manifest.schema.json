@@ -17,7 +17,7 @@
   "properties": {
     "schema_version": {"const": "1.0"},
     "run_id": {"type": "string", "minLength": 1},
-    "db_type": {"type": "string", "enum": ["mysql", "oracle"]},
+    "db_type": {"type": "string", "enum": ["mysql", "oracle", "gaussdb"]},
     "start_time": {"type": "string", "format": "date-time"},
     "end_time": {"type": "string", "format": "date-time"},
     "exit_code": {"type": "integer", "enum": [0, 10, 20, 30]},

@@ -19,12 +19,21 @@ func (c fixedClock) Now() time.Time {
 	return c.now
 }
 
-type stubCollector struct {
+type stubDBCollector struct {
 	payload map[string]any
 	err     error
 }
 
-func (s stubCollector) Collect(_ context.Context, _ cli.Config) (map[string]any, error) {
+func (s stubDBCollector) Collect(_ context.Context, _ cli.Config, _ string, _ ArtifactWriter) (map[string]any, error) {
+	return s.payload, s.err
+}
+
+type stubOSCollector struct {
+	payload map[string]any
+	err     error
+}
+
+func (s stubOSCollector) Collect(_ context.Context, _ cli.Config) (map[string]any, error) {
 	return s.payload, s.err
 }
 
@@ -58,8 +67,8 @@ func TestRunnerSuccessWithOSOnly(t *testing.T) {
 	writer := newMemoryWriter()
 	runner, err := NewRunner(Dependencies{
 		Clock:       fixedClock{now: time.Date(2026, 3, 5, 12, 0, 0, 0, time.FixedZone("CST", 8*3600))},
-		DBCollector: stubCollector{},
-		OSCollector: stubCollector{payload: map[string]any{"system_info": map[string]any{"hostname": "demo"}}},
+		DBCollector: stubDBCollector{},
+		OSCollector: stubOSCollector{payload: map[string]any{"system_info": map[string]any{"hostname": "demo"}}},
 		Writer:      writer,
 		Version:     "1.0.0",
 	})
@@ -83,8 +92,8 @@ func TestRunnerPrecheckFailureReturnsExit30(t *testing.T) {
 	writer := newMemoryWriter()
 	runner, err := NewRunner(Dependencies{
 		Clock:       fixedClock{now: time.Date(2026, 3, 5, 12, 0, 0, 0, time.FixedZone("CST", 8*3600))},
-		DBCollector: stubCollector{err: PrecheckError{Message: "ping failed"}},
-		OSCollector: stubCollector{payload: map[string]any{"system_info": map[string]any{"hostname": "demo"}}},
+		DBCollector: stubDBCollector{err: PrecheckError{Message: "ping failed"}},
+		OSCollector: stubOSCollector{payload: map[string]any{"system_info": map[string]any{"hostname": "demo"}}},
 		Writer:      writer,
 		Version:     "1.0.0",
 	})
@@ -111,8 +120,8 @@ func TestRunnerWritesStructuredCollectorLog(t *testing.T) {
 	writer := newMemoryWriter()
 	runner, err := NewRunner(Dependencies{
 		Clock:       fixedClock{now: time.Date(2026, 3, 9, 10, 0, 0, 0, time.FixedZone("CST", 8*3600))},
-		DBCollector: stubCollector{payload: map[string]any{"basic_info": map[string]any{"is_alive": true}}},
-		OSCollector: stubCollector{payload: map[string]any{"system_info": map[string]any{"hostname": "demo"}}},
+		DBCollector: stubDBCollector{payload: map[string]any{"basic_info": map[string]any{"is_alive": true}}},
+		OSCollector: stubOSCollector{payload: map[string]any{"system_info": map[string]any{"hostname": "demo"}}},
 		Writer:      writer,
 		Version:     "1.0.0",
 	})

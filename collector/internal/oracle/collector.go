@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"dbcheck/collector/internal/cli"
+	"dbcheck/collector/internal/core"
 )
 
 type Collector struct{}
@@ -14,7 +15,7 @@ type metricsCollector struct {
 	errors []string
 }
 
-func (Collector) Collect(ctx context.Context, cfg cli.Config) (map[string]any, error) {
+func (Collector) Collect(ctx context.Context, cfg cli.Config, _ string, _ core.ArtifactWriter) (map[string]any, error) {
 	db, err := openDB(ctx, cfg)
 	if err != nil {
 		return nil, err

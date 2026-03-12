@@ -9,13 +9,16 @@ const (
 	DefaultDBType            = "mysql"
 	DefaultMySQLPort         = 3306
 	DefaultOraclePort        = 1521
+	DefaultGaussDBPort       = 8000
 	DefaultOutputDir         = "./output"
 	DefaultLogPath           = "./logs"
 	DefaultLogLevel          = "INFO"
 	DefaultSQLTimeoutSeconds = 180
 	DefaultTopN              = 20
 	DefaultOSPort            = 22
-	Version                  = "1.1.0"
+	DefaultGaussUser         = "Ruby"
+	DefaultGaussEnvFile      = "~/gauss_env_file"
+	Version                  = "1.2.0"
 )
 
 var ErrShowHelp = errors.New("show help")
@@ -27,6 +30,8 @@ type Config struct {
 	DBUsername        string
 	DBPassword        string
 	DBName            string
+	GaussUser         string
+	GaussEnvFile      string
 	Local             bool
 	OSOnly            bool
 	OSSkip            bool
@@ -80,19 +85,22 @@ func ParseArgs(args []string) (Config, error) {
 }
 
 func Usage() string {
-	return `db-collector --db-type <mysql|oracle> [连接参数] [采集参数]
+	return `db-collector --db-type <mysql|oracle|gaussdb> [连接参数] [采集参数]
 
 最短命令：
   db-collector --db-type mysql --db-host 127.0.0.1 --db-port 3306 --db-username root --db-password rootpwd --dbname dbcheck --output-dir ./runs
   db-collector --db-type oracle --db-host 127.0.0.1 --db-port 1521 --db-username system --db-password oraclepwd --dbname ORCL --output-dir ./runs
+  db-collector --db-type gaussdb --db-host 10.0.0.10 --db-port 8000 --db-username root --db-password secret --dbname postgres --gauss-user Ruby --gauss-env-file ~/gauss_env_file --output-dir ./runs
 
 核心参数：
-  --db-type/-t                数据库类型，支持 mysql / oracle
+  --db-type/-t                数据库类型，支持 mysql / oracle / gaussdb
   --db-host/-h                数据库地址（远程模式必填）
-  --db-port/-P                数据库端口，mysql 默认 3306，oracle 默认 1521
+  --db-port/-P                数据库端口，mysql 默认 3306，oracle 默认 1521，gaussdb 默认 8000
   --db-username/-u            数据库用户名（非 --os-only 必填）
   --db-password/-p            数据库密码（非 --os-only 必填）
   --dbname/-d                 数据库名；Oracle 路径下表示 SID/实例名（非 --os-only 必填）
+  --gauss-user                GaussDB 主机侧执行 gs_check 的用户，默认 Ruby
+  --gauss-env-file            GaussDB 环境文件路径，默认 ~/gauss_env_file
   --local                     本地 OS 采集模式
   --os-only                   仅采集 OS（旁路）
   --os-skip                   跳过 OS 采集
@@ -123,6 +131,8 @@ func defaultConfig() Config {
 		SQLTimeoutSeconds: DefaultSQLTimeoutSeconds,
 		TopN:              DefaultTopN,
 		OSPort:            DefaultOSPort,
+		GaussUser:         DefaultGaussUser,
+		GaussEnvFile:      DefaultGaussEnvFile,
 	}
 }
 
@@ -136,6 +146,9 @@ func fillDerivedPort(cfg *Config) {
 func defaultDBPort(dbType string) int {
 	if dbType == "oracle" {
 		return DefaultOraclePort
+	}
+	if dbType == "gaussdb" {
+		return DefaultGaussDBPort
 	}
 	return DefaultMySQLPort
 }

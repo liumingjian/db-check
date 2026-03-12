@@ -6,8 +6,8 @@ import (
 )
 
 func validateCommon(cfg Config, state parsedState) error {
-	if cfg.DBType != "mysql" && cfg.DBType != "oracle" {
-		return errors.New("--db-type 仅允许 mysql 或 oracle")
+	if cfg.DBType != "mysql" && cfg.DBType != "oracle" && cfg.DBType != "gaussdb" {
+		return errors.New("--db-type 仅允许 mysql、oracle 或 gaussdb")
 	}
 	if cfg.DBPort <= 0 {
 		return errors.New("--db-port 必须 > 0")
@@ -26,6 +26,12 @@ func validateCommon(cfg Config, state parsedState) error {
 	}
 	if cfg.Local && state.SSHFlagsProvided {
 		return errors.New("--local 与 SSH 参数互斥")
+	}
+	if cfg.DBType == "gaussdb" && strings.TrimSpace(cfg.GaussUser) == "" {
+		return errors.New("gaussdb 缺少 --gauss-user")
+	}
+	if cfg.DBType == "gaussdb" && strings.TrimSpace(cfg.GaussEnvFile) == "" {
+		return errors.New("gaussdb 缺少 --gauss-env-file")
 	}
 	return nil
 }

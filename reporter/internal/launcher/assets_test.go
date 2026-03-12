@@ -82,6 +82,28 @@ func TestResolveAssetLayoutUsesOracleRuleForOracleRunDir(t *testing.T) {
 	}
 }
 
+func TestResolveAssetLayoutUsesGaussDBRuleForRunDir(t *testing.T) {
+	root := t.TempDir()
+	exePath := filepath.Join(root, "bin", "db-reporter")
+	runDir := filepath.Join(root, "runs", "gauss-demo")
+	mkdirFile(t, filepath.Join(root, "reporter", "cli", "reporter_orchestrator.py"))
+	mkdirFile(t, filepath.Join(root, "requirements.txt"))
+	mkdirFile(t, filepath.Join(root, "rules", "mysql", "rule.json"))
+	mkdirFile(t, filepath.Join(root, "rules", "gaussdb", "rule.json"))
+	mkdirFile(t, filepath.Join(root, "reporter", "templates", "mysql-template.docx"))
+	mkdirFile(t, filepath.Join(runDir, "manifest.json"))
+	if err := os.WriteFile(filepath.Join(runDir, "manifest.json"), []byte(`{"db_type":"gaussdb"}`), 0o644); err != nil {
+		t.Fatalf("write manifest failed: %v", err)
+	}
+	layout, err := ResolveAssetLayout(exePath, Config{RunDir: runDir})
+	if err != nil {
+		t.Fatalf("ResolveAssetLayout failed: %v", err)
+	}
+	if layout.RuleFile != filepath.Join(root, "rules", "gaussdb", "rule.json") {
+		t.Fatalf("unexpected gaussdb rule path: %s", layout.RuleFile)
+	}
+}
+
 func mkdirFile(t *testing.T, path string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

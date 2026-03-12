@@ -19,7 +19,7 @@
       "properties": {
         "schema_version": {"const": "2.0"},
         "collector_version": {"type": "string", "minLength": 1},
-        "db_type": {"type": "string", "enum": ["mysql", "oracle"]},
+        "db_type": {"type": "string", "enum": ["mysql", "oracle", "gaussdb"]},
         "db_host": {"type": "string", "minLength": 1},
         "db_port": {"type": "integer", "minimum": 1},
         "db_name": {"type": "string"},

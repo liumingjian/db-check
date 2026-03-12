@@ -48,9 +48,28 @@ func TestParseArgsAcceptsOracleInput(t *testing.T) {
 	}
 }
 
+func TestParseArgsAcceptsGaussDBInput(t *testing.T) {
+	cfg, err := ParseArgs([]string{"--db-type", "gaussdb", "--db-host", "10.0.0.8", "--db-username", "rdsAdmin", "--db-password", "secret", "--dbname", "postgres"})
+	if err != nil {
+		t.Fatalf("ParseArgs failed: %v", err)
+	}
+	if cfg.DBType != "gaussdb" {
+		t.Fatalf("unexpected db type: %s", cfg.DBType)
+	}
+	if cfg.DBPort != DefaultGaussDBPort {
+		t.Fatalf("expected gaussdb default port %d, got %d", DefaultGaussDBPort, cfg.DBPort)
+	}
+	if cfg.GaussUser != DefaultGaussUser {
+		t.Fatalf("expected default gauss user %s, got %s", DefaultGaussUser, cfg.GaussUser)
+	}
+	if cfg.GaussEnvFile != DefaultGaussEnvFile {
+		t.Fatalf("expected default gauss env file %s, got %s", DefaultGaussEnvFile, cfg.GaussEnvFile)
+	}
+}
+
 func TestUsageIncludesRemoteOSParameters(t *testing.T) {
 	usage := Usage()
-	for _, token := range []string{"--os-host", "--os-port", "--os-username", "--os-password", "--os-ssh-key-path"} {
+	for _, token := range []string{"--os-host", "--os-port", "--os-username", "--os-password", "--os-ssh-key-path", "--gauss-user", "--gauss-env-file"} {
 		if !strings.Contains(usage, token) {
 			t.Fatalf("expected usage to contain %s", token)
 		}

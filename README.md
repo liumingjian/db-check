@@ -9,20 +9,22 @@
 当前正式实现覆盖：
 - MySQL `5.6 / 5.7 / 8.0`
 - Oracle `11g / 19c`
+- GaussDB `505.2.1.SPC1000`
 
-当前版本里，MySQL 与 Oracle 都已经打通以下完整链路：
+当前版本里，MySQL、Oracle 与 GaussDB 都已经打通以下完整链路：
 - `db-collector` 采集数据库 + OS 指标，生成标准 `run` 目录
 - `db-reporter` 自动识别 `db_type`，生成 `summary.json`、`report-meta.json`、`report-view.json` 和 `report.docx`
 - 第一章“巡检总结”使用统一模板，关键指标会在 Word 报告中加粗高亮显示
 
 ## 核心能力
 
-- 采集 MySQL / Oracle 与 OS 关键巡检指标，输出标准化 contracts 产物
+- 采集 MySQL / Oracle / GaussDB 与 OS 关键巡检指标，输出标准化 contracts 产物
 - 基于规则自动分析风险，生成结构化 `summary.json`
 - 基于统一 `ReportView` 和 Word 模板生成正式巡检报告
 - 远程 OS 采集通过 SSH 下发临时 `db-osprobe` 二进制执行，避免依赖目标机 `sar/free/vmstat/iostat`
+- GaussDB 数据库指标通过“SSH 执行系统自带 `gs_check` + openGauss Go 驱动 SQL 采集”组合获取，并在 `run_dir/gs_check/`、`run_dir/sql/` 保留原始输出
 - 支持 Linux / macOS / Windows 多平台发布包构建
-- 支持 Docker 多版本 e2e 验证，保证采集、分析、报告链路一致
+- 支持 MySQL / Oracle 的 Docker 多版本 e2e 验证，保证采集、分析、报告链路一致
 
 ## 适用场景
 
@@ -103,6 +105,25 @@ Oracle 示例：
   --output-dir ./runs
 ```
 
+GaussDB 示例：
+
+```bash
+./bin/db-collector \
+  --db-type gaussdb \
+  --db-host 10.250.0.157 \
+  --db-port 8000 \
+  --db-username root \
+  --db-password Gauss_246 \
+  --dbname postgres \
+  --gauss-user Ruby \
+  --gauss-env-file ~/gauss_env_file \
+  --os-host 10.250.0.157 \
+  --os-port 22 \
+  --os-username root \
+  --os-password ATT@2022 \
+  --output-dir ./runs
+```
+
 如需同时采集远程主机 OS（Linux over SSH），增加 SSH 参数。当前远程 OS 采集会通过 SSH 自动上传临时 helper 二进制执行，不依赖目标机预装 `sar/free/vmstat/iostat`：
 
 ```bash
@@ -136,6 +157,12 @@ Oracle + 远程 OS 示例：
   --os-password ATT@2022 \
   --output-dir ./runs
 ```
+
+GaussDB 路径补充说明：
+- `--gauss-user` 用于切换到实际安装 GaussDB 的系统用户后执行 `gs_check`
+- `--gauss-env-file` 用于 `source` GaussDB 环境文件后再执行 `gs_check`
+- `--db-host/--db-port/--db-username/--db-password/--dbname` 同时用于 openGauss 直连 SQL 采集与报告元数据
+- GaussDB 的 `gs_check` 原始输出落在 `run_dir/gs_check/`，SQL 原始查询与结果落在 `run_dir/sql/`
 
 执行成功后，终端会打印：
 - `run_id=...`
@@ -172,6 +199,8 @@ result=./runs/mysql-127.0.0.1-20260311T120000Z/result.json
 - `collector.log`
 - `manifest.json`
 - `result.json`
+- `gs_check/`（仅 GaussDB）
+- `sql/`（GaussDB 结构化 SQL 原始输出）
 - `summary.json`
 - `report-meta.json`
 - `report-view.json`
@@ -269,6 +298,7 @@ dist/
 其中：
 - `assets/rules/mysql/rule.json`
 - `assets/rules/oracle/rule.json`
+- `assets/rules/gaussdb/rule.json`
 - `assets/templates/mysql-template.docx`
 
 都会随发布包一起交付。
@@ -278,6 +308,8 @@ dist/
 当前 Docker e2e 覆盖以下数据库版本：
 - MySQL `5.6 / 5.7 / 8.0`
 - Oracle `11g / 19c`
+
+GaussDB 当前不承诺 Docker e2e。原因是 `gs_check`、`gauss_env_file`、数据库安装用户和工具链环境都依赖正式安装形态，当前以真实环境回归为准。
 
 执行方式：
 
@@ -301,8 +333,10 @@ tests/e2e/run_docker_e2e.sh --db-type oracle --oracle-version 19c
 ```text
 runs/<run_id>/
 ├── collector.log
+├── gs_check/               # 仅 GaussDB，保留每个 CheckItem 的原始 stdout 与 index.json
 ├── manifest.json
 ├── result.json
+├── sql/                    # 仅 GaussDB，保留原始 SQL 与查询结果
 ├── summary.json
 ├── report-meta.json
 ├── report-view.json
@@ -312,6 +346,8 @@ runs/<run_id>/
 
 各文件职责：
 - `collector.log`：采集执行日志
+- `gs_check/`：GaussDB 原始 `gs_check` 输出缓存，便于复核和排障
+- `sql/`：GaussDB 原始 SQL 查询与结果缓存，便于复核和排障
 - `manifest.json`：本次运行的执行态描述
 - `result.json`：原始采集结果
 - `summary.json`：规则分析结果
@@ -416,6 +452,8 @@ make init-python
 优先检查 `result.json` 中是否存在：
 - `db.basic_info.version`
 - `db.basic_info.version_vars.version`
+- `db.basic_info.summary.version`
+- `db.basic_info.summary.gaussdb_version`
 
 如果采集结果本身缺失，再显式传入：
 
@@ -433,3 +471,11 @@ Oracle 路径下，`--dbname` 表示 `SID/实例名`，不是 `service name`。
 source .venv/bin/activate
 tests/e2e/run_docker_e2e.sh
 ```
+
+### 7. GaussDB 为什么需要 `--gauss-user` 和 `--gauss-env-file`
+
+GaussDB 当前同时使用两条数据库采集链路：
+- 通过 SSH 切换到安装用户并加载环境后执行系统自带 `gs_check`
+- 通过 openGauss Go 驱动直连数据库执行 SQL 采集
+
+因此 `--gauss-user` 和 `--gauss-env-file` 仍然必需，用于保证 `gs_check`、`gaussdb`、`gsql` 等命令可用；而 `--db-host/--db-port/--db-username/--db-password/--dbname` 则用于 SQL 直连采集。

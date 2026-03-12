@@ -45,8 +45,16 @@ Oracle 示例：
 ./db-collector$exe_suffix --db-type oracle --db-host 127.0.0.1 --db-port 1521 --db-username system --db-password oraclepwd --dbname ORCL --output-dir ./runs
 \`\`\`
 
+GaussDB 示例：
+
+\`\`\`bash
+./db-collector$exe_suffix --db-type gaussdb --db-host 10.0.0.10 --db-port 8000 --db-username root --db-password secret --dbname postgres --gauss-user Ruby --gauss-env-file ~/gauss_env_file --output-dir ./runs
+\`\`\`
+
 说明：
 - Oracle 路径下 \`--dbname\` 表示 SID/实例名
+- GaussDB 路径下 \`--gauss-user\` 和 \`--gauss-env-file\` 用于主机侧执行 \`gs_check\`
+- GaussDB 路径下 \`--db-host/--db-port/--db-username/--db-password/--dbname\` 同时用于 openGauss SQL 直连采集
 - 如需远程 OS 采集，可追加 \`--os-host/--os-port/--os-username/--os-password\`
 
 ## 3. 生成 Word 报告
@@ -76,11 +84,12 @@ build_platform() {
   fi
   rm -rf "$pkg_dir"
   mkdir -p "$pkg_dir/assets/rules/mysql" "$pkg_dir/assets/templates" "$pkg_dir/runtime"
-  mkdir -p "$pkg_dir/assets/rules/oracle"
+  mkdir -p "$pkg_dir/assets/rules/oracle" "$pkg_dir/assets/rules/gaussdb"
   GOOS="$goos" GOARCH="$goarch" GOCACHE=/tmp/go-cache go build -o "$pkg_dir/db-collector$exe_suffix" "$ROOT_DIR/collector/cmd/db-collector"
   GOOS="$goos" GOARCH="$goarch" GOCACHE=/tmp/go-cache go build -o "$pkg_dir/db-reporter$exe_suffix" "$ROOT_DIR/reporter/cmd/db-reporter"
   cp "$ROOT_DIR/rules/mysql/rule.json" "$pkg_dir/assets/rules/mysql/rule.json"
   cp "$ROOT_DIR/rules/oracle/rule.json" "$pkg_dir/assets/rules/oracle/rule.json"
+  cp "$ROOT_DIR/rules/gaussdb/rule.json" "$pkg_dir/assets/rules/gaussdb/rule.json"
   cp "$ROOT_DIR/reporter/templates/mysql-template.docx" "$pkg_dir/assets/templates/mysql-template.docx"
   cp "$ROOT_DIR/reporter/cli/reporter_orchestrator.py" "$pkg_dir/runtime/reporter_orchestrator.py"
   cp "$ROOT_DIR/requirements.txt" "$pkg_dir/runtime/requirements.txt"

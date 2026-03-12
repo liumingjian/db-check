@@ -62,7 +62,7 @@ def build_parser() -> _ArgumentParser:
     parser.add_argument("--out-md", type=Path)
     parser.add_argument("--document-name", default="")
     parser.add_argument("--inspector", default="db-check")
-    parser.add_argument("--change-description", default="mysql巡检报告")
+    parser.add_argument("--change-description", default="")
     parser.add_argument("--review-name", default="周海波")
     parser.add_argument("--review-title", default="数据库技术经理")
     parser.add_argument("--review-contact", default="13570391044")
@@ -156,6 +156,8 @@ def detect_db_version(result_path: Path) -> str | None:
     candidates = [
         nested_value(result, "db", "basic_info", "version"),
         nested_value(result, "db", "basic_info", "version_vars", "version"),
+        nested_value(result, "db", "basic_info", "summary", "version"),
+        nested_value(result, "db", "basic_info", "summary", "gaussdb_version"),
     ]
     for value in candidates:
         if isinstance(value, str) and value.strip():

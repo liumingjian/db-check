@@ -65,7 +65,7 @@ func readJSON(path string, target any) error {
 
 func normalizeDBType(raw string) string {
 	value := strings.TrimSpace(strings.ToLower(raw))
-	if value == "mysql" || value == "oracle" {
+	if value == "mysql" || value == "oracle" || value == "gaussdb" {
 		return value
 	}
 	return ""

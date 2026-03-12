@@ -77,6 +77,12 @@ func applyDBArg(cfg *Config, args []string, index int, arg string, value string,
 	case "--dbname", "-d":
 		next, err := setStringValue(args, index, value, hasValue, &cfg.DBName)
 		return true, next, err
+	case "--gauss-user":
+		next, err := setStringValue(args, index, value, hasValue, &cfg.GaussUser)
+		return true, next, err
+	case "--gauss-env-file":
+		next, err := setStringValue(args, index, value, hasValue, &cfg.GaussEnvFile)
+		return true, next, err
 	default:
 		return false, index, nil
 	}

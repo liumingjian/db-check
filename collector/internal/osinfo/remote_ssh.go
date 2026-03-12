@@ -19,6 +19,15 @@ type execRunner struct {
 	sftp   *sftp.Client
 }
 
+type CommandRunner interface {
+	Run(command string) (string, error)
+	Close() error
+}
+
+func NewSSHCommandRunner(cfg cli.Config) (CommandRunner, error) {
+	return newSSHRunner(cfg)
+}
+
 func newSSHRunner(cfg cli.Config) (remoteRunner, error) {
 	clientConfig, err := newSSHClientConfig(cfg)
 	if err != nil {

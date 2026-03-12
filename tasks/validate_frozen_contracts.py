@@ -157,8 +157,8 @@ class Validator:
         )
         if manifest.get("schema_version") != "1.0":
             self.err("manifest.schema_version must be '1.0'")
-        if manifest.get("db_type") not in {"mysql", "oracle"}:
-            self.err("manifest.db_type must be one of: mysql, oracle")
+        if manifest.get("db_type") not in {"mysql", "oracle", "gaussdb"}:
+            self.err("manifest.db_type must be one of: mysql, oracle, gaussdb")
         if manifest.get("exit_code") not in {0, 10, 20, 30}:
             self.err("manifest.exit_code must be one of: 0, 10, 20, 30")
         if manifest.get("overall_status") not in {"success", "partial_success", "failed"}:
@@ -249,8 +249,8 @@ class Validator:
             )
             if meta.get("schema_version") != "2.0":
                 self.err("result.meta.schema_version must be '2.0'")
-            if meta.get("db_type") not in {"mysql", "oracle"}:
-                self.err("result.meta.db_type must be mysql or oracle")
+            if meta.get("db_type") not in {"mysql", "oracle", "gaussdb"}:
+                self.err("result.meta.db_type must be mysql, oracle or gaussdb")
             if not isinstance(meta.get("db_port"), int) or meta.get("db_port") <= 0:
                 self.err("result.meta.db_port must be integer > 0")
             collect_time = _parse_dt(meta.get("collect_time"))

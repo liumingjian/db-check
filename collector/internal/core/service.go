@@ -51,7 +51,7 @@ func (r Runner) Run(ctx context.Context, cfg cli.Config) (model.RunArtifacts, er
 	logger.Info("run_dir_prepared", zap.String("run_dir", runDir))
 	state := runState{exitCode: ExitSuccess, moduleStats: map[string]model.ModuleStat{}, osPayload: map[string]any{}, dbPayload: map[string]any{}}
 	r.collectOS(ctx, cfg, &state, logger)
-	r.collectDB(ctx, cfg, &state, logger)
+	r.collectDB(ctx, cfg, runDir, &state, logger)
 
 	end := r.deps.Clock.Now()
 	resultPath, resultObj, err := r.writeResultIfNeeded(runDir, cfg, start, end, &state, logger)
@@ -125,7 +125,7 @@ func (r Runner) collectOS(ctx context.Context, cfg cli.Config, state *runState, 
 	}
 }
 
-func (r Runner) collectDB(ctx context.Context, cfg cli.Config, state *runState, logger *runLogger) {
+func (r Runner) collectDB(ctx context.Context, cfg cli.Config, runDir string, state *runState, logger *runLogger) {
 	logger.Info("db_collect_started")
 	if cfg.OSOnly {
 		state.moduleStats["db_basic"] = model.ModuleStat{Status: "skipped", DurationMS: 0, Error: nil}
@@ -133,7 +133,7 @@ func (r Runner) collectDB(ctx context.Context, cfg cli.Config, state *runState, 
 		return
 	}
 	started := r.deps.Clock.Now()
-	payload, err := r.deps.DBCollector.Collect(ctx, cfg)
+	payload, err := r.deps.DBCollector.Collect(ctx, cfg, runDir, r.deps.Writer)
 	duration := durationMS(started, r.deps.Clock.Now())
 	if err == nil {
 		state.moduleStats["db_basic"] = model.ModuleStat{Status: "success", DurationMS: duration, Error: nil}

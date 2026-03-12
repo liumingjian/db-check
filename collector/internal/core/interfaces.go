@@ -7,7 +7,7 @@ import (
 )
 
 type DBCollector interface {
-	Collect(ctx context.Context, cfg cli.Config) (map[string]any, error)
+	Collect(ctx context.Context, cfg cli.Config, runDir string, writer ArtifactWriter) (map[string]any, error)
 }
 
 type OSCollector interface {

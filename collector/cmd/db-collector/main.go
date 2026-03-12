@@ -4,6 +4,7 @@ import (
 	"context"
 	"dbcheck/collector/internal/cli"
 	"dbcheck/collector/internal/core"
+	"dbcheck/collector/internal/gaussdb"
 	"dbcheck/collector/internal/model"
 	"dbcheck/collector/internal/mysql"
 	"dbcheck/collector/internal/oracle"
@@ -72,6 +73,8 @@ func newDBCollector(dbType string) (core.DBCollector, error) {
 		return mysql.Collector{}, nil
 	case "oracle":
 		return oracle.Collector{}, nil
+	case "gaussdb":
+		return gaussdb.Collector{}, nil
 	default:
 		return nil, fmt.Errorf("unsupported db-type: %s", dbType)
 	}
