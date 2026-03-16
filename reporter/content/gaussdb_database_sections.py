@@ -6,6 +6,7 @@ from typing import Any
 
 from reporter.content.gaussdb_config_sections import build_config_section
 from reporter.content.gaussdb_section_utils import basic_info_rows, details_dict, domain_table, find_item, rows_payload, visible_items
+from reporter.content.gaussdb_wdr_sections import build_wdr_section
 from reporter.content.helpers import full_table, key_value_table
 from reporter.model.report_view import SectionBlock, TableBlock
 
@@ -17,6 +18,7 @@ def build_gaussdb_database_sections(result: dict[str, object]) -> tuple[SectionB
         _object_health_section(result),
         _governance_section(result),
         _log_section(result),
+        _wdr_section(result),
     )
     return tuple(section for section in sections if section is not None)
 
@@ -141,6 +143,13 @@ def _log_section(result: dict[str, object]) -> SectionBlock | None:
         rows = tuple((str(index + 1), str(line)) for index, line in enumerate(samples))
         tables.append(full_table("运行日志样本", ("序号", "日志内容"), rows))
     return SectionBlock(title="2.2.5 运行日志", tables=tuple(tables))
+
+
+def _wdr_section(result: dict[str, object]) -> SectionBlock | None:
+    db = result.get("db")
+    if not isinstance(db, dict) or not isinstance(db.get("wdr"), dict):
+        return None
+    return build_wdr_section(result)
 
 
 def _summary_or_empty(title: str, payload: dict[str, Any], fields: tuple[str, ...], columns: tuple[str, ...], empty_text: str) -> TableBlock:

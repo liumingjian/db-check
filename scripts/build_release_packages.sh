@@ -91,6 +91,7 @@ build_platform() {
   cp "$ROOT_DIR/rules/oracle/rule.json" "$pkg_dir/assets/rules/oracle/rule.json"
   cp "$ROOT_DIR/rules/oracle/rule.awr.json" "$pkg_dir/assets/rules/oracle/rule.awr.json"
   cp "$ROOT_DIR/rules/gaussdb/rule.json" "$pkg_dir/assets/rules/gaussdb/rule.json"
+  cp "$ROOT_DIR/rules/gaussdb/rule.wdr.json" "$pkg_dir/assets/rules/gaussdb/rule.wdr.json"
   cp "$ROOT_DIR/reporter/templates/mysql-template.docx" "$pkg_dir/assets/templates/mysql-template.docx"
   cp "$ROOT_DIR/reporter/cli/reporter_orchestrator.py" "$pkg_dir/runtime/reporter_orchestrator.py"
   cp "$ROOT_DIR/requirements.txt" "$pkg_dir/runtime/requirements.txt"
