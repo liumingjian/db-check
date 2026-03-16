@@ -89,6 +89,7 @@ build_platform() {
   GOOS="$goos" GOARCH="$goarch" GOCACHE=/tmp/go-cache go build -o "$pkg_dir/db-reporter$exe_suffix" "$ROOT_DIR/reporter/cmd/db-reporter"
   cp "$ROOT_DIR/rules/mysql/rule.json" "$pkg_dir/assets/rules/mysql/rule.json"
   cp "$ROOT_DIR/rules/oracle/rule.json" "$pkg_dir/assets/rules/oracle/rule.json"
+  cp "$ROOT_DIR/rules/oracle/rule.awr.json" "$pkg_dir/assets/rules/oracle/rule.awr.json"
   cp "$ROOT_DIR/rules/gaussdb/rule.json" "$pkg_dir/assets/rules/gaussdb/rule.json"
   cp "$ROOT_DIR/reporter/templates/mysql-template.docx" "$pkg_dir/assets/templates/mysql-template.docx"
   cp "$ROOT_DIR/reporter/cli/reporter_orchestrator.py" "$pkg_dir/runtime/reporter_orchestrator.py"
