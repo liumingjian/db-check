@@ -23,6 +23,7 @@ type Config struct {
 	RuleFile          string
 	TemplateFile      string
 	AWRFile           string
+	WDRFile           string
 	OutDocx           string
 	OutMD             string
 	DocumentName      string
@@ -50,8 +51,14 @@ func ParseArgs(args []string) (Config, error) {
 		return Config{}, errors.New("缺少 --run-dir")
 	}
 	cfg.RunDir = filepath.Clean(cfg.RunDir)
+	if cfg.AWRFile != "" && cfg.WDRFile != "" {
+		return Config{}, errors.New("--awr-file 与 --wdr-file 不能同时使用")
+	}
 	if cfg.AWRFile != "" && cfg.RuleFile != "" {
 		return Config{}, errors.New("--awr-file 与 --rule-file 不能同时使用")
+	}
+	if cfg.WDRFile != "" && cfg.RuleFile != "" {
+		return Config{}, errors.New("--wdr-file 与 --rule-file 不能同时使用")
 	}
 	if cfg.AWRFile != "" {
 		cfg.AWRFile = filepath.Clean(cfg.AWRFile)
@@ -61,6 +68,16 @@ func ParseArgs(args []string) (Config, error) {
 		}
 		if dbType != "oracle" {
 			return Config{}, fmt.Errorf("--awr-file 仅支持 Oracle run-dir，当前 db_type=%q", dbType)
+		}
+	}
+	if cfg.WDRFile != "" {
+		cfg.WDRFile = filepath.Clean(cfg.WDRFile)
+		dbType, err := detectRunDirDBType(cfg.RunDir)
+		if err != nil {
+			return Config{}, err
+		}
+		if dbType != "gaussdb" {
+			return Config{}, fmt.Errorf("--wdr-file 仅支持 GaussDB run-dir，当前 db_type=%q", dbType)
 		}
 	}
 	cfg.OutDocx = normalizeDocxPath(cfg)
@@ -81,6 +98,7 @@ func Usage() string {
   --out-md               可选 Markdown 输出路径，默认不生成
   --rule-file            自定义规则文件，默认使用内置规则
   --awr-file             Oracle AWR HTML 报告路径（可选，仅 Oracle；与 --rule-file 互斥）
+  --wdr-file             GaussDB WDR HTML 报告路径（可选，仅 GaussDB；与 --rule-file 互斥）
   --template-file        自定义 Word 模板，默认使用内置模板
   --python-bin           指定 Python 可执行文件，默认 python3
   --mysql-version        无法自动识别版本时手动指定数据库版本
@@ -108,6 +126,7 @@ func newFlagSet(cfg *Config) *flag.FlagSet {
 	fs.StringVar(&cfg.RuleFile, "rule-file", "", "自定义 rule.json")
 	fs.StringVar(&cfg.TemplateFile, "template-file", "", "自定义 docx 模板")
 	fs.StringVar(&cfg.AWRFile, "awr-file", "", "Oracle AWR HTML 报告路径（可选，仅 Oracle）")
+	fs.StringVar(&cfg.WDRFile, "wdr-file", "", "GaussDB WDR HTML 报告路径（可选，仅 GaussDB）")
 	fs.StringVar(&cfg.OutDocx, "out-docx", "", "输出 docx 路径")
 	fs.StringVar(&cfg.OutMD, "out-md", "", "可选 markdown 输出路径")
 	fs.StringVar(&cfg.DocumentName, "document-name", "", "文档名称")
