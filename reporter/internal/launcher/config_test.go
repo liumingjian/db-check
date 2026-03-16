@@ -29,3 +29,10 @@ func TestParseArgsHelp(t *testing.T) {
 		t.Fatalf("expected help error, got %v", err)
 	}
 }
+
+func TestParseArgsRejectsAWRFileWithRuleFile(t *testing.T) {
+	_, err := ParseArgs([]string{"--run-dir", "./runs/demo", "--awr-file", "./awr.html", "--rule-file", "./rule.json"})
+	if err == nil {
+		t.Fatalf("expected awr-file + rule-file error")
+	}
+}

@@ -21,7 +21,9 @@ from analyzer.cli.db_analyzer import run as run_analyzer  # noqa: E402
 from reporter.cli.db_report_preview import run as run_report_view  # noqa: E402
 from reporter.cli.generate_report_meta import run as run_meta  # noqa: E402
 from reporter.cli.render_template_docx import run as run_docx  # noqa: E402
+from reporter.awr.enrich import write_enriched_result  # noqa: E402
 from reporter.common.json_io import load_json  # noqa: E402
+from reporter.rules.merge import write_effective_rule  # noqa: E402
 from tasks.validate_frozen_contracts import run as run_contracts  # noqa: E402
 
 EXIT_OK = 0
@@ -36,6 +38,7 @@ class Options:
     run_dir: Path
     rule_file: Path
     template_file: Path
+    awr_file: Path | None
     out_docx: Path
     out_md: Path | None
     document_name: str
@@ -58,6 +61,7 @@ def build_parser() -> _ArgumentParser:
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--rule-file", type=Path, required=True)
     parser.add_argument("--template-file", type=Path, required=True)
+    parser.add_argument("--awr-file", type=Path)
     parser.add_argument("--out-docx", type=Path)
     parser.add_argument("--out-md", type=Path)
     parser.add_argument("--document-name", default="")
@@ -79,6 +83,7 @@ def parse_args(argv: Sequence[str] | None) -> Options:
         run_dir=run_dir,
         rule_file=args.rule_file.resolve(),
         template_file=args.template_file.resolve(),
+        awr_file=args.awr_file.resolve() if args.awr_file else None,
         out_docx=out_docx,
         out_md=args.out_md.resolve() if args.out_md else None,
         document_name=args.document_name or out_docx.name,
@@ -97,13 +102,25 @@ def run(argv: Sequence[str] | None = None) -> int:
         options = parse_args(argv)
         paths = build_paths(options.run_dir)
         ensure_inputs(options, paths)
-        db_version = options.mysql_version or detect_db_version(paths.result)
+        result_path = paths.result
+        rule_path = options.rule_file
+        if options.awr_file is not None:
+            result_path = write_enriched_result(run_dir=options.run_dir, awr_file=options.awr_file)
+            extension_rule = options.rule_file.parent / "rule.awr.json"
+            if not extension_rule.exists():
+                raise RuntimeError(f"AWR extension rule not found: {extension_rule}")
+            rule_path = write_effective_rule(
+                run_dir=options.run_dir,
+                base_rule=options.rule_file,
+                extension_rule=extension_rule,
+            )
+        db_version = options.mysql_version or detect_db_version(result_path)
         if not db_version:
             raise RuntimeError("无法从 result.json 自动识别数据库版本，请显式传入 --mysql-version")
-        report_view_code = run_pipeline(options, paths, db_version)
+        report_view_code = run_pipeline(options, paths, db_version, result_path, rule_path)
         if report_view_code != EXIT_OK:
             return report_view_code
-        return validate_outputs(paths, options.rule_file)
+        return validate_outputs(paths, rule_path, result_path)
     except ValueError as exc:
         print(f"[ERROR] {exc}")
         return EXIT_PARAM_ERROR
@@ -140,6 +157,8 @@ def ensure_inputs(options: Options, paths: Paths) -> None:
     for label, path in required_paths(paths, options):
         if not path.exists():
             raise ValueError(f"{label} 文件不存在: {path}")
+    if options.awr_file is not None and (not options.awr_file.exists() or not options.awr_file.is_file()):
+        raise ValueError(f"awr-file 文件不存在: {options.awr_file}")
 
 
 def required_paths(paths: Paths, options: Options) -> list[tuple[str, Path]]:
@@ -174,37 +193,37 @@ def nested_value(node: dict[str, Any], *keys: str) -> Any:
     return current
 
 
-def run_pipeline(options: Options, paths: Paths, db_version: str) -> int:
+def run_pipeline(options: Options, paths: Paths, db_version: str, result_path: Path, rule_path: Path) -> int:
     summary_code = run_stage(
         "analyze",
         run_analyzer,
-        analyzer_args(paths, options.rule_file),
+        analyzer_args(paths, rule_path, result_path),
         EXIT_VALIDATE_ERROR,
     )
     if summary_code != EXIT_OK:
         return summary_code
-    meta_code = run_stage("meta", run_meta, meta_args(paths, options, db_version), EXIT_REPORT_ERROR)
+    meta_code = run_stage("meta", run_meta, meta_args(paths, options, db_version, result_path), EXIT_REPORT_ERROR)
     if meta_code != EXIT_OK:
         return meta_code
-    view_code = run_stage("report-view", run_report_view, report_view_args(paths, options), EXIT_REPORT_ERROR)
+    view_code = run_stage("report-view", run_report_view, report_view_args(paths, options, result_path), EXIT_REPORT_ERROR)
     if view_code != EXIT_OK:
         return view_code
     return run_stage("docx", run_docx, docx_args(paths, options), EXIT_REPORT_ERROR)
 
 
-def analyzer_args(paths: Paths, rule_file: Path) -> list[str]:
+def analyzer_args(paths: Paths, rule_file: Path, result_path: Path) -> list[str]:
     return [
         "--manifest", str(paths.manifest),
-        "--result", str(paths.result),
+        "--result", str(result_path),
         "--rule", str(rule_file),
         "--strict-schema",
         "--out", str(paths.summary),
     ]
 
 
-def meta_args(paths: Paths, options: Options, db_version: str) -> list[str]:
+def meta_args(paths: Paths, options: Options, db_version: str, result_path: Path) -> list[str]:
     return [
-        "--result", str(paths.result),
+        "--result", str(result_path),
         "--summary", str(paths.summary),
         "--mysql-version", db_version,
         "--document-name", options.document_name,
@@ -218,9 +237,9 @@ def meta_args(paths: Paths, options: Options, db_version: str) -> list[str]:
     ]
 
 
-def report_view_args(paths: Paths, options: Options) -> list[str]:
+def report_view_args(paths: Paths, options: Options, result_path: Path) -> list[str]:
     args = [
-        "--result", str(paths.result),
+        "--result", str(result_path),
         "--summary", str(paths.summary),
         "--meta", str(paths.report_meta),
         "--out-json", str(paths.report_view),
@@ -248,12 +267,12 @@ def run_stage(label: str, func: Any, argv: list[str], error_code: int) -> int:
     return EXIT_OK
 
 
-def validate_outputs(paths: Paths, rule_file: Path) -> int:
+def validate_outputs(paths: Paths, rule_file: Path, result_path: Path) -> int:
     print("[INFO] stage=validate status=started")
     code = run_contracts(
         [
             "--manifest", str(paths.manifest),
-            "--result", str(paths.result),
+            "--result", str(result_path),
             "--summary", str(paths.summary),
             "--rule", str(rule_file),
             "--strict-schema",

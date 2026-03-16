@@ -43,6 +43,9 @@ func orchestratorArgs(cfg Config, layout AssetLayout) []string {
 		"--review-contact", cfg.ReviewContact,
 		"--review-email", cfg.ReviewEmail,
 	}
+	if cfg.AWRFile != "" {
+		args = append(args, "--awr-file", cfg.AWRFile)
+	}
 	if cfg.OutMD != "" {
 		args = append(args, "--out-md", cfg.OutMD)
 	}

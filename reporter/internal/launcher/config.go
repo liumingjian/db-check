@@ -22,6 +22,7 @@ type Config struct {
 	RunDir            string
 	RuleFile          string
 	TemplateFile      string
+	AWRFile           string
 	OutDocx           string
 	OutMD             string
 	DocumentName      string
@@ -49,6 +50,19 @@ func ParseArgs(args []string) (Config, error) {
 		return Config{}, errors.New("缺少 --run-dir")
 	}
 	cfg.RunDir = filepath.Clean(cfg.RunDir)
+	if cfg.AWRFile != "" && cfg.RuleFile != "" {
+		return Config{}, errors.New("--awr-file 与 --rule-file 不能同时使用")
+	}
+	if cfg.AWRFile != "" {
+		cfg.AWRFile = filepath.Clean(cfg.AWRFile)
+		dbType, err := detectRunDirDBType(cfg.RunDir)
+		if err != nil {
+			return Config{}, err
+		}
+		if dbType != "oracle" {
+			return Config{}, fmt.Errorf("--awr-file 仅支持 Oracle run-dir，当前 db_type=%q", dbType)
+		}
+	}
 	cfg.OutDocx = normalizeDocxPath(cfg)
 	return cfg, nil
 }
@@ -66,6 +80,7 @@ func Usage() string {
   --out-docx             Word 报告输出路径，默认 <run-dir>/report.docx
   --out-md               可选 Markdown 输出路径，默认不生成
   --rule-file            自定义规则文件，默认使用内置规则
+  --awr-file             Oracle AWR HTML 报告路径（可选，仅 Oracle；与 --rule-file 互斥）
   --template-file        自定义 Word 模板，默认使用内置模板
   --python-bin           指定 Python 可执行文件，默认 python3
   --mysql-version        无法自动识别版本时手动指定数据库版本
@@ -92,6 +107,7 @@ func newFlagSet(cfg *Config) *flag.FlagSet {
 	fs.StringVar(&cfg.RunDir, "run-dir", "", "collector 产出的 run 目录")
 	fs.StringVar(&cfg.RuleFile, "rule-file", "", "自定义 rule.json")
 	fs.StringVar(&cfg.TemplateFile, "template-file", "", "自定义 docx 模板")
+	fs.StringVar(&cfg.AWRFile, "awr-file", "", "Oracle AWR HTML 报告路径（可选，仅 Oracle）")
 	fs.StringVar(&cfg.OutDocx, "out-docx", "", "输出 docx 路径")
 	fs.StringVar(&cfg.OutMD, "out-md", "", "可选 markdown 输出路径")
 	fs.StringVar(&cfg.DocumentName, "document-name", "", "文档名称")

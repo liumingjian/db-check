@@ -1,0 +1,128 @@
+{
+  "rule_meta": {
+    "schema_version": "1.0",
+    "rule_version": "1.0.0",
+    "rule_name": "Oracle AWR 扩展规则模板",
+    "db_type": "oracle",
+    "target_versions": ["11g", "19c"],
+    "updated_at": "2026-03-13",
+    "target": "Oracle AWR (HTML)"
+  },
+  "dimensions": [
+    {
+      "dimension_id": 4,
+      "name": "性能与 SQL",
+      "checks": [
+        {
+          "check_id": "4.11",
+          "name": "Execute to Parse %",
+          "priority": "P2",
+          "source_module": "awr",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "db.awr.instance_efficiency.execute_to_parse_pct",
+            "aggregation": "raw",
+            "expected_type": "number",
+            "unit": "%"
+          },
+          "thresholds": {
+            "warning": {"operator": "<", "value": 80},
+            "critical": {"operator": "<", "value": 50}
+          },
+          "optimization_advice": "解析占比偏低，建议检查 shared pool 复用、绑定变量使用和硬解析压力"
+        },
+        {
+          "check_id": "4.12",
+          "name": "Soft Parse %",
+          "priority": "P2",
+          "source_module": "awr",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "db.awr.instance_efficiency.soft_parse_pct",
+            "aggregation": "raw",
+            "expected_type": "number",
+            "unit": "%"
+          },
+          "thresholds": {
+            "warning": {"operator": "<", "value": 95},
+            "critical": {"operator": "<", "value": 90}
+          },
+          "optimization_advice": "soft parse 偏低，建议检查游标共享、session cursor cache、以及 parse 压力来源"
+        },
+        {
+          "check_id": "4.13",
+          "name": "Library Hit %",
+          "priority": "P2",
+          "source_module": "awr",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "db.awr.instance_efficiency.library_hit_pct",
+            "aggregation": "raw",
+            "expected_type": "number",
+            "unit": "%"
+          },
+          "thresholds": {
+            "warning": {"operator": "<", "value": 98},
+            "critical": {"operator": "<", "value": 95}
+          },
+          "optimization_advice": "库缓存命中率偏低，建议排查硬解析、对象失效、以及共享池大小与使用情况"
+        },
+        {
+          "check_id": "4.14",
+          "name": "Buffer Hit %",
+          "priority": "P2",
+          "source_module": "awr",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "db.awr.instance_efficiency.buffer_hit_pct",
+            "aggregation": "raw",
+            "expected_type": "number",
+            "unit": "%"
+          },
+          "thresholds": {
+            "warning": {"operator": "<", "value": 95},
+            "critical": {"operator": "<", "value": 90}
+          },
+          "optimization_advice": "Buffer Cache 命中率偏低，建议排查热点对象、I/O 压力与 SGA 配置"
+        },
+        {
+          "check_id": "4.15",
+          "name": "Top Wait Class(非 DB CPU) % DB time",
+          "priority": "P1",
+          "source_module": "awr",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "db.awr.wait_classes.top_non_cpu_pct_db_time",
+            "aggregation": "raw",
+            "expected_type": "number",
+            "unit": "%"
+          },
+          "thresholds": {
+            "warning": {"operator": ">", "value": 30},
+            "critical": {"operator": ">", "value": 50}
+          },
+          "optimization_advice": "单一等待类占用 DB Time 偏高，建议优先围绕 Top Wait Class 定位瓶颈（I/O/并发/网络等）"
+        },
+        {
+          "check_id": "4.16",
+          "name": "Top Foreground Event(非 DB CPU) % DB time",
+          "priority": "P1",
+          "source_module": "awr",
+          "result_type": "percentage",
+          "extract": {
+            "json_path": "db.awr.top_foreground_events.top_non_cpu_pct_db_time",
+            "aggregation": "raw",
+            "expected_type": "number",
+            "unit": "%"
+          },
+          "thresholds": {
+            "warning": {"operator": ">", "value": 20},
+            "critical": {"operator": ">", "value": 30}
+          },
+          "optimization_advice": "Top 前台等待事件占用 DB Time 偏高，建议结合 SQL、会话与对象进一步定位根因"
+        }
+      ]
+    }
+  ]
+}
+
