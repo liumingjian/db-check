@@ -1,0 +1,290 @@
+openapi: 3.0.3
+info:
+  title: db-check Web Report API
+  version: 0.1.0
+  description: |
+    Web service for generating db-check reports from uploaded collector ZIP packages.
+
+servers:
+  - url: /
+
+paths:
+  /api/reports/generate:
+    post:
+      summary: Generate reports from uploaded ZIP packages
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - zips
+              properties:
+                zips:
+                  type: array
+                  description: One or more collector ZIP packages.
+                  items:
+                    type: string
+                    format: binary
+                awrs:
+                  type: array
+                  description: |
+                    Optional Oracle AWR HTML files.
+                    Either provide `awrs` with the same count as `zips` (paired by index),
+                    or provide per-item fields `awr_<index>` (1-based, e.g. `awr_1`).
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        "200":
+          description: Task created and processing started (queued on a single worker).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateResponse"
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: Upload too large.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/reports/status/{task_id}:
+    get:
+      summary: Get task status
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Status snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "401":
+          description: Missing or invalid token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Task not found.
+
+  /api/reports/download/{task_id}:
+    get:
+      summary: Download result ZIP
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ZIP file containing only successful items as `<zip-name>/report.docx`.
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Missing or invalid token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Task not found.
+        "409":
+          description: Task not finished.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/reports/ws/{task_id}:
+    get:
+      summary: WebSocket stream for task logs and progress
+      description: |
+        WebSocket endpoint. Clients MUST pass the API token via `Sec-WebSocket-Protocol`.
+
+        Example (browser):
+        - `new WebSocket(wsUrl, [token])`
+
+        The server negotiates the subprotocol by echoing the token value.
+
+        Messages are JSON objects matching one of:
+        - `WsLogMessage`
+        - `WsProgressMessage`
+        - `WsDoneMessage`
+        - `WsErrorMessage`
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "101":
+          description: Switching Protocols (WebSocket upgrade).
+        "401":
+          description: Missing or invalid token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Task not found.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: token
+
+  schemas:
+    GenerateResponse:
+      type: object
+      required:
+        - task_id
+        - status
+        - total
+        - ws_url
+      properties:
+        task_id:
+          type: string
+        status:
+          type: string
+          enum: ["processing"]
+        total:
+          type: integer
+          minimum: 1
+        ws_url:
+          type: string
+          description: Relative WS path, e.g. `/api/reports/ws/<task_id>`.
+
+    StatusResponse:
+      type: object
+      required:
+        - task_id
+        - status
+        - total
+        - completed
+        - current_file
+      properties:
+        task_id:
+          type: string
+        status:
+          type: string
+          enum: ["queued", "processing", "done", "failed"]
+        total:
+          type: integer
+        completed:
+          type: integer
+        current_file:
+          type: string
+        download_url:
+          type: string
+          description: Present when status is `done`.
+        error:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    WsLogMessage:
+      type: object
+      required: [type, seq, timestamp, level, message]
+      properties:
+        type:
+          type: string
+          enum: ["log"]
+        seq:
+          type: integer
+          format: int64
+        timestamp:
+          type: string
+          format: date-time
+        level:
+          type: string
+          enum: ["info", "success", "warn", "error"]
+        message:
+          type: string
+
+    WsProgressMessage:
+      type: object
+      required: [type, seq, completed, total, current_file]
+      properties:
+        type:
+          type: string
+          enum: ["progress"]
+        seq:
+          type: integer
+          format: int64
+        completed:
+          type: integer
+        total:
+          type: integer
+        current_file:
+          type: string
+
+    WsDoneMessage:
+      type: object
+      required: [type, seq, download_url]
+      properties:
+        type:
+          type: string
+          enum: ["done"]
+        seq:
+          type: integer
+          format: int64
+        download_url:
+          type: string
+
+    WsErrorMessage:
+      type: object
+      required: [type, seq, message]
+      properties:
+        type:
+          type: string
+          enum: ["error"]
+        seq:
+          type: integer
+          format: int64
+        message:
+          type: string
+
+    WsMessage:
+      oneOf:
+        - $ref: "#/components/schemas/WsLogMessage"
+        - $ref: "#/components/schemas/WsProgressMessage"
+        - $ref: "#/components/schemas/WsDoneMessage"
+        - $ref: "#/components/schemas/WsErrorMessage"

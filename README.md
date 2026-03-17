@@ -2,9 +2,10 @@
 
 `db-check` 是一个面向企业内网数据库巡检场景的双入口工具链，用于完成数据库与主机指标采集、规则分析和 Word 巡检报告生成。
 
-当前正式入口只有两个：
+当前主要入口包括：
 - `db-collector`：采集数据库与 OS 指标，产出标准 `run` 目录
 - `db-reporter`：基于 `run` 目录生成 `summary.json`、`report-meta.json`、`report-view.json` 和最终 `report.docx`
+- `db-web`（可选）：Web 报告生成服务。上传 ZIP 采集包 → 后端执行 reporter pipeline → WebSocket 推送日志/进度 → 下载结果 ZIP
 
 当前正式实现覆盖：
 - MySQL `5.6 / 5.7 / 8.0`
@@ -35,11 +36,13 @@
 
 ## Quick Start
 
-本项目推荐两种使用方式：
+本项目推荐三种使用方式：
 - 方式一：编译运行
   - 适合本地验证、联调、交付前测试
 - 方式二：源码运行
   - 适合开发、调试和排查问题
+- 方式三：Web 报告服务（`db-web` + `web/` 前端）
+  - 适合一键上传 ZIP 采集包并生成报告（带 WS 日志/进度）
 
 无论采用哪种方式，最终用户只需要完成两步：
 1. 使用 `db-collector` 采集指标，生成 `run` 目录
@@ -51,7 +54,7 @@
 
 ### 1. 环境要求
 
-- Go `1.21+`
+- Go `1.24+`
 - Python `3.10+`
 - 当前 Shell 可正常执行 `python3`
 - 如果需要运行 e2e：需要 Docker 与 Docker Compose
@@ -215,7 +218,7 @@ result=./runs/mysql-127.0.0.1-20260311T120000Z/result.json
 
 ### 1. 环境要求
 
-- Go `1.21+`
+- Go `1.24+`
 - Python `3.10+`
 - 已激活 `.venv`
 
@@ -264,6 +267,128 @@ GOCACHE=/tmp/go-cache go run ./reporter/cmd/db-reporter \
 - 调试规则判定
 - 调试报告内容和模板渲染
 - 在不构建发布包的前提下快速验证完整链路
+
+---
+
+## 方式三：Web 报告服务（db-web + web/）
+
+`db-web` 提供一个 Web 入口：上传 ZIP 采集包，服务端执行 `db-reporter` 对应的 reporter pipeline，并通过 WebSocket 推送日志/进度，最终下载结果 ZIP（只包含成功项的 `report.docx`）。
+
+### 1. 环境要求
+
+- Go `1.24+`
+- Python `3.10+`（需安装 `requirements.txt` 依赖；推荐使用 `.venv`）
+- Node.js（建议 `20+`，用于 `web/`）
+
+### 2. 准备输入 ZIP
+
+要求：
+- 每个上传 ZIP 里必须且只能包含 1 份采集产物（ZIP 内只能有一个 `manifest.json`）
+- 最小需要包含：`manifest.json` + `result.json`
+
+示例（从已有 `run` 目录打包）：
+
+```bash
+RUN_ID="mysql-127.0.0.1-20260311T120000Z"
+cd runs/"$RUN_ID"
+zip -r /tmp/mysql-run.zip manifest.json result.json
+```
+
+示例（快速体验：使用仓库内置 MySQL e2e 产物，无需真实数据库）：
+
+```bash
+RUN_DIR="$(find tests/e2e/runs -maxdepth 4 -path '*/mysql-8.0/*/manifest.json' -print | sort | tail -n 1 | xargs -I{} dirname {})"
+zip -j /tmp/mysql-e2e.zip "$RUN_DIR/manifest.json" "$RUN_DIR/result.json"
+```
+
+### 3. 启动后端（db-web）
+
+后端需要 3 个环境变量：
+- `DBCHECK_DATA_DIR`：任务落盘目录（例如 `/tmp/dbcheck-data`）
+- `ALLOWED_ORIGINS`：前端 Origin 白名单（逗号分隔）。支持三种写法：
+  - 完整 Origin：`http://127.0.0.1:3000`（推荐）
+  - Host（含端口）：`127.0.0.1:3000` / `localhost:3000`（更宽松，适合本地联调）
+  - `*`：允许任意 Origin（仅建议本地联调临时使用；生产环境不要用）
+- `DBCHECK_API_TOKEN`：固定 Bearer token（前端会提示输入）
+
+说明：
+- 当 `ALLOWED_ORIGINS` 配置里包含 `localhost` / `127.0.0.1`（带端口）时，`db-web` 会自动放行同端口的本机局域网地址（例如 `http://192.168.x.x:3000`），避免你用 Next dev server 的 Network 地址打开前端时触发 CORS。
+
+```bash
+source .venv/bin/activate
+
+export DBCHECK_DATA_DIR=/tmp/dbcheck-data
+export ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000
+# 本地快速联调（不建议在生产环境使用）：
+# export ALLOWED_ORIGINS=*
+export DBCHECK_API_TOKEN=secret
+
+go run ./reporter/cmd/db-web --addr 127.0.0.1:8080 --python-bin "$VIRTUAL_ENV/bin/python3"
+```
+
+### 4. 启动前端（web/）
+
+前端通过 `NEXT_PUBLIC_API_BASE`（完整 Origin）指向后端（推荐）：
+
+```bash
+cd web
+npm install
+NEXT_PUBLIC_API_BASE=http://127.0.0.1:8080 npm run dev
+```
+
+访问：`http://127.0.0.1:3000`
+
+说明：
+- 如果你忘了设置 `NEXT_PUBLIC_API_BASE`，前端会在运行时做一个本地开发推断：当页面在 `:3000` 时，默认后端为 `:8080`；否则默认同源。
+- 也可以在生成页手动填写“后端 API 地址”，无需重启前端。
+
+### 5. 手动验证流程（MySQL）
+
+1. 页面选择 MySQL
+2. 上传 `/tmp/mysql-run.zip`（或 `/tmp/mysql-e2e.zip`）
+3. 点击“生成报告”，在生成页输入 Token（与 `DBCHECK_API_TOKEN` 一致）
+4. 观察 WS 日志与进度，完成后点击下载，得到 `reports-<task_id>.zip`
+
+### 6. 仅用 curl 验证 HTTP（可选）
+
+```bash
+API_BASE="http://127.0.0.1:8080"
+TOKEN="secret"
+
+curl -sS -X POST \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -F "zips=@/tmp/mysql-e2e.zip;type=application/zip" \
+  "${API_BASE}/api/reports/generate"
+
+# 轮询状态（done 后会出现 download_url）
+curl -sS -H "Authorization: Bearer ${TOKEN}" \
+  "${API_BASE}/api/reports/status/<task_id>"
+
+# 下载结果
+curl -sS -H "Authorization: Bearer ${TOKEN}" \
+  -o reports.zip \
+  "${API_BASE}/api/reports/download/<task_id>"
+```
+
+接口定义见：`docs/openapi/dbcheck-web.yaml`
+
+### 7. 常见报错排查（TypeError: Failed to fetch）
+
+如果前端日志里出现 `TypeError: Failed to fetch`，通常是以下原因之一：
+1. 后端不可达或 `NEXT_PUBLIC_API_BASE` 配错（例如前端指向了错误的端口）
+2. `ALLOWED_ORIGINS` 未包含当前页面的 `window.location.origin`（注意 `127.0.0.1` 与 `localhost` 属于不同 Origin）
+3. 使用 Next dev server 的 Network 地址打开前端（例如 `http://192.168.x.x:3000`），但后端只放行了 `localhost/127.0.0.1`（可在 `ALLOWED_ORIGINS` 中显式加入该 Origin，或本地临时用 `*`）
+4. HTTPS 页面调用 HTTP API 触发浏览器 Mixed Content 拦截
+
+可以用预检请求快速定位是否是 CORS 配置问题（返回 204 且包含 `Access-Control-Allow-Origin` 为正常）：
+
+```bash
+API_BASE="http://127.0.0.1:8080"
+curl -i -sS -X OPTIONS \
+  -H "Origin: http://127.0.0.1:3000" \
+  -H "Access-Control-Request-Method: POST" \
+  "${API_BASE}/api/reports/generate"
+```
 
 ---
 

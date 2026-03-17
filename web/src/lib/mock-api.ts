@@ -51,6 +51,7 @@ export function mockWebSocket(
   onMessage: (msg: WsMessage) => void,
 ): () => void {
   let cancelled = false;
+  let seq = 0;
 
   (async () => {
     for (let i = 0; i < total && !cancelled; i++) {
@@ -58,6 +59,7 @@ export function mockWebSocket(
 
       onMessage({
         type: "log",
+        seq: ++seq,
         timestamp: timestamp(),
         level: "info",
         message: `开始处理 ${fileName}`,
@@ -68,6 +70,7 @@ export function mockWebSocket(
         await delay(250);
         onMessage({
           type: "log",
+          seq: ++seq,
           timestamp: timestamp(),
           level: log.level,
           message: `[${fileName}] ${log.template}`,
@@ -76,6 +79,7 @@ export function mockWebSocket(
 
       onMessage({
         type: "progress",
+        seq: ++seq,
         completed: i + 1,
         total,
         current_file: fileName,
@@ -87,6 +91,7 @@ export function mockWebSocket(
     if (!cancelled) {
       onMessage({
         type: "log",
+        seq: ++seq,
         timestamp: timestamp(),
         level: "success",
         message:
@@ -97,6 +102,7 @@ export function mockWebSocket(
       await delay(500);
       onMessage({
         type: "done",
+        seq: ++seq,
         download_url: `/api/reports/download/mock-result`,
       });
     }

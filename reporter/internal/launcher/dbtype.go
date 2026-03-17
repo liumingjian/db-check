@@ -18,7 +18,9 @@ type resultDBType struct {
 	} `json:"meta"`
 }
 
-func detectRunDirDBType(runDir string) (string, error) {
+// DetectRunDirDBType inspects runDir and returns the normalized db_type from
+// manifest.json or result.json.
+func DetectRunDirDBType(runDir string) (string, error) {
 	if strings.TrimSpace(runDir) == "" {
 		return "", nil
 	}

@@ -23,13 +23,15 @@ func Execute(executablePath string, cfg Config) int {
 		fmt.Fprintf(stderr(), "[ERROR] %v\n", err)
 		return ExitRuntimeError
 	}
-	if err := RunOrchestrator(cfg.PythonBin, layout.Script, orchestratorArgs(cfg, layout)); err != nil {
+	if err := RunOrchestrator(cfg.PythonBin, layout.Script, OrchestratorArgs(cfg, layout)); err != nil {
 		return mapExecError(err)
 	}
 	return ExitSuccess
 }
 
-func orchestratorArgs(cfg Config, layout AssetLayout) []string {
+// OrchestratorArgs builds CLI args for reporter_orchestrator.py based on launcher
+// Config and resolved AssetLayout.
+func OrchestratorArgs(cfg Config, layout AssetLayout) []string {
 	args := []string{
 		"--run-dir", cfg.RunDir,
 		"--rule-file", layout.RuleFile,

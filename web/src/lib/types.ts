@@ -32,8 +32,9 @@ export const DB_TYPE_OPTIONS: DbTypeOption[] = [
     label: "GaussDB",
     versions: "505.2.1",
     description: "华为 GaussDB 数据库",
-    hasAwrWdr: true,
-    awrWdrLabel: "WDR 报告",
+    // Web 版暂不支持 WDR 上传
+    hasAwrWdr: false,
+    awrWdrLabel: "",
   },
 ];
 
@@ -70,6 +71,7 @@ export interface GenerateResponse {
 
 export interface WsLogMessage {
   type: "log";
+  seq: number;
   timestamp: string;
   level: LogLevel;
   message: string;
@@ -77,6 +79,7 @@ export interface WsLogMessage {
 
 export interface WsProgressMessage {
   type: "progress";
+  seq: number;
   completed: number;
   total: number;
   current_file: string;
@@ -84,11 +87,13 @@ export interface WsProgressMessage {
 
 export interface WsDoneMessage {
   type: "done";
+  seq: number;
   download_url: string;
 }
 
 export interface WsErrorMessage {
   type: "error";
+  seq: number;
   message: string;
 }
 

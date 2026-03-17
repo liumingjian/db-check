@@ -12,6 +12,8 @@ interface GenerationProgressProps {
   isComplete: boolean;
   hasError: boolean;
   downloadUrl: string | null;
+  isDownloading: boolean;
+  onDownload: (() => void) | null;
   onReset: () => void;
 }
 
@@ -21,6 +23,8 @@ export function GenerationProgress({
   isComplete,
   hasError,
   downloadUrl,
+  isDownloading,
+  onDownload,
   onReset,
 }: GenerationProgressProps) {
   const pct =
@@ -60,20 +64,21 @@ export function GenerationProgress({
       {/* Actions */}
       {isComplete && (
         <div className="flex items-center justify-center gap-4">
-          {downloadUrl && !hasError && (
-            <a
-              href={downloadUrl}
-              download
+          {downloadUrl && !hasError && onDownload && (
+            <button
+              type="button"
+              onClick={onDownload}
+              disabled={isDownloading}
               className={cn(
                 "inline-flex items-center gap-2 rounded-lg px-6 py-2.5",
                 "bg-primary text-primary-foreground font-medium",
                 "hover:bg-primary/90 transition-colors duration-200",
-                "cursor-pointer",
+                "cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed",
               )}
             >
               <Download className="h-4 w-4" />
-              下载报告
-            </a>
+              {isDownloading ? "下载中..." : "下载报告"}
+            </button>
           )}
           <button
             type="button"

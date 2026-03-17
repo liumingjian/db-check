@@ -19,7 +19,7 @@ func ResolveAssetLayout(executablePath string, cfg Config) (AssetLayout, error) 
 		return AssetLayout{}, err
 	}
 	if cfg.RuleFile == "" {
-		dbType, typeErr := detectRunDirDBType(cfg.RunDir)
+		dbType, typeErr := DetectRunDirDBType(cfg.RunDir)
 		if typeErr != nil {
 			return AssetLayout{}, typeErr
 		}

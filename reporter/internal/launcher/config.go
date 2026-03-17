@@ -62,7 +62,7 @@ func ParseArgs(args []string) (Config, error) {
 	}
 	if cfg.AWRFile != "" {
 		cfg.AWRFile = filepath.Clean(cfg.AWRFile)
-		dbType, err := detectRunDirDBType(cfg.RunDir)
+		dbType, err := DetectRunDirDBType(cfg.RunDir)
 		if err != nil {
 			return Config{}, err
 		}
@@ -72,7 +72,7 @@ func ParseArgs(args []string) (Config, error) {
 	}
 	if cfg.WDRFile != "" {
 		cfg.WDRFile = filepath.Clean(cfg.WDRFile)
-		dbType, err := detectRunDirDBType(cfg.RunDir)
+		dbType, err := DetectRunDirDBType(cfg.RunDir)
 		if err != nil {
 			return Config{}, err
 		}
