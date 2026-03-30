@@ -280,7 +280,57 @@ GOCACHE=/tmp/go-cache go run ./reporter/cmd/db-reporter \
 - Python `3.10+`（需安装 `requirements.txt` 依赖；推荐使用 `.venv`）
 - Node.js（建议 `20+`，用于 `web/`）
 
-### 2. 准备输入 ZIP
+### 2. 使用 PM2 一键启动（推荐）
+
+PM2 会同时管理：
+- `dbcheck-api`：后端 `db-web`（默认 `127.0.0.1:8080`）
+- `dbcheck-web`：前端 Next dev server（默认 `:3000`）
+
+说明：
+- **PM2 只用于管理 Web 服务前后端**（`db-web` + `web/`），不管理 `db-collector` / `db-reporter` 这类一次性 CLI 任务。
+
+准备依赖（如已准备可跳过）：
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+make init-python
+
+make web-install
+```
+
+启动（dev）：
+
+```bash
+make pm2-start
+```
+
+查看日志/状态：
+
+```bash
+make pm2-status
+make pm2-logs
+```
+
+最小链路验证（可选）：
+
+```bash
+make pm2-smoke
+```
+
+启动（production，需先 build）：
+
+```bash
+make build-db-web
+make web-build
+make pm2-start-prod
+```
+
+说明：
+- `ecosystem.config.cjs` 内置了本地联调默认值：`DBCHECK_DATA_DIR=/tmp/dbcheck-data`、`ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000`、`DBCHECK_API_TOKEN=secret` 等；如需覆盖，可在 `pm2 start` 前设置同名环境变量，并用 `make pm2-restart` 刷新 env。
+- 若用局域网地址打开前端（例如 `http://192.168.x.x:3000`），请显式设置 `NEXT_PUBLIC_API_BASE`（或在生成页手动填写 API Base），避免请求被推断到访问者本机 `127.0.0.1:8080`。
+
+### 3. 准备输入 ZIP
 
 要求：
 - 每个上传 ZIP 里必须且只能包含 1 份采集产物（ZIP 内只能有一个 `manifest.json`）
@@ -301,7 +351,7 @@ RUN_DIR="$(find tests/e2e/runs -maxdepth 4 -path '*/mysql-8.0/*/manifest.json' -
 zip -j /tmp/mysql-e2e.zip "$RUN_DIR/manifest.json" "$RUN_DIR/result.json"
 ```
 
-### 3. 启动后端（db-web）
+### 4. 启动后端（db-web）
 
 后端需要 3 个环境变量：
 - `DBCHECK_DATA_DIR`：任务落盘目录（例如 `/tmp/dbcheck-data`）
@@ -326,7 +376,7 @@ export DBCHECK_API_TOKEN=secret
 go run ./reporter/cmd/db-web --addr 127.0.0.1:8080 --python-bin "$VIRTUAL_ENV/bin/python3"
 ```
 
-### 4. 启动前端（web/）
+### 5. 启动前端（web/）
 
 前端通过 `NEXT_PUBLIC_API_BASE`（完整 Origin）指向后端（推荐）：
 
@@ -342,14 +392,14 @@ NEXT_PUBLIC_API_BASE=http://127.0.0.1:8080 npm run dev
 - 如果你忘了设置 `NEXT_PUBLIC_API_BASE`，前端会在运行时做一个本地开发推断：当页面在 `:3000` 时，默认后端为 `:8080`；否则默认同源。
 - 也可以在生成页手动填写“后端 API 地址”，无需重启前端。
 
-### 5. 手动验证流程（MySQL）
+### 6. 手动验证流程（MySQL）
 
 1. 页面选择 MySQL
 2. 上传 `/tmp/mysql-run.zip`（或 `/tmp/mysql-e2e.zip`）
 3. 点击“生成报告”，在生成页输入 Token（与 `DBCHECK_API_TOKEN` 一致）
 4. 观察 WS 日志与进度，完成后点击下载，得到 `reports-<task_id>.zip`
 
-### 6. 仅用 curl 验证 HTTP（可选）
+### 7. 仅用 curl 验证 HTTP（可选）
 
 ```bash
 API_BASE="http://127.0.0.1:8080"
@@ -372,7 +422,7 @@ curl -sS -H "Authorization: Bearer ${TOKEN}" \
 
 接口定义见：`docs/openapi/dbcheck-web.yaml`
 
-### 7. 常见报错排查（TypeError: Failed to fetch）
+### 8. 常见报错排查（TypeError: Failed to fetch）
 
 如果前端日志里出现 `TypeError: Failed to fetch`，通常是以下原因之一：
 1. 后端不可达或 `NEXT_PUBLIC_API_BASE` 配错（例如前端指向了错误的端口）

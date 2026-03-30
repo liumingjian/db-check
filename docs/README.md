@@ -44,7 +44,8 @@
 1. [README.md](/Users/lmj/projects/ai-project/db-check/README.md)
 2. [开发规范](/Users/lmj/projects/ai-project/db-check/docs/specs/开发规范.md)
 3. [业务全景与实现流程](/Users/lmj/projects/ai-project/db-check/docs/architecture/业务全景与实现流程.md)
-4. [tests/e2e/README.md](/Users/lmj/projects/ai-project/db-check/tests/e2e/README.md)
+4. [dbcheck-web 前后端逻辑](/Users/lmj/projects/ai-project/db-check/docs/architecture/dbcheck-web-前后端逻辑.md)
+5. [tests/e2e/README.md](/Users/lmj/projects/ai-project/db-check/tests/e2e/README.md)
 
 ## 目录说明
 
