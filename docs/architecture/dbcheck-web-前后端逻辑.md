@@ -166,6 +166,7 @@ CORS/Origin allowlist：
 
 - PM2 入口：`ecosystem.config.cjs`
   - 启动前会读取仓库根目录 `.env`，且不会覆盖已 export 的同名环境变量
+  - `dbcheck-web` 会把 `ALLOWED_ORIGINS` 派生为 `NEXT_ALLOWED_DEV_ORIGINS`，供 Next dev server 放行远程 IP 访问
   - `dbcheck-api`：通过 `scripts/pm2/run_api.sh` 拉起 Go 后端（dev: `go run`；prod: 优先 `bin/db-web`）
   - `dbcheck-web`：通过 `scripts/pm2/run_web.sh` 拉起 Next 前端（dev: `next dev`；prod: `next start`）
 

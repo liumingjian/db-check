@@ -344,6 +344,8 @@ EOF
 make pm2-restart
 ```
 
+Next dev server 会从 `ALLOWED_ORIGINS` 自动派生 `allowedDevOrigins`，远程用 IP 访问 `http://<server-ip>:3000` 时不会再出现 `Cross origin request detected ... /_next/*` 警告。
+
 ### 3. 准备输入 ZIP
 
 要求：

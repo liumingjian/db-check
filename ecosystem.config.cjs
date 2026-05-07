@@ -79,6 +79,10 @@ module.exports = {
       env: {
         DBCHECK_MODE: "dev",
         PORT: envOr("PORT", "3000"),
+        NEXT_ALLOWED_DEV_ORIGINS: envOr(
+          "NEXT_ALLOWED_DEV_ORIGINS",
+          envOr("ALLOWED_ORIGINS", ""),
+        ),
         // Used by Next.js in dev (and at build-time in prod if you run `npm run build` with it set).
         NEXT_PUBLIC_API_BASE: envOr(
           "NEXT_PUBLIC_API_BASE",
