@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0",
+  "run_id": "oracle-10.0.0.8-20260312T004000Z",
+  "db_type": "oracle",
+  "start_time": "2026-03-12T00:40:00+08:00",
+  "end_time": "2026-03-12T00:40:05+08:00",
+  "exit_code": 10,
+  "overall_status": "partial_success",
+  "module_stats": {
+    "os": {"status": "skipped", "duration_ms": 0, "error": "os_skip"},
+    "db_basic": {"status": "success", "duration_ms": 10, "error": null},
+    "db_storage": {"status": "success", "duration_ms": 10, "error": null},
+    "db_perf": {"status": "success", "duration_ms": 10, "error": null},
+    "db_security": {"status": "success", "duration_ms": 10, "error": null},
+    "db_backup": {"status": "success", "duration_ms": 10, "error": null},
+    "db_sql": {"status": "success", "duration_ms": 10, "error": null}
+  },
+  "artifacts": {"log": "collector.log", "result": "result.json", "summary": null, "report": null}
+}

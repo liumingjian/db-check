@@ -15,7 +15,7 @@ func TestCORSPreflightAllowsConfiguredOrigin(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://example.com"},
-		APIToken:       "secret",
+		APIToken:       defaultAPIToken,
 	}
 	h, err := newAPIHandler(cfg, false)
 	if err != nil {
@@ -40,7 +40,7 @@ func TestCORSPreflightAllowsWildcardOrigin(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"*"},
-		APIToken:       "secret",
+		APIToken:       defaultAPIToken,
 	}
 	h, err := newAPIHandler(cfg, false)
 	if err != nil {
@@ -65,7 +65,7 @@ func TestCORSPreflightAllowsTrailingSlashInConfig(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://example.com/"},
-		APIToken:       "secret",
+		APIToken:       defaultAPIToken,
 	}
 	h, err := newAPIHandler(cfg, false)
 	if err != nil {
@@ -90,7 +90,7 @@ func TestCORSPreflightAllowsHostOnlyEntry(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"localhost:3000"},
-		APIToken:       "secret",
+		APIToken:       defaultAPIToken,
 	}
 	h, err := newAPIHandler(cfg, false)
 	if err != nil {
@@ -115,7 +115,7 @@ func TestCORSPreflightAllowsLocalhostAlias(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://localhost:3000"},
-		APIToken:       "secret",
+		APIToken:       defaultAPIToken,
 	}
 	h, err := newAPIHandler(cfg, false)
 	if err != nil {
@@ -140,7 +140,7 @@ func TestCORSRejectsUnknownOrigin(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://example.com"},
-		APIToken:       "secret",
+		APIToken:       defaultAPIToken,
 	}
 	h, err := newAPIHandler(cfg, false)
 	if err != nil {
@@ -161,7 +161,7 @@ func TestAuthIsRequired(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://example.com"},
-		APIToken:       "secret",
+		APIToken:       defaultAPIToken,
 	}
 	h, err := newAPIHandler(cfg, false)
 	if err != nil {
@@ -182,7 +182,7 @@ func TestGenerateCreatesTaskRecord(t *testing.T) {
 	cfg := Config{
 		DataDir:        dataDir,
 		AllowedOrigins: []string{"http://example.com"},
-		APIToken:       "secret",
+		APIToken:       defaultAPIToken,
 		MaxUploadBytes: 0,
 		PythonBin:      "python3",
 	}
@@ -207,7 +207,7 @@ func TestGenerateCreatesTaskRecord(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/reports/generate", &body)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
-	req.Header.Set("Authorization", "Bearer secret")
+	req.Header.Set("Authorization", "Bearer "+defaultAPIToken)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -237,7 +237,7 @@ func TestGenerateEnforcesUploadLimit(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://example.com"},
-		APIToken:       "secret",
+		APIToken:       defaultAPIToken,
 		MaxUploadBytes: 64, // tiny
 	}
 	h, err := newAPIHandler(cfg, false)
@@ -259,7 +259,7 @@ func TestGenerateEnforcesUploadLimit(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/reports/generate", &body)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
-	req.Header.Set("Authorization", "Bearer secret")
+	req.Header.Set("Authorization", "Bearer "+defaultAPIToken)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusRequestEntityTooLarge {

@@ -21,6 +21,7 @@ const (
 
 const (
 	defaultAddr           = ":8080"
+	defaultAPIToken       = "ATI"
 	defaultMaxUploadBytes = int64(1_073_741_824) // 1 GiB
 	defaultRetentionTTL   = 24 * time.Hour
 	defaultLogReplayLines = 1000
@@ -65,6 +66,9 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	}
 	cfg.AllowedOrigins = splitCSV(allowedOrigins)
 	cfg.APIToken = strings.TrimSpace(getenv(envAPIToken))
+	if cfg.APIToken == "" {
+		cfg.APIToken = defaultAPIToken
+	}
 	cfg.RetentionTTL = *retentionTTL
 
 	if strings.TrimSpace(cfg.DataDir) == "" {
@@ -72,9 +76,6 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	}
 	if len(cfg.AllowedOrigins) == 0 {
 		return Config{}, errors.New("缺少 --allowed-origins 或 env ALLOWED_ORIGINS")
-	}
-	if cfg.APIToken == "" {
-		return Config{}, errors.New("缺少 env DBCHECK_API_TOKEN")
 	}
 	if cfg.LogReplayLines < 0 {
 		return Config{}, errors.New("--log-replay-lines 不能为负数")

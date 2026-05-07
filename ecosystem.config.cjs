@@ -26,7 +26,7 @@ module.exports = {
           "ALLOWED_ORIGINS",
           "http://127.0.0.1:3000,http://localhost:3000",
         ),
-        DBCHECK_API_TOKEN: envOr("DBCHECK_API_TOKEN", "secret"),
+        DBCHECK_API_TOKEN: envOr("DBCHECK_API_TOKEN", "ATI"),
         // Prefer venv Python if present; can override via env DBCHECK_PYTHON_BIN.
         DBCHECK_PYTHON_BIN: envOr(
           "DBCHECK_PYTHON_BIN",
@@ -66,4 +66,3 @@ module.exports = {
     },
   ],
 };
-

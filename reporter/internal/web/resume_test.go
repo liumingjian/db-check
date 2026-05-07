@@ -10,7 +10,7 @@ func TestResumeTasksEnqueuesQueuedOrProcessing(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://example.com"},
-		APIToken:       "secret",
+		APIToken:       defaultAPIToken,
 	}
 	h, err := newAPIHandler(cfg, false)
 	if err != nil {

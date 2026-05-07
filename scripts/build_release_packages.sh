@@ -10,8 +10,21 @@ PLATFORMS=(
   "darwin arm64"
 )
 
+log() {
+  printf '[INFO] %s\n' "$*"
+}
+
+archive_platform() {
+  local pkg_dir="$1"
+  local archive_path="$pkg_dir.tar.gz"
+  rm -f "$archive_path"
+  tar -czf "$archive_path" -C "$DIST_DIR" "$(basename "$pkg_dir")"
+  log "archive written: $archive_path"
+}
+
 copy_runtime_modules() {
   local target="$1"
+  log "copy runtime modules: $target"
   mkdir -p "$target"
   cp -R "$ROOT_DIR/analyzer" "$target/"
   cp -R "$ROOT_DIR/reporter" "$target/"
@@ -78,6 +91,7 @@ build_platform() {
   local pkg_dir="$DIST_DIR/db-check-$goos-$goarch"
   local exe_suffix=""
   local python_hint="python3"
+  log "package started: $goos/$goarch"
   if [[ "$goos" == "windows" ]]; then
     exe_suffix=".exe"
     python_hint="python"
@@ -85,8 +99,11 @@ build_platform() {
   rm -rf "$pkg_dir"
   mkdir -p "$pkg_dir/assets/rules/mysql" "$pkg_dir/assets/templates" "$pkg_dir/runtime"
   mkdir -p "$pkg_dir/assets/rules/oracle" "$pkg_dir/assets/rules/gaussdb"
+  log "build db-collector: $goos/$goarch"
   GOOS="$goos" GOARCH="$goarch" GOCACHE=/tmp/go-cache go build -o "$pkg_dir/db-collector$exe_suffix" "$ROOT_DIR/collector/cmd/db-collector"
+  log "build db-reporter: $goos/$goarch"
   GOOS="$goos" GOARCH="$goarch" GOCACHE=/tmp/go-cache go build -o "$pkg_dir/db-reporter$exe_suffix" "$ROOT_DIR/reporter/cmd/db-reporter"
+  log "copy release assets: $goos/$goarch"
   cp "$ROOT_DIR/rules/mysql/rule.json" "$pkg_dir/assets/rules/mysql/rule.json"
   cp "$ROOT_DIR/rules/oracle/rule.json" "$pkg_dir/assets/rules/oracle/rule.json"
   cp "$ROOT_DIR/rules/oracle/rule.awr.json" "$pkg_dir/assets/rules/oracle/rule.awr.json"
@@ -97,15 +114,20 @@ build_platform() {
   cp "$ROOT_DIR/requirements.txt" "$pkg_dir/runtime/requirements.txt"
   copy_runtime_modules "$pkg_dir/runtime/python_modules"
   write_quickstart "$pkg_dir" "$python_hint" "$exe_suffix"
+  archive_platform "$pkg_dir"
+  log "package finished: $goos/$goarch"
 }
 
 main() {
   local item
+  log "release started: $DIST_DIR"
   mkdir -p "$DIST_DIR"
+  log "build embedded os probes"
   "$ROOT_DIR/scripts/build_embedded_osprobes.sh"
   for item in "${PLATFORMS[@]}"; do
     build_platform ${item}
   done
+  log "release finished: $DIST_DIR"
 }
 
 main "$@"

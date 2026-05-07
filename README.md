@@ -327,7 +327,7 @@ make pm2-start-prod
 ```
 
 说明：
-- `ecosystem.config.cjs` 内置了本地联调默认值：`DBCHECK_DATA_DIR=/tmp/dbcheck-data`、`ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000`、`DBCHECK_API_TOKEN=secret` 等；如需覆盖，可在 `pm2 start` 前设置同名环境变量，并用 `make pm2-restart` 刷新 env。
+- `ecosystem.config.cjs` 内置了本地联调默认值：`DBCHECK_DATA_DIR=/tmp/dbcheck-data`、`ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000`、`DBCHECK_API_TOKEN=ATI` 等；如需覆盖，可在 `pm2 start` 前设置同名环境变量，并用 `make pm2-restart` 刷新 env。
 - 若用局域网地址打开前端（例如 `http://192.168.x.x:3000`），请显式设置 `NEXT_PUBLIC_API_BASE`（或在生成页手动填写 API Base），避免请求被推断到访问者本机 `127.0.0.1:8080`。
 
 ### 3. 准备输入 ZIP
@@ -353,13 +353,13 @@ zip -j /tmp/mysql-e2e.zip "$RUN_DIR/manifest.json" "$RUN_DIR/result.json"
 
 ### 4. 启动后端（db-web）
 
-后端需要 3 个环境变量：
+后端需要 2 个环境变量；本地默认 Token 为 `ATI`，可用 `DBCHECK_API_TOKEN` 覆盖：
 - `DBCHECK_DATA_DIR`：任务落盘目录（例如 `/tmp/dbcheck-data`）
 - `ALLOWED_ORIGINS`：前端 Origin 白名单（逗号分隔）。支持三种写法：
   - 完整 Origin：`http://127.0.0.1:3000`（推荐）
   - Host（含端口）：`127.0.0.1:3000` / `localhost:3000`（更宽松，适合本地联调）
   - `*`：允许任意 Origin（仅建议本地联调临时使用；生产环境不要用）
-- `DBCHECK_API_TOKEN`：固定 Bearer token（前端会提示输入）
+- `DBCHECK_API_TOKEN`：固定 Bearer token（默认 `ATI`，前端会默认填入该值）
 
 说明：
 - 当 `ALLOWED_ORIGINS` 配置里包含 `localhost` / `127.0.0.1`（带端口）时，`db-web` 会自动放行同端口的本机局域网地址（例如 `http://192.168.x.x:3000`），避免你用 Next dev server 的 Network 地址打开前端时触发 CORS。
@@ -371,7 +371,8 @@ export DBCHECK_DATA_DIR=/tmp/dbcheck-data
 export ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000
 # 本地快速联调（不建议在生产环境使用）：
 # export ALLOWED_ORIGINS=*
-export DBCHECK_API_TOKEN=secret
+# 可选：不设置时默认 ATI
+export DBCHECK_API_TOKEN=ATI
 
 go run ./reporter/cmd/db-web --addr 127.0.0.1:8080 --python-bin "$VIRTUAL_ENV/bin/python3"
 ```
@@ -396,14 +397,14 @@ NEXT_PUBLIC_API_BASE=http://127.0.0.1:8080 npm run dev
 
 1. 页面选择 MySQL
 2. 上传 `/tmp/mysql-run.zip`（或 `/tmp/mysql-e2e.zip`）
-3. 点击“生成报告”，在生成页输入 Token（与 `DBCHECK_API_TOKEN` 一致）
+3. 点击“生成报告”，生成页默认填入 Token `ATI`；如覆盖了 `DBCHECK_API_TOKEN`，则改成对应值
 4. 观察 WS 日志与进度，完成后点击下载，得到 `reports-<task_id>.zip`
 
 ### 7. 仅用 curl 验证 HTTP（可选）
 
 ```bash
 API_BASE="http://127.0.0.1:8080"
-TOKEN="secret"
+TOKEN="ATI"
 
 curl -sS -X POST \
   -H "Authorization: Bearer ${TOKEN}" \
@@ -429,6 +430,8 @@ curl -sS -H "Authorization: Bearer ${TOKEN}" \
 2. `ALLOWED_ORIGINS` 未包含当前页面的 `window.location.origin`（注意 `127.0.0.1` 与 `localhost` 属于不同 Origin）
 3. 使用 Next dev server 的 Network 地址打开前端（例如 `http://192.168.x.x:3000`），但后端只放行了 `localhost/127.0.0.1`（可在 `ALLOWED_ORIGINS` 中显式加入该 Origin，或本地临时用 `*`）
 4. HTTPS 页面调用 HTTP API 触发浏览器 Mixed Content 拦截
+
+生成页会先做一次 API 探测；失败日志会显示当前 API 地址与页面 Origin，优先按这两个值核对后端监听地址和 `ALLOWED_ORIGINS`。
 
 可以用预检请求快速定位是否是 CORS 配置问题（返回 204 且包含 `Access-Control-Allow-Origin` 为正常）：
 

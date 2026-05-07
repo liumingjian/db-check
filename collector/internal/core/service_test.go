@@ -116,6 +116,40 @@ func TestRunnerPrecheckFailureReturnsExit30(t *testing.T) {
 	}
 }
 
+func TestRunnerOSSkipProducesPartialManifestAndResult(t *testing.T) {
+	writer := newMemoryWriter()
+	runner, err := NewRunner(Dependencies{
+		Clock:       fixedClock{now: time.Date(2026, 3, 5, 12, 0, 0, 0, time.FixedZone("CST", 8*3600))},
+		DBCollector: stubDBCollector{payload: map[string]any{"basic_info": map[string]any{"version": "19c"}}},
+		OSCollector: stubOSCollector{payload: map[string]any{"system_info": map[string]any{"hostname": "demo"}}},
+		Writer:      writer,
+		Version:     "1.0.0",
+	})
+	if err != nil {
+		t.Fatalf("NewRunner failed: %v", err)
+	}
+	cfg := cli.Config{DBType: "oracle", OSSkip: true, OutputDir: "./runs", DBHost: "10.0.0.8", DBPort: 1521}
+	artifacts, err := runner.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+	if artifacts.Manifest.ExitCode != ExitPartial {
+		t.Fatalf("expected exit 10, got %d", artifacts.Manifest.ExitCode)
+	}
+	if artifacts.Manifest.OverallStatus != "partial_success" {
+		t.Fatalf("expected partial_success, got %s", artifacts.Manifest.OverallStatus)
+	}
+	if artifacts.Manifest.ModuleStats["os"].Status != "skipped" {
+		t.Fatalf("expected os skipped, got %+v", artifacts.Manifest.ModuleStats["os"])
+	}
+	if artifacts.Result == nil {
+		t.Fatalf("expected result to be written")
+	}
+	if _, ok := writer.files[artifacts.ResultPath]; !ok {
+		t.Fatalf("result.json not written: %s", artifacts.ResultPath)
+	}
+}
+
 func TestRunnerWritesStructuredCollectorLog(t *testing.T) {
 	writer := newMemoryWriter()
 	runner, err := NewRunner(Dependencies{

@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useReportStore } from "@/stores/report-store";
 import { GenerationProgress } from "@/components/generation-progress";
-import { apiUrl, wsUrl, getApiBase, setApiBase } from "@/lib/api";
-import type { WsMessage, GenerateResponse, ZipFileEntry } from "@/lib/types";
+import { wsUrl, getApiBase, setApiBase } from "@/lib/api";
+import { downloadReportBlob, generateReportTask } from "@/lib/report-api";
+import { API_BASE_HINT, DEFAULT_API_TOKEN } from "@/lib/web-defaults";
+import type { WsMessage } from "@/lib/types";
 
 function generateLogId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -12,7 +14,6 @@ function generateLogId(): string {
 
 const TOKEN_STORAGE_KEY = "dbcheck_api_token";
 const TASK_STORAGE_KEY = "dbcheck_task_id";
-const API_BASE_HINT = "http://127.0.0.1:8080";
 
 export function GenerationStep() {
   const zipFiles = useReportStore((s) => s.zipFiles);
@@ -42,7 +43,7 @@ export function GenerationStep() {
   const hasErrorRef = useRef<boolean>(hasError);
 
   const [apiBaseInput, setApiBaseInput] = useState("");
-  const [tokenInput, setTokenInput] = useState("");
+  const [tokenInput, setTokenInput] = useState(DEFAULT_API_TOKEN);
   const [isDownloading, setDownloading] = useState(false);
 
   useEffect(() => {
@@ -50,7 +51,10 @@ export function GenerationStep() {
     if (typeof window === "undefined") return;
     if (!token) {
       const saved = sessionStorage.getItem(TOKEN_STORAGE_KEY);
-      if (saved) setToken(saved);
+      if (saved) {
+        setTokenInput(saved);
+        setToken(saved);
+      }
     }
   }, [setToken, token]);
 
@@ -84,7 +88,7 @@ export function GenerationStep() {
 
     (async () => {
       try {
-        const resp = await generate(token, zipFiles, awrFiles);
+        const resp = await generateReportTask(token, zipFiles, awrFiles);
         if (cancelled) return;
 
         setTaskId(resp.task_id);
@@ -94,18 +98,12 @@ export function GenerationStep() {
 
         connectWS(token, resp.ws_url);
       } catch (e) {
-        // Most common local misconfig: frontend calls its own origin (e.g. :3000) and gets 404.
-        // Provide a clearer hint than the raw error.
-        const msg = String(e);
-        const help =
-          msg.includes("generate failed: 404") || msg.includes("404")
-            ? `（提示：接口 404 通常是前端没有连到 db-web；请确认 API 地址为后端地址，例如 ${API_BASE_HINT}，或设置 NEXT_PUBLIC_API_BASE）`
-            : "";
+        const msg = e instanceof Error ? e.message : String(e);
         addLog({
           id: generateLogId(),
           timestamp: new Date().toISOString(),
           level: "error",
-          message: `生成任务失败: ${msg}${help}`,
+          message: `生成任务失败: ${msg}`,
         });
         setGenerating(false);
         setHasError(true);
@@ -211,13 +209,7 @@ export function GenerationStep() {
     if (!token || !downloadUrl) return;
     setDownloading(true);
     try {
-      const resp = await fetch(apiUrl(downloadUrl), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!resp.ok) {
-        throw new Error(`download failed: ${resp.status}`);
-      }
-      const blob = await resp.blob();
+      const blob = await downloadReportBlob(token, downloadUrl);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -280,32 +272,4 @@ export function GenerationStep() {
       onReset={reset}
     />
   );
-}
-
-async function generate(
-  token: string,
-  zipFiles: ZipFileEntry[],
-  awrFiles: Record<string, File>,
-): Promise<GenerateResponse> {
-  const form = new FormData();
-  zipFiles.forEach((z) => {
-    form.append("zips", z.file, z.name);
-  });
-  zipFiles.forEach((z, idx) => {
-    const awr = awrFiles[z.id];
-    if (awr) {
-      form.append(`awr_${idx + 1}`, awr, awr.name);
-    }
-  });
-
-  const resp = await fetch(apiUrl("/api/reports/generate"), {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: form,
-  });
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(text || `generate failed: ${resp.status}`);
-  }
-  return (await resp.json()) as GenerateResponse;
 }

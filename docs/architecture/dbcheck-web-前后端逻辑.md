@@ -38,7 +38,7 @@ sequenceDiagram
   - 必需：
     - `DBCHECK_DATA_DIR`：任务落盘目录（内部会创建 `tasks/`）
     - `ALLOWED_ORIGINS`：CORS/WS origin 白名单（逗号分隔；支持 `*`）
-    - `DBCHECK_API_TOKEN`：HTTP Bearer token + WS subprotocol token
+    - `DBCHECK_API_TOKEN`：HTTP Bearer token + WS subprotocol token（默认 `ATI`）
   - 常用参数：
     - `--addr` / `DBCHECK_ADDR`：监听地址（默认 `:8080`）
     - `--python-bin` / `DBCHECK_PYTHON_BIN`：执行 orchestrator 的 python（默认 `python3`）
@@ -137,13 +137,14 @@ CORS/Origin allowlist：
   - ZIP 列表与 AWR（Oracle）配对 UI：`web/src/components/file-pair-card.tsx`
 3. Step 3 生成 + 下载：
   - `web/src/components/generation-step.tsx`
+  - 先用 `/api/reports/status/frontend-probe` 探测 API 可达性、Token 与 Origin 配置
   - `fetch POST /api/reports/generate` → 拿到 `{task_id, ws_url}`
   - 通过 WebSocket 订阅 `ws_url`，实时更新日志与进度，完成后展示下载按钮
 
 ### 3.3 Token / API base 的处理策略
 
 - Token：
-  - UI 输入后保存到 zustand store
+  - UI 默认填入 `ATI`，输入确认后保存到 zustand store
   - 同时写入 `sessionStorage["dbcheck_api_token"]`，刷新/重连可恢复
 - API base：
   - 可在生成页手动输入（写入 `sessionStorage["dbcheck_api_base"]`）

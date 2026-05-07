@@ -55,7 +55,7 @@ test-e2e: ## 在 .venv 中运行 Docker e2e
 	@test -n "$$VIRTUAL_ENV" || { echo "[ERROR] python3 must run inside an activated virtual environment (VIRTUAL_ENV is empty)" >&2; exit 1; }
 	@tests/e2e/run_docker_e2e.sh
 
-release: ## 构建多平台发布包到 dist/
+release: ## 构建多平台发布包并生成 tar.gz 到 dist/
 	@./scripts/build_release_packages.sh
 
 clean: ## 清理本地临时构建产物

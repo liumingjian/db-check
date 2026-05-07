@@ -1,0 +1,82 @@
+{
+  "meta": {
+    "schema_version": "2.0",
+    "collector_version": "1.2.0",
+    "db_type": "oracle",
+    "db_host": "10.0.0.8",
+    "db_port": 1521,
+    "db_name": "ORCL",
+    "collect_time": "2026-03-12T00:40:05+08:00",
+    "timezone": "Asia/Shanghai"
+  },
+  "collect_config": {
+    "sample_mode": "single",
+    "sample_interval_seconds": null,
+    "sample_period_seconds": null,
+    "expected_samples": 1
+  },
+  "collect_window": {
+    "window_start": "2026-03-12T00:40:00+08:00",
+    "window_end": "2026-03-12T00:40:05+08:00",
+    "duration_seconds": 5
+  },
+  "os": {},
+  "db": {
+    "basic_info": {
+      "db_name": "ORCL",
+      "instance_name": "ORCL1",
+      "version": "19.3.0.0.0",
+      "dbid": 123456,
+      "is_rac": false,
+      "character_set": "AL32UTF8",
+      "log_mode": "ARCHIVELOG"
+    },
+    "config_check": {"spfile": "/u01/app/oracle/product/19c/dbs/spfileORCL.ora"},
+    "storage": {
+      "datafiles": {"items": [{"file_name": "/u02/oradata/system01.dbf"}], "count": 1},
+      "tablespace_usage": {"items": [], "count": 0},
+      "recover_files": {"items": [], "count": 0},
+      "invalid_objects": {"items": [], "count": 0},
+      "invalid_indexes": {"items": [], "count": 0}
+    },
+    "performance": {
+      "redo_switch_daily": {"items": [], "count": 0},
+      "long_transactions": {"items": [], "count": 0},
+      "blocking_chains": {"items": [], "count": 0},
+      "redo_nowait_pct": 99.7,
+      "undo_tablespace_usage": {"items": [], "count": 0},
+      "active_sessions": {"items": [], "count": 0},
+      "active_session_details": {"items": [], "count": 0},
+      "resource_limits": {"items": [], "count": 0},
+      "instance_efficiency": {"items": [], "count": 0},
+      "tablespace_io_stats": {"items": [], "count": 0},
+      "wait_events": {"items": [], "count": 0},
+      "latch_data": {"items": [], "count": 0},
+      "time_model": {"items": [], "count": 0},
+      "undo_stats": {"items": [], "count": 0},
+      "sga_resize_ops": {"items": [], "count": 0}
+    },
+    "sql_analysis": {
+      "top_sql_by_elapsed_time": {"items": [], "count": 0},
+      "top_sql_by_buffer_gets": {"items": [], "count": 0},
+      "top_sql_by_disk_reads": {"items": [], "count": 0},
+      "top_sql_by_executions": {"items": [], "count": 0},
+      "high_parse_count_sql": {"items": [], "count": 0},
+      "high_version_count_sql": {"items": [], "count": 0}
+    },
+    "security": {
+      "disabled_constraints": {"items": [], "count": 0},
+      "disabled_triggers": {"items": [], "count": 0},
+      "dba_role_users": {"items": [], "count": 0},
+      "expired_users": {"items": [], "count": 0}
+    },
+    "backup": {
+      "archive_log_mode": "ARCHIVELOG",
+      "jobs": {"items": [{"session_key": 1, "input_type": "DB FULL", "status": "COMPLETED"}], "count": 1},
+      "archive_destinations": {"items": [], "count": 0},
+      "archive_destination_errors": {"items": [], "count": 0},
+      "archive_log_summary": {"items": [], "count": 0},
+      "recovery_area": {"items": [], "count": 0}
+    }
+  }
+}
