@@ -22,6 +22,7 @@ htmlcov/
 
 # Local runtime / build artifacts
 tests/e2e/runs/
+runs/
 dist/
 bin/
 tmp/
