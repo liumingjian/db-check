@@ -1,8 +1,37 @@
 /* eslint-env node */
 
+const fs = require("fs");
 const path = require("path");
 
 const ROOT = __dirname;
+
+function cleanEnvValue(value) {
+  if (value.length < 2) return value;
+  const first = value[0];
+  const last = value[value.length - 1];
+  if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+function loadDotEnv(filePath) {
+  if (!fs.existsSync(filePath)) return;
+  const content = fs.readFileSync(filePath, "utf8");
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const entry = line.startsWith("export ") ? line.slice(7).trim() : line;
+    const eq = entry.indexOf("=");
+    if (eq <= 0) continue;
+    const key = entry.slice(0, eq).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+    if (process.env[key] != null) continue;
+    process.env[key] = cleanEnvValue(entry.slice(eq + 1).trim());
+  }
+}
+
+loadDotEnv(path.join(ROOT, ".env"));
 
 function envOr(name, fallback) {
   const v = process.env[name];

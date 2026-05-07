@@ -165,6 +165,7 @@ CORS/Origin allowlist：
 仓库现有：
 
 - PM2 入口：`ecosystem.config.cjs`
+  - 启动前会读取仓库根目录 `.env`，且不会覆盖已 export 的同名环境变量
   - `dbcheck-api`：通过 `scripts/pm2/run_api.sh` 拉起 Go 后端（dev: `go run`；prod: 优先 `bin/db-web`）
   - `dbcheck-web`：通过 `scripts/pm2/run_web.sh` 拉起 Next 前端（dev: `next dev`；prod: `next start`）
 

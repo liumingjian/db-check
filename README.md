@@ -327,8 +327,22 @@ make pm2-start-prod
 ```
 
 说明：
-- `ecosystem.config.cjs` 内置了本地联调默认值：`DBCHECK_DATA_DIR=/tmp/dbcheck-data`、`ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000`、`DBCHECK_API_TOKEN=ATI` 等；如需覆盖，可在 `pm2 start` 前设置同名环境变量，并用 `make pm2-restart` 刷新 env。
+- `ecosystem.config.cjs` 会自动读取仓库根目录 `.env`（不覆盖已 export 的同名变量），并内置本地联调默认值：`DBCHECK_DATA_DIR=/tmp/dbcheck-data`、`ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000`、`DBCHECK_API_TOKEN=ATI` 等；如需覆盖，可修改 `.env` 或在 `pm2 start` 前设置同名环境变量，并用 `make pm2-restart` 刷新 env。
 - 若用局域网地址打开前端（例如 `http://192.168.x.x:3000`），请显式设置 `NEXT_PUBLIC_API_BASE`（或在生成页手动填写 API Base），避免请求被推断到访问者本机 `127.0.0.1:8080`。
+
+远程 Linux 部署示例（将 `<server-ip>` 替换为服务器地址）：
+
+```bash
+cat > .env <<'EOF'
+DBCHECK_ADDR=0.0.0.0:8080
+DBCHECK_DATA_DIR=/tmp/dbcheck-data
+NEXT_PUBLIC_API_BASE=http://<server-ip>:8080
+ALLOWED_ORIGINS=http://<server-ip>:3000,http://127.0.0.1:3000,http://localhost:3000
+DBCHECK_API_TOKEN=ATI
+EOF
+
+make pm2-restart
+```
 
 ### 3. 准备输入 ZIP
 
