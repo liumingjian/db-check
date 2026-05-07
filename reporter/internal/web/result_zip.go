@@ -60,12 +60,35 @@ func buildResultZip(zipPath string, results []ItemResult, inputs []ItemInput) er
 		return fmt.Errorf("close zip failed: %w", err)
 	}
 	if success == 0 {
-		return errors.New("no successful reports to download")
+		return noSuccessfulReportsError(results, nameByID)
 	}
 	if err := os.Rename(tmpPath, zipPath); err != nil {
 		return fmt.Errorf("finalize zip failed: %w", err)
 	}
 	return nil
+}
+
+func noSuccessfulReportsError(results []ItemResult, nameByID map[string]string) error {
+	failures := make([]string, 0, len(results))
+	for _, result := range results {
+		if result.Status != ItemFailed {
+			continue
+		}
+		name := strings.TrimSpace(nameByID[result.ID])
+		if name == "" {
+			name = result.ID
+		}
+		detail := strings.TrimSpace(result.Error)
+		if detail == "" {
+			failures = append(failures, name)
+			continue
+		}
+		failures = append(failures, fmt.Sprintf("%s: %s", name, detail))
+	}
+	if len(failures) == 0 {
+		return errors.New("no successful reports to download")
+	}
+	return fmt.Errorf("no successful reports to download; failed items: %s", strings.Join(failures, "; "))
 }
 
 func sanitizeZipFolder(name string) string {
