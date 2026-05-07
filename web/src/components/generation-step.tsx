@@ -186,7 +186,7 @@ export function GenerationStep() {
     const apiBase = apiBaseInput.trim();
     if (apiBase) {
       try {
-        setApiBase(apiBase);
+        new URL(apiBase.includes("://") ? apiBase : `http://${apiBase}`);
       } catch (e) {
         addLog({
           id: generateLogId(),
@@ -199,6 +199,9 @@ export function GenerationStep() {
     }
     const v = tokenInput.trim();
     if (!v) return;
+    if (apiBase && apiBase !== getApiBase()) {
+      setApiBase(apiBase);
+    }
     setToken(v);
     if (typeof window !== "undefined") {
       sessionStorage.setItem(TOKEN_STORAGE_KEY, v);

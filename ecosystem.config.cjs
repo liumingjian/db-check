@@ -86,7 +86,7 @@ module.exports = {
         // Used by Next.js in dev (and at build-time in prod if you run `npm run build` with it set).
         NEXT_PUBLIC_API_BASE: envOr(
           "NEXT_PUBLIC_API_BASE",
-          "http://127.0.0.1:8080",
+          "",
         ),
       },
       env_production: {

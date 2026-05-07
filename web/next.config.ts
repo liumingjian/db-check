@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 function hostnameFromValue(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return "";
+  if (trimmed === "*" || trimmed === "**") return "";
   try {
     const withScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed) ? trimmed : `http://${trimmed}`;
     return new URL(withScheme).hostname;

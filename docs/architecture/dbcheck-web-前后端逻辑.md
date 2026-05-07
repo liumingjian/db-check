@@ -1,6 +1,6 @@
 # dbcheck-web 前后端逻辑（db-web + web/）
 
-适用范围：`db-web`（Go 后端）+ `web/`（Next.js 前端）  
+适用范围：`db-web`（Go 后端）+ `web/`（Next.js 前端）
 目标：让维护者能快速定位代码入口、理解端到端数据流，并能稳定联调/部署。
 
 ## 1. 总览
@@ -126,7 +126,7 @@ CORS/Origin allowlist：
 - API 基址与 WS URL：
   - `web/src/lib/api.ts`
     - `getApiBase()`：优先 sessionStorage，其次 `NEXT_PUBLIC_API_BASE`，最后从 `window.location` 推断
-    - dev 便捷推断：当前页面端口是 `3000` 时，默认后端 `http://127.0.0.1:8080`
+    - dev 便捷推断：当前页面端口是 `3000` 时，默认后端为同一 hostname 的 `:8080`
     - `wsUrl(path)`：根据 API base 协议切换 `ws/wss`
 
 ### 3.2 用户流程（3-step）
@@ -184,29 +184,29 @@ CORS/Origin allowlist：
 
 ## 5. 常见坑 / 联调注意事项
 
-1. **前端 API Base 推断对“局域网访问”不友好**  
-   `web/src/lib/api.ts` 中：只要页面端口是 `3000`，就会把后端推断为 `http://127.0.0.1:8080`。  
-   - 本机联调：这是期望行为  
-   - 让同网段其他机器访问 `http://<你的IP>:3000`：访问者浏览器会去请求它自己的 `127.0.0.1:8080`，必失败  
-   解决：显式设置 `NEXT_PUBLIC_API_BASE`（或在生成页手动输入 API Base）。
+1. **前端 API Base 推断策略**
+   `web/src/lib/api.ts` 中：只要页面端口是 `3000`，就会把后端推断为同一 hostname 的 `:8080`。
+   - 本机联调：`http://127.0.0.1:3000` → `http://127.0.0.1:8080`
+   - 远程访问：`http://<服务器IP>:3000` → `http://<服务器IP>:8080`
+   如需后端不在同一主机，可显式设置 `NEXT_PUBLIC_API_BASE` 或在生成页手动输入 API Base。
 
-2. **WebSocket 鉴权依赖 `Sec-WebSocket-Protocol`**  
+2. **WebSocket 鉴权依赖 `Sec-WebSocket-Protocol`**
    前端用 `new WebSocket(url, [token])` 传 token；如果接入 Nginx/网关/反向代理，需要确保该 header 不被剥离，否则会出现“HTTP 正常但 WS 401”。
 
-3. **刷新页面不会自动接回旧任务**  
+3. **刷新页面不会自动接回旧任务**
    `web/src/components/generation-step.tsx` 写入了 `sessionStorage["dbcheck_task_id"]`，但当前没有读取它并用 `/api/reports/status/<id>` 恢复 UI 状态；刷新后更可能重新发起一次 `/generate`。
 
-4. **前端没有用 status 轮询做兜底**  
+4. **前端没有用 status 轮询做兜底**
    当前进度主要依赖 WS；如果 WS 在某些环境被限制，UI 可能无法更新（后端已有 `/api/reports/status/<task_id>` 可用）。
 
-5. **下载链接不能直接浏览器打开**  
+5. **下载链接不能直接浏览器打开**
    `download_url` 需要 `Authorization: Bearer ...` 才能访问；手动测试请用 `curl` 或前端下载按钮。
 
-6. **并发/压测不是当前设计目标**  
+6. **并发/压测不是当前设计目标**
    后端队列 `queue` 有容量上限（32）且满时会直接丢弃入队请求；当前是单 worker 处理，适合“一次少量 ZIP”的生成场景。
 
-7. **重启/审计诉求**  
+7. **重启/审计诉求**
    WS 日志缓存是内存态；服务重启会丢历史日志（任务本身可通过落盘恢复到队列继续跑）。如需审计追溯，建议将 log 事件同步落盘。
 
-8. **安全与资源配额**  
+8. **安全与资源配额**
    当前限制了上传大小，但未对 ZIP 解压后的总体积/文件数设置硬限制；对外开放时建议增加解压配额限制，避免 zip bomb。
