@@ -334,7 +334,7 @@ make pm2-start-prod
 
 ```bash
 cat > .env <<'EOF'
-DBCHECK_ADDR=0.0.0.0:8080
+DBCHECK_ADDR=0.0.0.0:18080
 DBCHECK_DATA_DIR=/tmp/dbcheck-data
 ALLOWED_ORIGINS=*
 DBCHECK_API_TOKEN=ATI
@@ -343,7 +343,7 @@ EOF
 make pm2-restart
 ```
 
-当前页面在 `:3000` 时，前端默认把 API 推断为同一主机的 `:8080`，例如访问 `http://10.250.0.222:3000` 时会请求 `http://10.250.0.222:8080`。内网自测可用 `ALLOWED_ORIGINS=*` 避免频繁换 IP 时反复改 CORS；若要收紧白名单，再改成具体 Origin 列表。
+当前页面在 `:3000` 时，前端默认把 API 推断为同一主机的后端端口；该端口会从 `DBCHECK_ADDR` 自动派生。上例中访问 `http://10.250.0.222:3000` 时，前端会自动请求 `http://10.250.0.222:18080`。内网自测可用 `ALLOWED_ORIGINS=*` 避免频繁换 IP 时反复改 CORS；若要收紧白名单，再改成具体 Origin 列表。
 
 ### 3. 准备输入 ZIP
 

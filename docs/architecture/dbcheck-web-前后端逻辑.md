@@ -126,7 +126,7 @@ CORS/Origin allowlist：
 - API 基址与 WS URL：
   - `web/src/lib/api.ts`
     - `getApiBase()`：优先 sessionStorage，其次 `NEXT_PUBLIC_API_BASE`，最后从 `window.location` 推断
-    - dev 便捷推断：当前页面端口是 `3000` 时，默认后端为同一 hostname 的 `:8080`
+    - dev 便捷推断：当前页面端口是 `3000` 时，默认后端为同一 hostname + `NEXT_PUBLIC_API_PORT`（默认从 `DBCHECK_ADDR` 派生）
     - `wsUrl(path)`：根据 API base 协议切换 `ws/wss`
 
 ### 3.2 用户流程（3-step）
@@ -185,9 +185,9 @@ CORS/Origin allowlist：
 ## 5. 常见坑 / 联调注意事项
 
 1. **前端 API Base 推断策略**
-   `web/src/lib/api.ts` 中：只要页面端口是 `3000`，就会把后端推断为同一 hostname 的 `:8080`。
+   `web/src/lib/api.ts` 中：只要页面端口是 `3000`，就会把后端推断为同一 hostname 的后端端口。
    - 本机联调：`http://127.0.0.1:3000` → `http://127.0.0.1:8080`
-   - 远程访问：`http://<服务器IP>:3000` → `http://<服务器IP>:8080`
+   - 远程访问：`http://<服务器IP>:3000` → `http://<服务器IP>:<DBCHECK_ADDR端口>`
    如需后端不在同一主机，可显式设置 `NEXT_PUBLIC_API_BASE` 或在生成页手动输入 API Base。
 
 2. **WebSocket 鉴权依赖 `Sec-WebSocket-Protocol`**

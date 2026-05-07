@@ -1,4 +1,5 @@
 const ENV_API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").trim();
+const ENV_API_PORT = (process.env.NEXT_PUBLIC_API_PORT ?? "8080").trim() || "8080";
 const API_BASE_STORAGE_KEY = "dbcheck_api_base";
 const API_BASE_MANUAL_STORAGE_KEY = "dbcheck_api_base_manual";
 
@@ -21,7 +22,7 @@ function inferDefaultApiBaseFromWindow(): string {
   // Dev convenience: when running Next.js dev server on :3000, assume backend is on :8080.
   // Keep the same hostname so remote Linux deployments work when the server IP changes.
   if (here.port === "3000") {
-    here.port = "8080";
+    here.port = ENV_API_PORT;
     return here.origin;
   }
 

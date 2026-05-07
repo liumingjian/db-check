@@ -40,6 +40,14 @@ function envOr(name, fallback) {
   return trimmed === "" ? fallback : trimmed;
 }
 
+function portFromAddr(addr, fallback) {
+  const trimmed = String(addr ?? "").trim();
+  const idx = trimmed.lastIndexOf(":");
+  if (idx < 0 || idx === trimmed.length - 1) return fallback;
+  const port = trimmed.slice(idx + 1).trim();
+  return /^\d+$/.test(port) ? port : fallback;
+}
+
 module.exports = {
   apps: [
     {
@@ -87,6 +95,10 @@ module.exports = {
         NEXT_PUBLIC_API_BASE: envOr(
           "NEXT_PUBLIC_API_BASE",
           "",
+        ),
+        NEXT_PUBLIC_API_PORT: envOr(
+          "NEXT_PUBLIC_API_PORT",
+          portFromAddr(envOr("DBCHECK_ADDR", "127.0.0.1:8080"), "8080"),
         ),
       },
       env_production: {
