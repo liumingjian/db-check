@@ -46,7 +46,7 @@ func (r Runner) Run(ctx context.Context, cfg cli.Config) (model.RunArtifacts, er
 	if err != nil {
 		return model.RunArtifacts{}, RunnerError{ExitCode: ExitCollectFailed, Err: err}
 	}
-	logger := newRunLogger(runID)
+	logger := newRunLogger(runID, r.deps.Progress)
 	logRunStarted(logger, cfg)
 	logger.Info("run_dir_prepared", zap.String("run_dir", runDir))
 	state := runState{exitCode: ExitSuccess, moduleStats: map[string]model.ModuleStat{}, osPayload: map[string]any{}, dbPayload: map[string]any{}}
@@ -92,19 +92,17 @@ func logRunStarted(logger *runLogger, cfg cli.Config) {
 		zap.String("db_host", hostForResult(cfg)),
 		zap.Int("db_port", cfg.DBPort),
 		zap.Bool("os_only", cfg.OSOnly),
-		zap.Bool("os_skip", cfg.OSSkip),
+		zap.Bool("use_remote_os", cfg.UseRemoteOS),
+		zap.Bool("collect_os", shouldCollectOS(cfg)),
 		zap.String("output_dir", cfg.OutputDir),
 	)
 }
 
 func (r Runner) collectOS(ctx context.Context, cfg cli.Config, state *runState, logger *runLogger) {
 	logger.Info("os_collect_started")
-	if cfg.OSSkip {
-		state.moduleStats["os"] = model.ModuleStat{Status: "skipped", DurationMS: 0, Error: nil}
-		if state.exitCode == ExitSuccess {
-			state.exitCode = ExitPartial
-		}
-		logger.Info("os_collect_skipped", zap.String("reason", "os_skip"))
+	if !shouldCollectOS(cfg) {
+		markOSSkipped(state)
+		logger.Info("os_collect_skipped", zap.String("reason", "no_os_collection_requested"))
 		return
 	}
 	started := r.deps.Clock.Now()
@@ -128,6 +126,17 @@ func (r Runner) collectOS(ctx context.Context, cfg cli.Config, state *runState, 
 	}
 }
 
+func shouldCollectOS(cfg cli.Config) bool {
+	return cfg.Local || cfg.OSOnly || cfg.UseRemoteOS
+}
+
+func markOSSkipped(state *runState) {
+	state.moduleStats["os"] = model.ModuleStat{Status: "skipped", DurationMS: 0, Error: nil}
+	if state.exitCode == ExitSuccess {
+		state.exitCode = ExitPartial
+	}
+}
+
 func (r Runner) collectDB(ctx context.Context, cfg cli.Config, runDir string, state *runState, logger *runLogger) {
 	logger.Info("db_collect_started")
 	if cfg.OSOnly {
@@ -136,11 +145,21 @@ func (r Runner) collectDB(ctx context.Context, cfg cli.Config, runDir string, st
 		return
 	}
 	started := r.deps.Clock.Now()
-	payload, err := r.deps.DBCollector.Collect(ctx, cfg, runDir, r.deps.Writer)
+	collector := r.dbCollectorWithProgress(logger)
+	payload, err := collector.Collect(ctx, cfg, runDir, r.deps.Writer)
 	duration := durationMS(started, r.deps.Clock.Now())
 	if err == nil {
-		state.moduleStats["db_basic"] = model.ModuleStat{Status: "success", DurationMS: duration, Error: nil}
 		state.dbPayload = payload
+		if errors := collectErrorMessages(payload); len(errors) > 0 {
+			msg := strings.Join(errors, "; ")
+			state.moduleStats["db_basic"] = model.ModuleStat{Status: "partial", DurationMS: duration, Error: &msg}
+			if state.exitCode == ExitSuccess {
+				state.exitCode = ExitPartial
+			}
+			logger.Info("db_collect_finished", zap.String("status", "partial"), zap.Int64("duration_ms", duration), zap.Int("payload_keys", len(payload)))
+			return
+		}
+		state.moduleStats["db_basic"] = model.ModuleStat{Status: "success", DurationMS: duration, Error: nil}
 		logger.Info("db_collect_finished", zap.String("status", "success"), zap.Int64("duration_ms", duration), zap.Int("payload_keys", len(payload)))
 		return
 	}
@@ -155,6 +174,27 @@ func (r Runner) collectDB(ctx context.Context, cfg cli.Config, runDir string, st
 			state.exitCode = ExitCollectFailed
 		}
 	}
+}
+
+func (r Runner) dbCollectorWithProgress(logger *runLogger) DBCollector {
+	collector := r.deps.DBCollector
+	aware, ok := collector.(ProgressAwareDBCollector)
+	if !ok {
+		return collector
+	}
+	return aware.WithProgress(logger.runID, logger.ProgressEvent)
+}
+
+func collectErrorMessages(payload map[string]any) []string {
+	raw, ok := payload["collect_errors"]
+	if !ok {
+		return nil
+	}
+	items, ok := raw.([]string)
+	if !ok {
+		return nil
+	}
+	return items
 }
 
 func (r Runner) writeResultIfNeeded(runDir string, cfg cli.Config, start time.Time, end time.Time, state *runState, logger *runLogger) (*string, *model.Result, error) {

@@ -7,7 +7,7 @@
   "exit_code": 10,
   "overall_status": "partial_success",
   "module_stats": {
-    "os": {"status": "skipped", "duration_ms": 0, "error": "os_skip"},
+    "os": {"status": "skipped", "duration_ms": 0, "error": null},
     "db_basic": {"status": "success", "duration_ms": 10, "error": null},
     "db_storage": {"status": "success", "duration_ms": 10, "error": null},
     "db_perf": {"status": "success", "duration_ms": 10, "error": null},

@@ -82,20 +82,16 @@ def domain_table(title: str, items: tuple[dict[str, Any], ...], note: str = "") 
 def basic_info_rows(result: dict[str, Any]) -> tuple[tuple[str, str], ...]:
     summary = domain_summary(result, "basic_info")
     meta = result.get("meta", {}) if isinstance(result.get("meta"), dict) else {}
+    sql_index = domain_payload(result, "sql_raw_index")
     rows = (
         ("数据库类型", str(meta.get("db_type", ""))),
         ("数据库地址", f"{meta.get('db_host', '')}:{meta.get('db_port', '')}".strip(":")),
         ("数据库名", str(meta.get("db_name", ""))),
+        ("采集模式", "SQL-first"),
         ("GaussDB 版本", str(summary.get("version") or summary.get("gaussdb_version") or "")),
-        ("gsql 版本", str(summary.get("gsql_version", ""))),
-        ("gs_check 版本", str(summary.get("gs_check_version", ""))),
-        ("执行用户", str(summary.get("gauss_user", ""))),
-        ("环境文件", str(summary.get("gauss_env_file", ""))),
-        ("GAUSSHOME", str(summary.get("gausshome", ""))),
-        ("GAUSSLOG", str(summary.get("gausslog", ""))),
         ("PGUSER", str(summary.get("pguser", ""))),
-        ("PGHOST", str(summary.get("pghost", ""))),
-        ("集群标识", str(summary.get("gs_cluster_name", ""))),
+        ("SQL 原始结果", f"run_dir/sql/，共 {sql_index.get('count', 0)} 项"),
+        ("忽略的旧工具参数", str(summary.get("ignored_options", ""))),
     )
     return tuple((label, value) for label, value in rows if value)
 

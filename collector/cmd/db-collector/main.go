@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -45,6 +46,7 @@ func run() int {
 		OSCollector: osinfo.Collector{},
 		Writer:      output.FileWriter{},
 		Version:     cli.Version,
+		Progress:    printProgress,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "初始化失败: %v\n", err)
@@ -65,6 +67,26 @@ func run() int {
 		fmt.Printf("result=%s\n", artifacts.ResultPath)
 	}
 	return artifacts.Manifest.ExitCode
+}
+
+func printProgress(ev core.ProgressEvent) {
+	prefix := fmt.Sprintf("[%s] %s", ev.Level, ev.Message)
+	if ev.Step > 0 {
+		prefix = fmt.Sprintf("%s step=%d/%d", prefix, ev.Step, ev.Total)
+	}
+	parts := []string{prefix, "event=" + ev.Event, "run_id=" + ev.RunID}
+	parts = append(parts, ev.Tokens...)
+	if ev.Error != "" {
+		parts = append(parts, "error="+quoteIfNeeded(ev.Error))
+	}
+	fmt.Fprintln(os.Stderr, strings.Join(parts, " "))
+}
+
+func quoteIfNeeded(value string) string {
+	if strings.ContainsAny(value, " \t\"=") {
+		return fmt.Sprintf("%q", value)
+	}
+	return value
 }
 
 func newDBCollector(dbType string) (core.DBCollector, error) {

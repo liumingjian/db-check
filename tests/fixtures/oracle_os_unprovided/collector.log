@@ -1,0 +1,6 @@
+2026-03-12 00:40:00.000 INFO collector.runner Run started | step=1/11 event=run_started run_id=oracle-10.0.0.8-20260312T004000Z db_type=oracle db_host=10.0.0.8 db_port=1521 os_only=false use_remote_os=false collect_os=false output_dir=./runs
+2026-03-12 00:40:00.000 INFO collector.runner Run directory prepared | step=2/11 event=run_dir_prepared run_id=oracle-10.0.0.8-20260312T004000Z run_dir=./runs/oracle-10.0.0.8-20260312T004000Z
+2026-03-12 00:40:00.000 INFO collector.runner OS collection started | step=3/11 event=os_collect_started run_id=oracle-10.0.0.8-20260312T004000Z
+2026-03-12 00:40:00.000 INFO collector.runner OS collection skipped | step=4/11 event=os_collect_skipped run_id=oracle-10.0.0.8-20260312T004000Z reason=no_os_collection_requested
+2026-03-12 00:40:05.000 INFO collector.runner DB collection finished | step=6/11 event=db_collect_finished run_id=oracle-10.0.0.8-20260312T004000Z status=success duration_ms=10 payload_keys=7
+2026-03-12 00:40:05.000 INFO collector.runner Run finished | step=11/11 event=run_finished run_id=oracle-10.0.0.8-20260312T004000Z exit_code=10 overall_status=partial_success duration_ms=5000

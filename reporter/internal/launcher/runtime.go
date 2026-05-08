@@ -32,7 +32,7 @@ func checkPythonVersion(pythonBin string) error {
 }
 
 func checkPythonDeps(pythonBin string, requirements string) error {
-	code := "import jsonschema, docx"
+	code := "import docx"
 	cmd := exec.Command(pythonBin, "-c", code)
 	output, err := cmd.CombinedOutput()
 	if err == nil {
@@ -40,7 +40,7 @@ func checkPythonDeps(pythonBin string, requirements string) error {
 	}
 	msg := strings.TrimSpace(string(output))
 	if msg == "" {
-		msg = "缺少 jsonschema 或 python-docx"
+		msg = "缺少 python-docx"
 	}
 	return fmt.Errorf("%s；请执行 `%s -m pip install -r %s`", msg, pythonBin, requirements)
 }

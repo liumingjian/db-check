@@ -49,7 +49,7 @@ DB-Check 是面向数据库运维工程师的离线巡检工具套件，通过�
 
 ### 1.4 项目范围
 - In Scope（v2.0 MVP）
-- MySQL 巡检主链路：`db-collector -> analyzer -> db-reporter`
+- MySQL 巡检主链路：`db-collector -> Web 上传 ZIP -> reporter pipeline`
 - 三层契约与 schema 门禁
 - 旧参数兼容映射（优先兼容）
 - Out of Scope（v2.0 MVP）
@@ -59,8 +59,8 @@ DB-Check 是面向数据库运维工程师的离线巡检工具套件，通过�
 ### 1.5 典型工作流程
 1. 工程师在客户内网运行 `db-collector`，生成 `collector.log + manifest.json + result.json`。  
 2. 将 `runs/<run_id>/` 目录离线传回公司环境。  
-3. 运行 Analyzer CLI，生成 `summary.json`。  
-4. 运行 `db-reporter`，基于 `result + summary + 模板` 生成 `report.docx`。
+3. Web 后端运行 Analyzer CLI，生成 `summary.json`。
+4. Web 后端运行 reporter pipeline，基于 `result + summary + 模板` 生成 `report.docx`。
 
 ---
 
@@ -171,7 +171,7 @@ DB-Check 是面向数据库运维工程师的离线巡检工具套件，通过�
 ### 7.2 端到端用例
 1. `db-collector` 采集并写入 `runs/<run_id>/`。  
 2. Analyzer CLI 读取同目录产物并写入 `summary.json`。  
-3. `db-reporter` 生成 `report.docx`。  
+3. Web reporter pipeline 生成 `report.docx`。
 4. 所有产物通过 CI 合同门禁后进入交付。
 
 ---
@@ -187,7 +187,7 @@ db-collector
 python3 analyzer/cli/db_analyzer.py
 └── manifest + result + rule -> summary
 
-db-reporter
+db-web reporter pipeline
 └── result + summary + template -> report
 ```
 
@@ -262,7 +262,7 @@ python3 analyzer/cli/db_analyzer.py --manifest <manifest.json> --result <result.
 
 ### 10.3 Reporter CLI
 ```bash
-db-reporter --run-dir <runs/<run_id>>
+上传采集 ZIP 到 db-web 生成 report.docx
 ```
 
 ### 10.4 规则治理

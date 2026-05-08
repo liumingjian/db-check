@@ -31,9 +31,13 @@ func (s stubDBCollector) Collect(_ context.Context, _ cli.Config, _ string, _ Ar
 type stubOSCollector struct {
 	payload map[string]any
 	err     error
+	called  *bool
 }
 
 func (s stubOSCollector) Collect(_ context.Context, _ cli.Config) (map[string]any, error) {
+	if s.called != nil {
+		*s.called = true
+	}
 	return s.payload, s.err
 }
 
@@ -116,22 +120,26 @@ func TestRunnerPrecheckFailureReturnsExit30(t *testing.T) {
 	}
 }
 
-func TestRunnerOSSkipProducesPartialManifestAndResult(t *testing.T) {
+func TestRunnerNoOSInfoProducesPartialManifestAndResult(t *testing.T) {
 	writer := newMemoryWriter()
+	osCalled := false
 	runner, err := NewRunner(Dependencies{
 		Clock:       fixedClock{now: time.Date(2026, 3, 5, 12, 0, 0, 0, time.FixedZone("CST", 8*3600))},
 		DBCollector: stubDBCollector{payload: map[string]any{"basic_info": map[string]any{"version": "19c"}}},
-		OSCollector: stubOSCollector{payload: map[string]any{"system_info": map[string]any{"hostname": "demo"}}},
+		OSCollector: stubOSCollector{called: &osCalled},
 		Writer:      writer,
 		Version:     "1.0.0",
 	})
 	if err != nil {
 		t.Fatalf("NewRunner failed: %v", err)
 	}
-	cfg := cli.Config{DBType: "oracle", OSSkip: true, OutputDir: "./runs", DBHost: "10.0.0.8", DBPort: 1521}
+	cfg := cli.Config{DBType: "oracle", OutputDir: "./runs", DBHost: "10.0.0.8", DBPort: 1521}
 	artifacts, err := runner.Run(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("Run failed: %v", err)
+	}
+	if osCalled {
+		t.Fatalf("expected OS collector not to be called")
 	}
 	if artifacts.Manifest.ExitCode != ExitPartial {
 		t.Fatalf("expected exit 10, got %d", artifacts.Manifest.ExitCode)
@@ -185,6 +193,42 @@ func TestRunnerWritesStructuredCollectorLog(t *testing.T) {
 	if !strings.Contains(first, "run_started") {
 		t.Fatalf("expected first line to contain event token run_started, got: %s", first)
 	}
+}
+
+func TestRunnerEmitsProgressEvents(t *testing.T) {
+	writer := newMemoryWriter()
+	events := []ProgressEvent{}
+	runner, err := NewRunner(Dependencies{
+		Clock:       fixedClock{now: time.Date(2026, 3, 9, 10, 0, 0, 0, time.FixedZone("CST", 8*3600))},
+		DBCollector: stubDBCollector{payload: map[string]any{"basic_info": map[string]any{"is_alive": true}}},
+		OSCollector: stubOSCollector{},
+		Writer:      writer,
+		Version:     "1.0.0",
+		Progress: func(event ProgressEvent) {
+			events = append(events, event)
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewRunner failed: %v", err)
+	}
+	cfg := cli.Config{DBType: "mysql", OutputDir: "./runs", DBHost: "127.0.0.1", DBPort: 3306}
+	if _, err := runner.Run(context.Background(), cfg); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+	for _, event := range []string{"run_started", "os_collect_skipped", "db_collect_finished", "manifest_written", "run_finished"} {
+		if !hasProgressEvent(events, event) {
+			t.Fatalf("expected progress event %s in %+v", event, events)
+		}
+	}
+}
+
+func hasProgressEvent(events []ProgressEvent, event string) bool {
+	for _, item := range events {
+		if item.Event == event {
+			return true
+		}
+	}
+	return false
 }
 
 var _ model.Clock = fixedClock{}

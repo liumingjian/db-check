@@ -42,10 +42,10 @@ class PipelineIntegrationTests(unittest.TestCase):
             db_children = [item["title"] for item in report_view["sections"][2]["children"][1]["children"]]
             self.assertEqual(
                 db_children,
-                ["2.2.1 基础可用性", "2.2.2 参数与配置", "2.2.3 对象与结构健康", "2.2.4 容量与数据治理", "2.2.5 运行日志"],
+                ["2.2.1 数据库概览", "2.2.2 参数配置", "2.2.3 存储容量", "2.2.4 连接会话", "2.2.5 事务与锁", "2.2.6 性能统计", "2.2.7 SQL 分析"],
             )
             config_tables = [table["title"] for table in report_view["sections"][2]["children"][1]["children"][1]["tables"]]
-            self.assertEqual(config_tables, ["参数值检查", "参数一致性摘要", "内存与连接参数", "安全与审计参数", "参数差异明细", "参数与配置结论"])
+            self.assertEqual(config_tables, ["参数值检查", "核心参数快照", "参数与配置结论"])
 
     def test_db_reporter_generates_oracle_artifacts_from_run_dir(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -290,141 +290,54 @@ def _oracle_result() -> dict:
 
 def _gauss_result() -> dict:
     return {
-        "meta": {
-            "schema_version": "2.0",
-            "collector_version": "1.1.0",
-            "db_type": "gaussdb",
-            "db_host": "127.0.0.1",
-            "db_port": 8000,
-            "db_name": "postgres",
-            "collect_time": "2026-03-12T00:30:05+08:00",
-            "timezone": "Asia/Shanghai",
-        },
-        "collect_config": {
-            "sample_mode": "single",
-            "sample_interval_seconds": None,
-            "sample_period_seconds": None,
-            "expected_samples": 1,
-        },
-        "collect_window": {
-            "window_start": "2026-03-12T00:30:00+08:00",
-            "window_end": "2026-03-12T00:30:05+08:00",
-            "duration_seconds": 5,
-        },
-        "os": {
-            "system_info": {"hostname": "gauss-host", "os": "linux", "arch": "amd64", "cpu_cores": 8, "file_descriptor_usage_percent": 1.0, "mysql_fd_usage_percent": 0.0},
-            "cpu": {"samples": [{"timestamp": "2026-03-12T00:30:05+08:00", "usage_percent": 48.0, "user_percent": 22.0, "system_percent": 8.0, "idle_percent": 52.0, "nice_percent": 1.0, "iowait_percent": 1.0}]},
-            "memory": {"samples": [{"timestamp": "2026-03-12T00:30:05+08:00", "usage_percent": 65.0, "swap_usage_percent": 10.0, "meminfo": {"MemTotal": 17179869184, "MemAvailable": 8589934592, "SwapTotal": 4294967296, "SwapFree": 3865470566}}]},
-            "filesystem": {"samples": [{"timestamp": "2026-03-12T00:30:05+08:00", "mountpoints": [{"mountpoint": "/", "device": "/dev/root", "fstype": "xfs", "usage_percent": 70.0, "inodes_usage_percent": 22.0, "read_only": False}]}]},
-            "disk_io": {"samples": [{"timestamp": "2026-03-12T00:30:05+08:00", "total_iops": 180.0, "total_throughput_kbps": 4096.0, "avg_latency_ms": 1.3, "devices": []}]},
-            "network": {"samples": [{"timestamp": "2026-03-12T00:30:05+08:00", "interfaces": [], "total_rate_bytes_per_sec": 3072.0, "total_rx_bytes_per_sec": 2048.0, "total_tx_bytes_per_sec": 1024.0, "error_drop_per_sec": 0.0}]},
-            "process": {"samples": [{"timestamp": "2026-03-12T00:30:05+08:00", "load_avg_1": 0.5, "running_processes": 2, "blocked_processes": 0, "total_processes": 128, "context_switches": 2048, "go_routines": 0}]},
-        },
-            "db": {
-                "basic_info": {
-                    "summary": {
-                        "version": "505.2.1.SPC1000",
-                    "gaussdb_version": "gaussdb (GaussDB Kernel 505.2.1.SPC1000 build demo)",
-                    "gsql_version": "gsql (GaussDB Kernel 505.2.1.SPC1000 build demo)",
-                    "gs_check_version": "gs_check (GaussDB Kernel om 505.2.1.SPC1000 build demo)",
-                    "checkdbconnection_status": "abnormal",
-                    "checkommonitor_status": "normal",
-                    "checkgaussver_status": "normal",
-                    "gauss_user": "Ruby",
-                    "gauss_env_file": "~/gauss_env_file",
-                    "gausshome": "/data/cluster/usr/local/core/app",
-                    "gausslog": "/data/cluster/var/lib/log/Ruby",
-                        "pguser": "rdsAdmin",
-                        "pghost": "/data/cluster/temp"
-                    },
-                    "items": [
-                        {"item": "CheckDBConnection", "label": "数据库连接", "normalized_status": "abnormal", "summary": "database connection failed"},
-                        {"item": "CheckOMMonitor", "label": "omMonitor 进程", "normalized_status": "normal", "summary": "om_monitor 进程正常，PID=7354", "details": {"pid": "7354"}},
-                    ],
-                    "count": 2,
-                    "visible_count": 2
-                },
-                "cluster": {
-                    "summary": {"checkclusterstate_status": "normal", "checkintegrity_status": "normal", "checkcatchup_status": "not_applicable", "visible_items": [{"item": "CheckClusterState", "label": "集群状态", "normalized_status": "normal", "summary": "cluster ok", "details": {"cluster_state": "Normal", "redistributing": "No", "balanced": "Yes", "nodes": [{"node": "192.168.1.157", "status": "Normal"}]}}, {"item": "CheckIntegrity", "label": "数据一致性", "normalized_status": "normal", "summary": "数据一致性检查正常，SHA256=abcd", "details": {"sha256": "abcd"}}]},
-                    "items": [{"item": "CheckClusterState", "label": "集群状态", "normalized_status": "normal", "summary": "cluster ok", "details": {"cluster_state": "Normal", "redistributing": "No", "balanced": "Yes", "nodes": [{"node": "192.168.1.157", "status": "Normal"}]}}, {"item": "CheckIntegrity", "label": "数据一致性", "normalized_status": "normal", "summary": "数据一致性检查正常，SHA256=abcd", "details": {"sha256": "abcd"}}],
-                    "count": 2,
-                    "visible_count": 2
-                },
-                "config_check": {
-                    "summary": {
-                        "checkdbparams_status": "abnormal",
-                        "checkgucvalue_status": "normal",
-                        "checkgucconsistent_status": "abnormal",
-                        "checkgucvalue_details": {"max_connections": 1000, "max_prepared_transactions": 1000, "max_locks_per_transaction": 512, "computed_value": 1024000, "configuration_reasonable": True},
-                        "checkgucconsistent_details": {
-                            "instance_count": 2,
-                            "parameter_count": 1200,
-                        "key_parameter_group_count": 2,
-                        "key_inconsistent_parameter_count": 1,
-                        "key_groups": [
-                            {
-                                "title": "内存与连接参数",
-                                "parameters": [
-                                    {
-                                        "label": "最大连接数",
-                                        "representative_value": "400",
-                                        "consistent": False,
-                                        "instance_values": [
-                                            {"instance": "CN_5001", "value": "400"},
-                                            {"instance": "DN_6001", "value": "3000"},
-                                        ],
-                                    }
-                                ],
-                            },
-                            {
-                                "title": "安全与审计参数",
-                                "parameters": [
-                                    {
-                                        "label": "SSL 开关",
-                                        "representative_value": "on",
-                                        "consistent": True,
-                                        "instance_values": [
-                                            {"instance": "CN_5001", "value": "on"},
-                                            {"instance": "DN_6001", "value": "on"},
-                                        ],
-                                    }
-                                ],
-                            },
-                        ],
-                        "key_inconsistencies": [
-                            {
-                                "label": "最大连接数",
-                                "distinct_value_count": 2,
-                                "instance_values": [
-                                    {"instance": "CN_5001", "value": "400"},
-                                    {"instance": "DN_6001", "value": "3000"},
-                                ],
-                            }
-                        ],
-                        },
-                        "visible_items": [
-                            {"item": "CheckGUCValue", "label": "GUC 值检查", "normalized_status": "normal", "summary": "锁资源预算值 1024000，guc参数配置合理", "details": {"max_connections": 1000, "max_prepared_transactions": 1000, "max_locks_per_transaction": 512, "computed_value": 1024000, "configuration_reasonable": True}},
-                            {"item": "CheckGUCConsistent", "label": "GUC 一致性", "normalized_status": "abnormal", "summary": "已分析 2 类关键参数，发现 1 个关键参数存在差异"},
-                            {"item": "CheckDBParams", "label": "数据库参数", "normalized_status": "abnormal", "summary": "parameter drift"},
-                        ],
-                    },
-                    "items": [
-                        {"item": "CheckGUCValue", "label": "GUC 值检查", "normalized_status": "normal", "summary": "锁资源预算值 1024000，guc参数配置合理", "details": {"max_connections": 1000, "max_prepared_transactions": 1000, "max_locks_per_transaction": 512, "computed_value": 1024000, "configuration_reasonable": True}},
-                        {"item": "CheckGUCConsistent", "label": "GUC 一致性", "normalized_status": "abnormal", "summary": "已分析 2 类关键参数，发现 1 个关键参数存在差异"},
-                        {"item": "CheckDBParams", "label": "数据库参数", "normalized_status": "abnormal", "summary": "parameter drift"},
-                    ],
-                    "count": 3,
-                    "visible_count": 3,
-                },
-                "connection": {"summary": {"visible_items": [{"label": "游标数量", "normalized_status": "abnormal", "summary": "cursor leak"}]}, "items": [{"label": "游标数量", "normalized_status": "abnormal", "summary": "cursor leak"}], "count": 1, "visible_count": 1},
-                "storage": {"summary": {"checksystable_status": "normal", "checkkeydbtablesize_status": "normal", "visible_items": [{"item": "CheckSysTable", "label": "系统表检查", "normalized_status": "normal", "summary": "已检查 2 张系统表", "details": {"table_count": 2, "tables": [{"instance": "DN_6001", "table_name": "pg_attribute", "size_bytes": 3022848, "row_count": 19086, "avg_width": 13}, {"instance": "DN_6001", "table_name": "pg_class", "size_bytes": 729088, "row_count": 1616, "avg_width": 9}]}}, {"item": "CheckKeyDBTableSize", "label": "大表检查", "normalized_status": "normal", "summary": "已分析 1 个数据库的大表分布", "details": {"database_count": 1, "table_count": 2, "databases": [{"database": "postgres", "size_value": 18, "size_unit": "GB"}], "tables": [{"table_name": "public.orders", "size_value": 8, "size_unit": "GB"}, {"table_name": "public.customer", "size_value": 4, "size_unit": "GB"}]}}]}, "items": [{"item": "CheckSysTable", "label": "系统表检查", "normalized_status": "normal", "summary": "已检查 2 张系统表", "details": {"table_count": 2, "tables": [{"instance": "DN_6001", "table_name": "pg_attribute", "size_bytes": 3022848, "row_count": 19086, "avg_width": 13}, {"instance": "DN_6001", "table_name": "pg_class", "size_bytes": 729088, "row_count": 1616, "avg_width": 9}]}}, {"item": "CheckKeyDBTableSize", "label": "大表检查", "normalized_status": "normal", "summary": "已分析 1 个数据库的大表分布", "details": {"database_count": 1, "table_count": 2, "databases": [{"database": "postgres", "size_value": 18, "size_unit": "GB"}], "tables": [{"table_name": "public.orders", "size_value": 8, "size_unit": "GB"}, {"table_name": "public.customer", "size_value": 4, "size_unit": "GB"}]}}], "count": 2, "visible_count": 2},
-                "performance": {"summary": {"checkerrorinlog_status": "abnormal", "visible_items": [{"item": "CheckErrorInLog", "label": "运行日志", "normalized_status": "abnormal", "summary": "最近日志 ERROR 数量 3", "details": {"error_count": 3, "sample_lines": ["2026-03-12 ERROR sample-1", "2026-03-12 ERROR sample-2"]}}]}, "items": [{"item": "CheckErrorInLog", "label": "运行日志", "normalized_status": "abnormal", "summary": "最近日志 ERROR 数量 3", "details": {"error_count": 3, "sample_lines": ["2026-03-12 ERROR sample-1", "2026-03-12 ERROR sample-2"]}}], "count": 1, "visible_count": 1},
-                "transactions": {"summary": {"visible_items": [{"label": "锁数量", "normalized_status": "abnormal", "summary": "lock hotspot"}]}, "items": [{"label": "锁数量", "normalized_status": "abnormal", "summary": "lock hotspot"}], "count": 1, "visible_count": 1},
-                "sql_analysis": {"summary": {"checkreturntype_status": "normal", "no_index_table_count": 0, "no_primary_key_table_count": 2, "no_statistics_table_count": 7}, "items": [{"item": "CheckReturnType", "label": "自定义函数", "normalized_status": "normal", "summary": "用户定义函数不包含非法返回类型"}], "count": 1, "visible_count": 1, "no_index_summary": {"items": []}, "no_primary_key_summary": {"items": [{"owner": "app", "total_table_count": 100, "no_pk_count": 2, "percentage": 2.0}]}, "no_primary_key_detail": {"items": [{"owner": "app", "table_name": "order_log"}, {"owner": "app", "table_name": "audit_log"}]}, "no_statistics_summary": {"items": [{"tableowner": "rdsAdmin", "total_table_count": 239, "table_no_stat": 7, "percentage": 2.9288}]}, "no_statistics_detail": {"items": [{"schemaname": "snapshot", "tableowner": "rdsAdmin", "tablename": "snap_pdb_info"}]}},
-            "security": {"summary": {}, "items": [], "count": 0, "visible_count": 0},
-            "gs_check_raw_index": {"items": [], "count": 0}
-        },
+        "meta": {"schema_version": "2.0", "collector_version": "1.1.0", "db_type": "gaussdb", "db_host": "127.0.0.1", "db_port": 8000, "db_name": "postgres", "collect_time": "2026-03-12T00:30:05+08:00", "timezone": "Asia/Shanghai"},
+        "collect_config": {"sample_mode": "single", "sample_interval_seconds": None, "sample_period_seconds": None, "expected_samples": 1},
+        "collect_window": {"window_start": "2026-03-12T00:30:00+08:00", "window_end": "2026-03-12T00:30:05+08:00", "duration_seconds": 5},
+        "os": _gauss_os_result(),
+        "db": _gauss_db_result(),
     }
+
+
+def _gauss_os_result() -> dict:
+    return {
+        "system_info": {"hostname": "gauss-host", "os": "linux", "arch": "amd64", "cpu_cores": 8, "file_descriptor_usage_percent": 1.0, "mysql_fd_usage_percent": 0.0},
+        "cpu": {"samples": [{"timestamp": "2026-03-12T00:30:05+08:00", "usage_percent": 48.0, "user_percent": 22.0, "system_percent": 8.0, "idle_percent": 52.0, "nice_percent": 1.0, "iowait_percent": 1.0}]},
+        "memory": {"samples": [{"timestamp": "2026-03-12T00:30:05+08:00", "usage_percent": 65.0, "swap_usage_percent": 10.0, "meminfo": {"MemTotal": 17179869184, "MemAvailable": 8589934592, "SwapTotal": 4294967296, "SwapFree": 3865470566}}]},
+        "filesystem": {"samples": [{"timestamp": "2026-03-12T00:30:05+08:00", "mountpoints": [{"mountpoint": "/", "device": "/dev/root", "fstype": "xfs", "usage_percent": 70.0, "inodes_usage_percent": 22.0, "read_only": False}]}]},
+        "disk_io": {"samples": [{"timestamp": "2026-03-12T00:30:05+08:00", "total_iops": 180.0, "total_throughput_kbps": 4096.0, "avg_latency_ms": 1.3, "devices": []}]},
+        "network": {"samples": [{"timestamp": "2026-03-12T00:30:05+08:00", "interfaces": [], "total_rate_bytes_per_sec": 3072.0, "total_rx_bytes_per_sec": 2048.0, "total_tx_bytes_per_sec": 1024.0, "error_drop_per_sec": 0.0}]},
+        "process": {"samples": [{"timestamp": "2026-03-12T00:30:05+08:00", "load_avg_1": 0.5, "running_processes": 2, "blocked_processes": 0, "total_processes": 128, "context_switches": 2048, "go_routines": 0}]},
+    }
+
+
+def _gauss_db_result() -> dict:
+    return {
+        "basic_info": _gauss_domain([_gauss_item("CheckDBConnection", "数据库连接", "abnormal", "database connection failed"), _gauss_item("CheckGaussVer", "GaussDB 版本", "normal", "version ok")], {"version": "505.2.1.SPC1000", "gaussdb_version": "gaussdb 505.2.1", "checkdbconnection_status": "abnormal", "checkgaussver_status": "normal", "pguser": "rdsAdmin"}),
+        "cluster": _gauss_domain([_gauss_item("CheckClusterState", "集群状态", "normal", "cluster ok", {"rows": [{"node_name": "dn_6001", "node_type": "D", "node_host": "127.0.0.1", "node_port": 8000}]}), _gauss_item("CheckReadonlyMode", "只读模式", "normal", "off", {"readonly": "off"}), _gauss_item("CheckPgxcRedistb", "分布表", "normal", "ok"), _gauss_item("CheckNodeGroupName", "节点组", "normal", "ok")], {"checkclusterstate_status": "normal", "checkreadonlymode_status": "normal", "checkpgxcredistb_status": "normal", "checknodegroupname_status": "normal"}),
+        "config_check": _gauss_domain([_gauss_item("CheckGUCValue", "GUC 值检查", "normal", "锁资源预算值 1024000", {"max_connections": 1000, "max_prepared_transactions": 1000, "max_locks_per_transaction": 512, "computed_value": 1024000}), _gauss_item("CheckDBParams", "数据库参数", "abnormal", "parameter drift", {"rows": [{"name": "max_connections", "setting": "1000"}, {"name": "work_mem", "setting": "16384"}]})], {"checkdbparams_status": "abnormal", "checkgucvalue_status": "normal"}),
+        "connection": _gauss_domain([_gauss_item("CheckCurConnCount", "当前连接数", "normal", "ok", {"current_connections": 10, "max_connections": 100, "usage_percent": 10.0}), _gauss_item("CheckCursorNum", "游标数量", "abnormal", "cursor leak")], {"checkcurconncount_status": "normal", "checkcursornum_status": "abnormal"}),
+        "storage": _gauss_domain([_gauss_item("CheckTableSpace", "表空间", "abnormal", "tablespace full", {"rows": [{"tablespace": "pg_default", "location": ""}]}), _gauss_item("CheckHashIndex", "Hash 索引", "normal", "ok"), _gauss_item("CheckSysTable", "系统表检查", "normal", "ok", {"tables": [{"schema": "pg_catalog", "table_name": "pg_class", "pages": 85, "rows": 1616}]}), _gauss_item("CheckKeyDBTableSize", "大表检查", "normal", "ok", {"rows": [{"database": "postgres", "size_bytes": 1024}]})], {"checktablespace_status": "abnormal", "checkhashindex_status": "normal", "checksystable_status": "normal", "checkkeydbtablesize_status": "normal"}),
+        "performance": _gauss_domain([_gauss_item("CheckDBStat", "数据库运行状态", "normal", "ok", {"rows": [{"database": "postgres", "numbackends": 10, "xact_commit": 100, "xact_rollback": 1, "deadlocks": 0}]}), _gauss_item("CheckBPHitRatio", "Buffer 命中率", "normal", "ok", {"rows": [{"database": "postgres", "hit_ratio": "0.99"}]})], {"checkdbstat_status": "normal", "checkbphitratio_status": "normal"}),
+        "transactions": _gauss_domain([_gauss_item("CheckLockNum", "锁数量", "abnormal", "lock hotspot"), _gauss_item("CheckIdleSession", "空闲会话", "normal", "ok"), _gauss_item("CheckPgPreparedXacts", "预备事务", "abnormal", "prepared xact remained"), _gauss_item("CheckWorkloadTrx", "长事务", "normal", "ok")], {"checklocknum_status": "abnormal", "checkidlesession_status": "normal", "checkpgpreparedxacts_status": "abnormal", "checkworkloadtrx_status": "normal"}),
+        "sql_analysis": _gauss_sql_analysis_result(),
+        "security": {"summary": {}, "items": [], "count": 0, "visible_count": 0},
+        "sql_raw_index": {"items": [{"domain": "basic_info", "item": "CheckDBConnection", "label": "数据库连接", "row_count": 1, "result_file": "sql/CheckDBConnection.json"}], "count": 1},
+    }
+
+
+def _gauss_sql_analysis_result() -> dict:
+    payload = _gauss_domain([_gauss_item("CheckReturnType", "自定义函数", "normal", "ok")], {"checkreturntype_status": "normal", "no_index_table_count": 0, "no_primary_key_table_count": 2, "no_statistics_table_count": 7})
+    payload.update({"no_index_summary": {"items": []}, "no_primary_key_summary": {"items": [{"owner": "app", "total_table_count": 100, "no_pk_count": 2, "percentage": 2.0}]}, "no_primary_key_detail": {"items": [{"owner": "app", "table_name": "order_log"}]}, "no_statistics_summary": {"items": [{"tableowner": "rdsAdmin", "total_table_count": 239, "table_no_stat": 7, "percentage": 2.9288}]}, "no_statistics_detail": {"items": [{"schemaname": "snapshot", "tableowner": "rdsAdmin", "tablename": "snap_pdb_info"}]}})
+    return payload
+
+
+def _gauss_domain(items: list[dict], summary: dict) -> dict:
+    summary = {**summary, "visible_items": items}
+    return {"summary": summary, "items": items, "count": len(items), "visible_count": len(items)}
+
+
+def _gauss_item(name: str, label: str, status: str, summary: str, details: dict | None = None) -> dict:
+    return {"item": name, "label": label, "normalized_status": status, "summary": summary, "details": details or {}}
 
 
 if __name__ == "__main__":

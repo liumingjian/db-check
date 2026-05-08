@@ -35,10 +35,6 @@ func buildPayload(metadata map[string]any, records []itemRecord, collectErrors [
 		"transactions": buildDomain("transactions", map[string]any{}, records),
 		"sql_analysis": buildDomain("sql_analysis", map[string]any{}, records),
 		"security":     buildDomain("security", map[string]any{}, records),
-		"gs_check_raw_index": map[string]any{
-			"items": toRawIndex(records),
-			"count": len(records),
-		},
 	}
 	if len(collectErrors) > 0 {
 		payload["collect_errors"] = collectErrors
@@ -115,25 +111,6 @@ func attachItemProjections(summary map[string]any, items []map[string]any) {
 			summary[name+"_details"] = details
 		}
 	}
-}
-
-func toRawIndex(records []itemRecord) []map[string]any {
-	items := make([]map[string]any, 0, len(records))
-	for _, record := range records {
-		items = append(items, map[string]any{
-			"item":              record.Item,
-			"domain":            record.Domain,
-			"label":             record.Label,
-			"status":            record.Status,
-			"normalized_status": record.NormalizedStatus,
-			"summary":           record.Summary,
-			"details":           record.Details,
-			"raw_file":          record.RawFile,
-			"command":           record.Command,
-			"duration_ms":       record.DurationMS,
-		})
-	}
-	return items
 }
 
 func countVisible(items []map[string]any) int {

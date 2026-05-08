@@ -172,7 +172,7 @@ CORS/Origin allowlist：
 
 建议：
 
-- **PM2 只用于管理 Web 服务前后端**（`db-web` + `web/`），不管理 `db-collector` / `db-reporter` 这类一次性 CLI 任务。
+- **PM2 只用于管理 Web 服务前后端**（`db-web` + `web/`），不管理 `db-collector` 这类一次性 CLI 任务。
 - dev：确保已准备 `.venv`（Python 依赖）以及 `web/` 已 `npm install`，再执行：
   - `make pm2-start`
 - prod：先 build，再执行：

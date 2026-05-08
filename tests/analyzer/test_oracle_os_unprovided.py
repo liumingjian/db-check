@@ -8,11 +8,11 @@ from pathlib import Path
 from analyzer.cli.db_analyzer import run
 
 ROOT = Path(__file__).resolve().parents[2]
-FIXTURE = ROOT / "tests" / "fixtures" / "oracle_os_skip"
+FIXTURE = ROOT / "tests" / "fixtures" / "oracle_os_unprovided"
 
 
-class OracleOSSkipAnalyzerTests(unittest.TestCase):
-    def test_oracle_os_skip_partial_manifest_generates_summary(self) -> None:
+class OracleOSUnprovidedAnalyzerTests(unittest.TestCase):
+    def test_oracle_unprovided_os_partial_manifest_generates_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             out_path = Path(temp_dir) / "summary.json"
             code = run(

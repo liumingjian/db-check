@@ -96,9 +96,6 @@ func applyModeArg(cfg *Config, index int, arg string) (bool, int, error) {
 	case "--os-only":
 		cfg.OSOnly = true
 		return true, index, nil
-	case "--os-skip":
-		cfg.OSSkip = true
-		return true, index, nil
 	default:
 		return false, index, nil
 	}

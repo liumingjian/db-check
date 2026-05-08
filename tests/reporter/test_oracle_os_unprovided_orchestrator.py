@@ -9,13 +9,13 @@ from pathlib import Path
 from reporter.cli.reporter_orchestrator import run
 
 ROOT = Path(__file__).resolve().parents[2]
-FIXTURE = ROOT / "tests" / "fixtures" / "oracle_os_skip"
+FIXTURE = ROOT / "tests" / "fixtures" / "oracle_os_unprovided"
 
 
-class OracleOSSkipOrchestratorTests(unittest.TestCase):
-    def test_oracle_os_skip_run_dir_generates_report_artifacts(self) -> None:
+class OracleOSUnprovidedOrchestratorTests(unittest.TestCase):
+    def test_oracle_unprovided_os_run_dir_generates_report_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            run_dir = Path(temp_dir) / "oracle-os-skip"
+            run_dir = Path(temp_dir) / "oracle-os-unprovided"
             shutil.copytree(FIXTURE, run_dir)
             code = run(
                 [

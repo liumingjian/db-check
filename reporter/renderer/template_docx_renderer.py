@@ -16,6 +16,7 @@ from docx.shared import Pt, RGBColor, Twips
 
 from reporter.model.errors import EXIT_OUTPUT_ERROR, EXIT_RENDER_ERROR, EXIT_TEMPLATE_ERROR, ReporterFailure
 from reporter.renderer.inline_markup import append_inline_runs
+from reporter.renderer.risk_level_format import is_risk_level_column, risk_level_color
 from reporter.renderer.table_widths import apply_table_geometry, column_widths
 
 HEADER_FILL = "DEEAF6"
@@ -26,10 +27,8 @@ DOC_CONTROL_SUBTITLE_SIZE = 16
 CAPTION_SIZE = 10.5
 TABLE_FONT_SIZE = 9
 DOC_CONTROL_MARKER = "文档控制"
-EMOJI_FONT = "Apple Color Emoji"
 CHAPTER_PREFIX_PATTERN = re.compile(r"^第[一二三四五六七八九十百零0-9]+章\s*")
 SECTION_PREFIX_PATTERN = re.compile(r"^\d+(?:\.\d+)*\s*")
-RISK_ICON_COLUMNS = {"风险标识"}
 
 
 def render_template_docx(template_path: Path, report_view_path: Path, output_path: Path) -> None:
@@ -179,7 +178,7 @@ def _fill_header(cells: Any, columns: tuple[str, ...], widths: list[int]) -> Non
     for idx, cell in enumerate(cells):
         cell.width = Twips(widths[idx])
         _shade_cell(cell, HEADER_FILL)
-        _set_cell_alignment(cell, columns[idx] in RISK_ICON_COLUMNS)
+        _set_cell_alignment(cell, is_risk_level_column(columns[idx]))
         paragraph = cell.paragraphs[0]
         run = paragraph.add_run(columns[idx])
         _set_run_font(run, "Microsoft YaHei", TABLE_FONT_SIZE, bold=True, color=HEADER_COLOR)
@@ -188,11 +187,19 @@ def _fill_header(cells: Any, columns: tuple[str, ...], widths: list[int]) -> Non
 def _fill_row(cells: Any, columns: tuple[str, ...], row: tuple[str, ...], widths: list[int]) -> None:
     for idx, cell in enumerate(cells):
         cell.width = Twips(widths[idx])
-        use_emoji = columns[idx] in RISK_ICON_COLUMNS
-        _set_cell_alignment(cell, use_emoji)
+        is_risk_level = is_risk_level_column(columns[idx])
+        _set_cell_alignment(cell, is_risk_level)
         paragraph = cell.paragraphs[0]
-        font_name = EMOJI_FONT if use_emoji else "宋体"
-        append_inline_runs(paragraph, row[idx], font_name, TABLE_FONT_SIZE, BODY_COLOR, _set_run_font, use_emoji)
+        if is_risk_level:
+            _append_risk_level(paragraph, row[idx])
+            continue
+        append_inline_runs(paragraph, row[idx], "宋体", TABLE_FONT_SIZE, BODY_COLOR, _set_run_font)
+
+
+def _append_risk_level(paragraph: Any, text: str) -> None:
+    color = risk_level_color(text) or BODY_COLOR
+    run = paragraph.add_run(text)
+    _set_run_font(run, "宋体", TABLE_FONT_SIZE, bold=True, color=color)
 
 
 def _add_field_notes(document: Document, field_notes: list[list[str]] | list[tuple[str, str]]) -> None:
