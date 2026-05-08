@@ -1,11 +1,10 @@
 # db-check
 
-`db-check` 是一个面向企业内网数据库巡检场景的双入口工具链，用于完成数据库与主机指标采集、规则分析和 Word 巡检报告生成。
+`db-check` 是一个面向企业内网数据库巡检场景的工具链，用于完成数据库与主机指标采集、规则分析和 Word 巡检报告生成。
 
 当前主要入口包括：
-- `db-collector`：采集数据库与 OS 指标，产出标准 `run` 目录
-- `db-reporter`：基于 `run` 目录生成 `summary.json`、`report-meta.json`、`report-view.json` 和最终 `report.docx`
-- `db-web`（可选）：Web 报告生成服务。上传 ZIP 采集包 → 后端执行 reporter pipeline → WebSocket 推送日志/进度 → 下载结果 ZIP
+- `db-collector`：客户侧唯一可执行采集器，采集数据库与可选 OS 指标，产出标准 `run` 目录
+- `db-web`：Web 报告生成服务。上传 ZIP 采集包 → 后端执行 reporter pipeline → WebSocket 推送日志/进度 → 下载结果 ZIP
 
 当前正式实现覆盖：
 - MySQL `5.6 / 5.7 / 8.0`
@@ -13,8 +12,8 @@
 - GaussDB `505.2.1.SPC1000`
 
 当前版本里，MySQL、Oracle 与 GaussDB 都已经打通以下完整链路：
-- `db-collector` 采集数据库 + OS 指标，生成标准 `run` 目录
-- `db-reporter` 自动识别 `db_type`，生成 `summary.json`、`report-meta.json`、`report-view.json` 和 `report.docx`
+- `db-collector` 采集数据库指标；只有显式提供 `--local`、`--os-only` 或远程 OS 参数时才采集 OS 指标
+- Web 上传采集 ZIP 后自动识别 `db_type`，生成 `summary.json`、`report-meta.json`、`report-view.json` 和 `report.docx`
 - 第一章“巡检总结”使用统一模板，关键指标会在 Word 报告中加粗高亮显示
 
 ## 核心能力
@@ -23,7 +22,7 @@
 - 基于规则自动分析风险，生成结构化 `summary.json`
 - 基于统一 `ReportView` 和 Word 模板生成正式巡检报告
 - 远程 OS 采集通过 SSH 下发临时 `db-osprobe` 二进制执行，避免依赖目标机 `sar/free/vmstat/iostat`
-- GaussDB 数据库指标通过“SSH 执行系统自带 `gs_check` + openGauss Go 驱动 SQL 采集”组合获取，并在 `run_dir/gs_check/`、`run_dir/sql/` 保留原始输出
+- GaussDB 数据库指标默认通过 openGauss Go 驱动 SQL-first 采集，并在 `run_dir/sql/` 保留原始 SQL 与结果
 - 支持 Linux / macOS / Windows 多平台发布包构建
 - 支持 MySQL / Oracle 的 Docker 多版本 e2e 验证，保证采集、分析、报告链路一致
 
@@ -38,7 +37,7 @@
 
 本项目推荐三种使用方式：
 - 方式一：编译运行
-  - 适合本地验证、联调、交付前测试
+  - 适合客户侧离线采集
 - 方式二：源码运行
   - 适合开发、调试和排查问题
 - 方式三：Web 报告服务（`db-web` + `web/` 前端）
@@ -46,7 +45,7 @@
 
 无论采用哪种方式，最终用户只需要完成两步：
 1. 使用 `db-collector` 采集指标，生成 `run` 目录
-2. 使用 `db-reporter` 基于 `run` 目录生成 Word 报告
+2. 将 `run` 目录压缩成 ZIP，在 Web 页面上传生成 Word 报告
 
 ---
 
@@ -55,23 +54,8 @@
 ### 1. 环境要求
 
 - Go `1.24+`
-- Python `3.10+`
-- 当前 Shell 可正常执行 `python3`
-- 如果需要运行 e2e：需要 Docker 与 Docker Compose
 
-### 2. 初始化 Python 虚拟环境
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-make init-python
-```
-
-说明：
-- `db-reporter` 会调用 Python 运行时完成分析、元数据和报告渲染
-- 在源码仓库中，所有 `python3` 命令都应在已激活的 `.venv` 中执行
-
-### 3. 编译两个入口程序
+### 2. 编译采集器
 
 ```bash
 make build
@@ -80,7 +64,7 @@ make build
 默认输出目录：
 - `bin/`
 
-### 4. 执行采集
+### 3. 执行采集
 
 MySQL 示例：
 
@@ -91,8 +75,7 @@ MySQL 示例：
   --db-port 3306 \
   --db-username root \
   --db-password rootpwd \
-  --dbname mysql \
-  --output-dir ./runs
+  --dbname mysql
 ```
 
 Oracle 示例：
@@ -104,8 +87,7 @@ Oracle 示例：
   --db-port 1521 \
   --db-username system \
   --db-password oraclepwd \
-  --dbname ORCL \
-  --output-dir ./runs
+  --dbname ORCL
 ```
 
 GaussDB 示例：
@@ -117,17 +99,12 @@ GaussDB 示例：
   --db-port 8000 \
   --db-username root \
   --db-password Gauss_246 \
-  --dbname postgres \
-  --gauss-user Ruby \
-  --gauss-env-file ~/gauss_env_file \
-  --os-host 10.250.0.157 \
-  --os-port 22 \
-  --os-username root \
-  --os-password ATT@2022 \
-  --output-dir ./runs
+  --dbname postgres
 ```
 
-如需同时采集远程主机 OS（Linux over SSH），增加 SSH 参数。当前远程 OS 采集会通过 SSH 自动上传临时 helper 二进制执行，不依赖目标机预装 `sar/free/vmstat/iostat`：
+默认输出目录是当前目录下的 `./runs`。未提供 OS 参数时不会采集 OS 指标，报告里的 OS 检查会保持“未评估”语义。
+
+如需同时采集远程主机 OS（Linux over SSH），显式增加 SSH 参数。当前远程 OS 采集会通过 SSH 自动上传临时 helper 二进制执行，不依赖目标机预装 `sar/free/vmstat/iostat`：
 
 ```bash
 ./bin/db-collector \
@@ -140,8 +117,7 @@ GaussDB 示例：
   --os-host 10.250.0.24 \
   --os-port 22 \
   --os-username root \
-  --os-password ATT@2022 \
-  --output-dir ./runs
+  --os-password ATT@2022
 ```
 
 Oracle + 远程 OS 示例：
@@ -157,15 +133,13 @@ Oracle + 远程 OS 示例：
   --os-host 10.250.0.222 \
   --os-port 22 \
   --os-username root \
-  --os-password ATT@2022 \
-  --output-dir ./runs
+  --os-password ATT@2022
 ```
 
 GaussDB 路径补充说明：
-- `--gauss-user` 用于切换到实际安装 GaussDB 的系统用户后执行 `gs_check`
-- `--gauss-env-file` 用于 `source` GaussDB 环境文件后再执行 `gs_check`
-- `--db-host/--db-port/--db-username/--db-password/--dbname` 同时用于 openGauss 直连 SQL 采集与报告元数据
-- GaussDB 的 `gs_check` 原始输出落在 `run_dir/gs_check/`，SQL 原始查询与结果落在 `run_dir/sql/`
+- `--db-host/--db-port/--db-username/--db-password/--dbname` 用于 openGauss SQL 直连采集与报告元数据
+- `--gauss-user` 和 `--gauss-env-file` 已废弃；SQL-first 采集不会使用主机侧 `gs_check`
+- GaussDB 的 SQL 原始查询与结果落在 `run_dir/sql/`
 
 执行成功后，终端会打印：
 - `run_id=...`
@@ -179,38 +153,15 @@ manifest=./runs/mysql-127.0.0.1-20260311T120000Z/manifest.json
 result=./runs/mysql-127.0.0.1-20260311T120000Z/result.json
 ```
 
-### 5. 生成 Word 报告
+### 4. 上传生成 Word 报告
 
-```bash
-./bin/db-reporter \
-  --python-bin "$VIRTUAL_ENV/bin/python3" \
-  --run-dir ./runs/<run_id>
-```
-
-如果需要同时导出 Markdown：
-
-```bash
-./bin/db-reporter \
-  --python-bin "$VIRTUAL_ENV/bin/python3" \
-  --run-dir ./runs/<run_id> \
-  --out-md ./runs/<run_id>/report.md
-```
-
-### 6. 验证产物
-
-报告生成成功后，`./runs/<run_id>/` 目录中应至少包含：
+采集成功后，`./runs/<run_id>/` 目录中应至少包含：
 - `collector.log`
 - `manifest.json`
 - `result.json`
-- `gs_check/`（仅 GaussDB）
 - `sql/`（GaussDB 结构化 SQL 原始输出）
-- `summary.json`
-- `report-meta.json`
-- `report-view.json`
-- `report.docx`
 
-按需导出时还会包含：
-- `report.md`
+将该 `run` 目录压缩成 ZIP，然后在 Web 页面上传生成 Word 报告。
 
 ---
 
@@ -239,40 +190,26 @@ GOCACHE=/tmp/go-cache go run ./collector/cmd/db-collector \
   --db-port 3306 \
   --db-username root \
   --db-password rootpwd \
-  --dbname mysql \
-  --output-dir ./runs
+  --dbname mysql
 ```
 
-### 4. 直接运行报告端
+### 4. 上传生成报告
 
-```bash
-GOCACHE=/tmp/go-cache go run ./reporter/cmd/db-reporter \
-  --python-bin "$VIRTUAL_ENV/bin/python3" \
-  --run-dir ./runs/<run_id>
-```
-
-如果需要同时导出 Markdown：
-
-```bash
-GOCACHE=/tmp/go-cache go run ./reporter/cmd/db-reporter \
-  --python-bin "$VIRTUAL_ENV/bin/python3" \
-  --run-dir ./runs/<run_id> \
-  --out-md ./runs/<run_id>/report.md
-```
+采集完成后，将 `./runs/<run_id>/` 压缩成 ZIP，在 Web 页面上传生成报告。源码内的 reporter pipeline 仍用于 `db-web` 后端实现和自动化测试，不作为客户侧命令入口。
 
 ### 5. 适用说明
 
 源码运行方式适合：
 - 调试采集逻辑
 - 调试规则判定
-- 调试报告内容和模板渲染
+- 调试 Web 报告生成链路
 - 在不构建发布包的前提下快速验证完整链路
 
 ---
 
 ## 方式三：Web 报告服务（db-web + web/）
 
-`db-web` 提供一个 Web 入口：上传 ZIP 采集包，服务端执行 `db-reporter` 对应的 reporter pipeline，并通过 WebSocket 推送日志/进度，最终下载结果 ZIP（只包含成功项的 `report.docx`）。
+`db-web` 提供一个 Web 入口：上传 ZIP 采集包，服务端执行内部 reporter pipeline，并通过 WebSocket 推送日志/进度，最终下载结果 ZIP（只包含成功项的 `report.docx`）。
 
 ### 1. 环境要求
 
@@ -287,7 +224,7 @@ PM2 会同时管理：
 - `dbcheck-web`：前端 Next dev server（默认 `:3000`）
 
 说明：
-- **PM2 只用于管理 Web 服务前后端**（`db-web` + `web/`），不管理 `db-collector` / `db-reporter` 这类一次性 CLI 任务。
+- **PM2 只用于管理 Web 服务前后端**（`db-web` + `web/`），不管理 `db-collector` 这类一次性 CLI 任务。
 
 准备依赖（如已准备可跳过）：
 
@@ -327,8 +264,23 @@ make pm2-start-prod
 ```
 
 说明：
-- `ecosystem.config.cjs` 内置了本地联调默认值：`DBCHECK_DATA_DIR=/tmp/dbcheck-data`、`ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000`、`DBCHECK_API_TOKEN=secret` 等；如需覆盖，可在 `pm2 start` 前设置同名环境变量，并用 `make pm2-restart` 刷新 env。
-- 若用局域网地址打开前端（例如 `http://192.168.x.x:3000`），请显式设置 `NEXT_PUBLIC_API_BASE`（或在生成页手动填写 API Base），避免请求被推断到访问者本机 `127.0.0.1:8080`。
+- `ecosystem.config.cjs` 会自动读取仓库根目录 `.env`（不覆盖已 export 的同名变量），并内置本地联调默认值：`DBCHECK_DATA_DIR=/tmp/dbcheck-data`、`ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000`、`DBCHECK_API_TOKEN=ATI` 等；如需覆盖，可修改 `.env` 或在 `pm2 start` 前设置同名环境变量，并用 `make pm2-restart` 刷新 env。
+- 若用局域网地址打开前端（例如 `http://192.168.x.x:3000`），前端会默认请求同一主机的 `:8080` 后端；如后端在其他主机，可显式设置 `NEXT_PUBLIC_API_BASE` 或在生成页手动填写 API Base。
+
+远程 Linux 部署示例：
+
+```bash
+cat > .env <<'EOF'
+DBCHECK_ADDR=0.0.0.0:18080
+DBCHECK_DATA_DIR=/tmp/dbcheck-data
+ALLOWED_ORIGINS=*
+DBCHECK_API_TOKEN=ATI
+EOF
+
+make pm2-restart
+```
+
+当前页面在 `:3000` 时，前端默认把 API 推断为同一主机的后端端口；该端口会从 `DBCHECK_ADDR` 自动派生。上例中访问 `http://10.250.0.222:3000` 时，前端会自动请求 `http://10.250.0.222:18080`。内网自测可用 `ALLOWED_ORIGINS=*` 避免频繁换 IP 时反复改 CORS；若要收紧白名单，再改成具体 Origin 列表。
 
 ### 3. 准备输入 ZIP
 
@@ -353,13 +305,13 @@ zip -j /tmp/mysql-e2e.zip "$RUN_DIR/manifest.json" "$RUN_DIR/result.json"
 
 ### 4. 启动后端（db-web）
 
-后端需要 3 个环境变量：
+后端需要 2 个环境变量；本地默认 Token 为 `ATI`，可用 `DBCHECK_API_TOKEN` 覆盖：
 - `DBCHECK_DATA_DIR`：任务落盘目录（例如 `/tmp/dbcheck-data`）
 - `ALLOWED_ORIGINS`：前端 Origin 白名单（逗号分隔）。支持三种写法：
   - 完整 Origin：`http://127.0.0.1:3000`（推荐）
   - Host（含端口）：`127.0.0.1:3000` / `localhost:3000`（更宽松，适合本地联调）
   - `*`：允许任意 Origin（仅建议本地联调临时使用；生产环境不要用）
-- `DBCHECK_API_TOKEN`：固定 Bearer token（前端会提示输入）
+- `DBCHECK_API_TOKEN`：固定 Bearer token（默认 `ATI`，前端会默认填入该值）
 
 说明：
 - 当 `ALLOWED_ORIGINS` 配置里包含 `localhost` / `127.0.0.1`（带端口）时，`db-web` 会自动放行同端口的本机局域网地址（例如 `http://192.168.x.x:3000`），避免你用 Next dev server 的 Network 地址打开前端时触发 CORS。
@@ -371,7 +323,8 @@ export DBCHECK_DATA_DIR=/tmp/dbcheck-data
 export ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000
 # 本地快速联调（不建议在生产环境使用）：
 # export ALLOWED_ORIGINS=*
-export DBCHECK_API_TOKEN=secret
+# 可选：不设置时默认 ATI
+export DBCHECK_API_TOKEN=ATI
 
 go run ./reporter/cmd/db-web --addr 127.0.0.1:8080 --python-bin "$VIRTUAL_ENV/bin/python3"
 ```
@@ -396,14 +349,14 @@ NEXT_PUBLIC_API_BASE=http://127.0.0.1:8080 npm run dev
 
 1. 页面选择 MySQL
 2. 上传 `/tmp/mysql-run.zip`（或 `/tmp/mysql-e2e.zip`）
-3. 点击“生成报告”，在生成页输入 Token（与 `DBCHECK_API_TOKEN` 一致）
+3. 点击“生成报告”，生成页默认填入 Token `ATI`；如覆盖了 `DBCHECK_API_TOKEN`，则改成对应值
 4. 观察 WS 日志与进度，完成后点击下载，得到 `reports-<task_id>.zip`
 
 ### 7. 仅用 curl 验证 HTTP（可选）
 
 ```bash
 API_BASE="http://127.0.0.1:8080"
-TOKEN="secret"
+TOKEN="ATI"
 
 curl -sS -X POST \
   -H "Authorization: Bearer ${TOKEN}" \
@@ -429,6 +382,8 @@ curl -sS -H "Authorization: Bearer ${TOKEN}" \
 2. `ALLOWED_ORIGINS` 未包含当前页面的 `window.location.origin`（注意 `127.0.0.1` 与 `localhost` 属于不同 Origin）
 3. 使用 Next dev server 的 Network 地址打开前端（例如 `http://192.168.x.x:3000`），但后端只放行了 `localhost/127.0.0.1`（可在 `ALLOWED_ORIGINS` 中显式加入该 Origin，或本地临时用 `*`）
 4. HTTPS 页面调用 HTTP API 触发浏览器 Mixed Content 拦截
+
+生成页会先做一次 API 探测；失败日志会显示当前 API 地址与页面 Origin，优先按这两个值核对后端监听地址和 `ALLOWED_ORIGINS`。
 
 可以用预检请求快速定位是否是 CORS 配置问题（返回 204 且包含 `Access-Control-Allow-Origin` 为正常）：
 
@@ -465,18 +420,9 @@ dist/
 
 每个发布包目录中都包含：
 - `db-collector`
-- `db-reporter`
-- `assets/`
-- `runtime/`
 - `QUICKSTART.md`
 
-其中：
-- `assets/rules/mysql/rule.json`
-- `assets/rules/oracle/rule.json`
-- `assets/rules/gaussdb/rule.json`
-- `assets/templates/mysql-template.docx`
-
-都会随发布包一起交付。
+报告生成不随客户侧采集包发布，统一通过 db-check Web 上传采集 ZIP 完成。
 
 ## E2E 覆盖
 
@@ -484,7 +430,7 @@ dist/
 - MySQL `5.6 / 5.7 / 8.0`
 - Oracle `11g / 19c`
 
-GaussDB 当前不承诺 Docker e2e。原因是 `gs_check`、`gauss_env_file`、数据库安装用户和工具链环境都依赖正式安装形态，当前以真实环境回归为准。
+GaussDB 当前不承诺 Docker e2e。原因是可用镜像、内核版本和 openGauss 兼容行为与正式安装形态存在差异，当前以真实环境回归为准。
 
 执行方式：
 
@@ -508,28 +454,16 @@ tests/e2e/run_docker_e2e.sh --db-type oracle --oracle-version 19c
 ```text
 runs/<run_id>/
 ├── collector.log
-├── gs_check/               # 仅 GaussDB，保留每个 CheckItem 的原始 stdout 与 index.json
 ├── manifest.json
 ├── result.json
-├── sql/                    # 仅 GaussDB，保留原始 SQL 与查询结果
-├── summary.json
-├── report-meta.json
-├── report-view.json
-├── report.docx
-└── report.md                # 可选
+└── sql/                    # 仅 GaussDB，保留原始 SQL 与查询结果
 ```
 
 各文件职责：
 - `collector.log`：采集执行日志
-- `gs_check/`：GaussDB 原始 `gs_check` 输出缓存，便于复核和排障
 - `sql/`：GaussDB 原始 SQL 查询与结果缓存，便于复核和排障
 - `manifest.json`：本次运行的执行态描述
 - `result.json`：原始采集结果
-- `summary.json`：规则分析结果
-- `report-meta.json`：报告元数据
-- `report-view.json`：报告内容视图模型
-- `report.docx`：最终交付报告
-- `report.md`：可选的人类可读导出物
 
 ## 项目目录结构
 
@@ -571,8 +505,8 @@ Makefile 的职责边界：
 - `make clean`
 
 运行时入口保持为：
-- 编译模式：直接执行 `./bin/db-collector`、`./bin/db-reporter`
-- 源码模式：直接执行 `go run ./collector/cmd/db-collector`、`go run ./reporter/cmd/db-reporter`
+- 编译模式：直接执行 `./bin/db-collector`
+- 源码模式：直接执行 `go run ./collector/cmd/db-collector`
 
 ## 文档导航
 
@@ -600,15 +534,7 @@ Makefile 的职责边界：
 
 ## 常见问题
 
-### 1. `db-reporter` 提示找不到 `python3`
-
-使用 `--python-bin` 显式指定解释器路径，例如：
-
-```bash
---python-bin "$VIRTUAL_ENV/bin/python3"
-```
-
-### 2. `db-reporter` 提示缺少 `jsonschema` 或 `python-docx`
+### 1. Web 报告服务提示缺少 `jsonschema` 或 `python-docx`
 
 在已激活的虚拟环境中执行：
 
@@ -616,13 +542,13 @@ Makefile 的职责边界：
 make init-python
 ```
 
-### 3. `run` 目录不完整，无法生成报告
+### 2. `run` 目录不完整，无法生成报告
 
-`db-reporter` 至少要求 `run` 目录中存在：
+Web 上传的采集 ZIP 至少要求 `run` 目录中存在：
 - `manifest.json`
 - `result.json`
 
-### 4. MySQL 版本无法自动识别
+### 3. MySQL 版本无法自动识别
 
 优先检查 `result.json` 中是否存在：
 - `db.basic_info.version`
@@ -630,13 +556,9 @@ make init-python
 - `db.basic_info.summary.version`
 - `db.basic_info.summary.gaussdb_version`
 
-如果采集结果本身缺失，再显式传入：
+如果采集结果本身缺失，需要先修正采集结果，再重新上传生成报告。
 
-```bash
---mysql-version <version>
-```
-
-### 5. Oracle 的 `--dbname` 表示什么
+### 4. Oracle 的 `--dbname` 表示什么
 
 Oracle 路径下，`--dbname` 表示 `SID/实例名`，不是 `service name`。
 
@@ -647,10 +569,6 @@ source .venv/bin/activate
 tests/e2e/run_docker_e2e.sh
 ```
 
-### 7. GaussDB 为什么需要 `--gauss-user` 和 `--gauss-env-file`
+### 7. GaussDB 为什么不再需要 `--gauss-user` 和 `--gauss-env-file`
 
-GaussDB 当前同时使用两条数据库采集链路：
-- 通过 SSH 切换到安装用户并加载环境后执行系统自带 `gs_check`
-- 通过 openGauss Go 驱动直连数据库执行 SQL 采集
-
-因此 `--gauss-user` 和 `--gauss-env-file` 仍然必需，用于保证 `gs_check`、`gaussdb`、`gsql` 等命令可用；而 `--db-host/--db-port/--db-username/--db-password/--dbname` 则用于 SQL 直连采集。
+GaussDB 当前默认使用 openGauss Go 驱动直连数据库执行 SQL-first 采集。`--gauss-user` 和 `--gauss-env-file` 仍可被解析，但只作为废弃参数记录，不参与采集。

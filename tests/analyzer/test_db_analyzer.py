@@ -58,10 +58,8 @@ class AnalyzerCLITests(unittest.TestCase):
                 "db": {
                     "basic_info": {
                         "summary": {
-                            "gauss_user": "Ruby",
-                            "gauss_env_file": "~/gauss_env_file",
+                            "pguser": "root",
                             "checkdbconnection_status": "abnormal",
-                            "checkommonitor_status": "normal",
                             "checkgaussver_status": "normal",
                         },
                         "items": [
@@ -74,18 +72,13 @@ class AnalyzerCLITests(unittest.TestCase):
                     "cluster": {
                         "summary": {
                             "checkclusterstate_status": "normal",
-                            "checkintegrity_status": "normal",
                             "checkreadonlymode_status": "normal",
-                            "checkcatchup_status": "not_applicable",
-                            "checkdnsync_status": "not_applicable",
-                            "checkdnwait_status": "not_applicable",
                             "checkpgxcredistb_status": "not_applicable",
                             "checknodegroupname_status": "not_applicable",
                         },
                         "items": [
                             {"item": "CheckClusterState", "normalized_status": "normal", "summary": "cluster ok"},
                             {"item": "CheckReadonlyMode", "normalized_status": "normal", "summary": "readwrite"},
-                            {"item": "CheckCatchup", "normalized_status": "not_applicable", "summary": ""},
                         ],
                         "count": 3,
                         "visible_count": 2,
@@ -94,11 +87,10 @@ class AnalyzerCLITests(unittest.TestCase):
                         "summary": {
                             "checkdbparams_status": "abnormal",
                             "checkgucvalue_status": "normal",
-                            "checkgucconsistent_status": "normal",
                         },
                         "items": [
                             {"item": "CheckDBParams", "normalized_status": "abnormal", "summary": "parameter drift"},
-                            {"item": "CheckGUCConsistent", "normalized_status": "normal", "summary": "consistent"},
+                            {"item": "CheckGUCValue", "normalized_status": "normal", "summary": "guc ok"},
                         ],
                         "count": 2,
                         "visible_count": 2,
@@ -107,12 +99,10 @@ class AnalyzerCLITests(unittest.TestCase):
                         "summary": {
                             "checkcurconncount_status": "normal",
                             "checkcursornum_status": "abnormal",
-                            "checkpoolernum_status": "not_applicable",
                         },
                         "items": [
                             {"item": "CheckCurConnCount", "normalized_status": "normal", "summary": "ok"},
                             {"item": "CheckCursorNum", "normalized_status": "abnormal", "summary": "cursor leak"},
-                            {"item": "CheckPoolerNum", "normalized_status": "not_applicable", "summary": ""},
                         ],
                         "count": 3,
                         "visible_count": 2,
@@ -121,7 +111,6 @@ class AnalyzerCLITests(unittest.TestCase):
                         "summary": {
                             "checktablespace_status": "abnormal",
                             "checkhashindex_status": "normal",
-                            "checkdilatesystab_status": "not_applicable",
                             "checksystable_status": "normal",
                             "checkkeydbtablesize_status": "normal",
                         },
@@ -136,7 +125,6 @@ class AnalyzerCLITests(unittest.TestCase):
                         "summary": {
                             "checkdbstat_status": "not_applicable",
                             "checkbphitratio_status": "normal",
-                            "checkerrorinlog_status": "normal",
                         },
                         "items": [{"item": "CheckBPHitRatio", "normalized_status": "normal", "summary": "buffer hit ratio ok"}],
                         "count": 1,
@@ -169,7 +157,7 @@ class AnalyzerCLITests(unittest.TestCase):
                         "visible_count": 1,
                     },
                     "security": {"summary": {}, "items": [], "count": 0, "visible_count": 0},
-                    "gs_check_raw_index": {"items": [], "count": 0},
+                    "sql_raw_index": {"items": [], "count": 0},
                 },
             }
 

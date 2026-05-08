@@ -25,15 +25,6 @@ LEVEL_LABELS = {
     "low": "低",
 }
 
-LEVEL_ICONS = {
-    "critical": "🔴",
-    "warning": "🟡",
-    "normal": "🟢",
-    "high": "🔴",
-    "medium": "🟡",
-    "low": "🔵",
-}
-
 
 def nested_get(payload: dict[str, Any], path: Sequence[str], default: Any = "") -> Any:
     current: Any = payload
@@ -223,10 +214,6 @@ def format_cell(value: Any, formatter: Any) -> str:
 
 def level_text(level: str) -> str:
     return LEVEL_LABELS.get(level, level)
-
-
-def level_icon(level: str) -> str:
-    return LEVEL_ICONS.get(level, "")
 
 
 def section_with_table(title: str, table: TableBlock, note: str = "") -> SectionBlock:

@@ -13,9 +13,9 @@
 1. 编译运行
 2. 源码运行
 
-当前客户主路径仍然只有两个入口：
-- `db-collector`
-- `db-reporter --run-dir ...`
+当前客户主路径为：
+- 执行 `db-collector` 生成 `run` 目录
+- 将 `run` 目录压缩成 ZIP 后在 Web 页面上传生成报告
 
 ## 建议阅读顺序
 

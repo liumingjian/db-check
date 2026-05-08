@@ -21,7 +21,9 @@ coverage.xml
 htmlcov/
 
 # Local runtime / build artifacts
+.env
 tests/e2e/runs/
+runs/
 dist/
 bin/
 tmp/

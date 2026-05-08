@@ -5,14 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from reporter.content.helpers import full_table, key_value_table
+from reporter.content.helpers import full_table, key_value_table, level_text
 from reporter.model.report_view import SectionBlock
 
 ALARM_DEFINITIONS = (
-    ("高风险", "🔴", "可能影响业务连续性、可用性或数据安全，建议立即处理。", "24小时内"),
-    ("中风险", "🟡", "存在明确风险或趋势性异常，建议尽快安排处理。", "1~2周内"),
-    ("低风险", "🔵", "不符合最佳实践或存在优化空间，建议纳入优化计划。", "1~3个月内"),
-    ("正常", "🟢", "未发现明显风险，当前运行状态总体可控。", "持续保持"),
+    ("高风险", "可能影响业务连续性、可用性或数据安全，建议立即处理。", "24小时内"),
+    ("中风险", "存在明确风险或趋势性异常，建议尽快安排处理。", "1~2周内"),
+    ("低风险", "不符合最佳实践或存在优化空间，建议纳入优化计划。", "1~3个月内"),
+    ("正常", "未发现明显风险，当前运行状态总体可控。", "持续保持"),
 )
 
 
@@ -47,7 +47,7 @@ def build_summary_section(
 
 
 def _build_alarm_definitions() -> SectionBlock:
-    table = full_table("巡检告警定义", ("风险等级", "风险标识", "定义", "建议响应时效"), ALARM_DEFINITIONS, status="derived")
+    table = full_table("巡检告警定义", ("风险等级", "定义", "建议响应时效"), ALARM_DEFINITIONS, status="derived")
     return SectionBlock(title="1.1 巡检告警定义", status="derived", tables=(table,))
 
 
@@ -79,7 +79,7 @@ def _build_health_assessment(
 ) -> SectionBlock:
     grouped = strategy.group_abnormal_items(summary)
     rows = tuple(_health_row(label, names, grouped, result, strategy) for label, names in strategy.business_dimensions())
-    table = full_table("综合健康评估", ("检查维度", "风险标识", "关键发现"), rows, status="derived")
+    table = full_table("综合健康评估", ("检查维度", "风险等级", "关键发现"), rows, status="derived")
     return SectionBlock(title="1.3 综合健康评估", status="derived", tables=(table,))
 
 
@@ -94,18 +94,14 @@ def _health_row(
     for name in dimension_names:
         items.extend(grouped.get(strategy.display_dimension_name(name), []))
     level, finding = strategy.health_summary(label, result, items)
-    return (label, _risk_icon(level), finding)
-
-
-def _risk_icon(level: str) -> str:
-    return {"critical": "🔴", "warning": "🟡", "normal": "🟢"}[level]
+    return (label, level_text(level), finding)
 
 
 def _build_risk_findings(summary: dict[str, Any], strategy: SummaryStrategy) -> SectionBlock:
     rows = tuple(_risk_row(item, strategy) for item in _abnormal_items(summary))
     if not rows:
-        rows = (("🟢", "-", "未发现异常项", "-", "无需整改"),)
-    table = full_table("风险发现与整改建议", ("风险标识", "检查维度", "风险描述", "影响分析", "整改建议"), rows, status="derived")
+        rows = (("正常", "-", "未发现异常项", "-", "无需整改"),)
+    table = full_table("风险发现与整改建议", ("风险等级", "检查维度", "风险描述", "影响分析", "整改建议"), rows, status="derived")
     note = "仅列出存在风险的检查项，正常项不在此表展示。"
     return SectionBlock(title="1.4 风险发现与整改建议", status="derived", tables=(table,), note=note)
 
@@ -120,7 +116,7 @@ def _abnormal_items(summary: dict[str, Any]) -> list[dict[str, Any]]:
 def _risk_row(item: dict[str, Any], strategy: SummaryStrategy) -> tuple[str, str, str, str, str]:
     level = str(item.get("level", "warning"))
     return (
-        {"critical": "🔴", "warning": "🟡", "normal": "🟢"}.get(level, level),
+        level_text(level),
         strategy.display_dimension_name(str(item.get("dimension_name", "-"))),
         strategy.risk_description(item),
         strategy.impact_analysis(item),

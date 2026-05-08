@@ -126,10 +126,6 @@ def risk_stat_text(summary: dict[str, Any]) -> str:
     )
 
 
-def risk_icon(level: str) -> str:
-    return {"critical": "🔴", "warning": "🟡", "normal": "🟢"}.get(level, level)
-
-
 def join_unique(values: list[str]) -> str:
     ordered: list[str] = []
     seen: set[str] = set()

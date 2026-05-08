@@ -5,28 +5,9 @@ import (
 	"dbcheck/collector/internal/cli"
 	"dbcheck/collector/internal/core"
 	"encoding/json"
-	"fmt"
-	"os"
-	"strings"
 	"testing"
 	"time"
 )
-
-type fakeRunner struct {
-	outputs map[string]string
-}
-
-func (f *fakeRunner) Run(command string) (string, error) {
-	output, ok := f.outputs[command]
-	if !ok {
-		return "", fmt.Errorf("unexpected command: %s", command)
-	}
-	return output, nil
-}
-
-func (f *fakeRunner) Close() error {
-	return nil
-}
 
 type memoryWriter struct {
 	files map[string][]byte
@@ -54,101 +35,17 @@ func (w *memoryWriter) WriteText(path string, content string) error {
 	return nil
 }
 
-func TestParseOutputExtractsStatusSummaryAndRaw(t *testing.T) {
-	output := "2026-03-12 18:14:09 [NAM] CheckDBConnection\n2026-03-12 18:14:09 [STD]\n2026-03-12 18:14:09 [RST] OK\nThe database connection is normal.\n2026-03-12 18:14:09 [RAW]\nsource '/home/Ruby/gauss_env_file' && gsql -d postgres\n"
-	parsed := parseOutput(output)
-	if parsed.Name != "CheckDBConnection" {
-		t.Fatalf("unexpected name: %s", parsed.Name)
-	}
-	if parsed.Status != statusOK {
-		t.Fatalf("unexpected status: %s", parsed.Status)
-	}
-	if parsed.Summary != "The database connection is normal." {
-		t.Fatalf("unexpected summary: %s", parsed.Summary)
-	}
-	if parsed.Raw == "" {
-		t.Fatalf("expected raw section")
-	}
-}
-
-func TestBuildItemCommandUsesSuAndEnvFile(t *testing.T) {
-	cfg := cli.Config{GaussUser: "Ruby", GaussEnvFile: "~/gauss_env_file"}
-	command := buildItemCommand(cfg, "CheckDBConnection")
-	for _, token := range []string{"su - 'Ruby'", `"$HOME/gauss_env_file"`, `gs_check -i "CheckDBConnection" -L`} {
-		if !strings.Contains(command, token) {
-			t.Fatalf("expected command to contain %s, got %s", token, command)
-		}
-	}
-}
-
-func TestBuildItemCommandUsesActiveLogScanForErrorLogs(t *testing.T) {
-	cfg := cli.Config{GaussUser: "Ruby", GaussEnvFile: "~/gauss_env_file"}
-	command := buildItemCommand(cfg, "CheckErrorInLog")
-	for _, token := range []string{"su - 'Ruby'", `"$HOME/gauss_env_file"`, "lsof", "CheckErrorInLog", "active_log_scan"} {
-		if !strings.Contains(command, token) {
-			t.Fatalf("expected command to contain %s, got %s", token, command)
-		}
-	}
-	if strings.Contains(command, `gs_check -i "CheckErrorInLog" -L`) {
-		t.Fatalf("expected CheckErrorInLog to use active log scan, got %s", command)
-	}
-}
-
-func TestBuildItemCommandRestoresRemoteHomeWhenShellExpandedTilde(t *testing.T) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Fatalf("UserHomeDir failed: %v", err)
-	}
-	cfg := cli.Config{GaussUser: "Ruby", GaussEnvFile: home + "/gauss_env_file"}
-	command := buildItemCommand(cfg, "CheckDBConnection")
-	if !strings.Contains(command, `"$HOME/gauss_env_file"`) {
-		t.Fatalf("expected remote home expansion, got %s", command)
-	}
-	if strings.Contains(command, home+"/gauss_env_file") {
-		t.Fatalf("expected local home path to be normalized, got %s", command)
-	}
-}
-
-func TestParseGUCConsistencyDetailsBuildsGroupedParameters(t *testing.T) {
-	summary := `{"CN_5001":{"max_connections":"400","shared_buffers":"1GB","checkpoint_timeout":"900","ssl":"on","sql_compatibility":"A"},"DN_6001":{"max_connections":"3000","shared_buffers":"1GB","checkpoint_timeout":"900","ssl":"on","sql_compatibility":"A"}}`
-	details := parseGUCConsistencyDetails(summary)
-	if details["instance_count"] != 2 {
-		t.Fatalf("unexpected instance count: %v", details["instance_count"])
-	}
-	groups, ok := details["key_groups"].([]map[string]any)
-	if !ok || len(groups) == 0 {
-		t.Fatalf("expected grouped parameters, got %#v", details["key_groups"])
-	}
-	firstGroup := groups[0]
-	parameters, ok := firstGroup["parameters"].([]map[string]any)
-	if !ok || len(parameters) == 0 {
-		t.Fatalf("expected parameter rows, got %#v", firstGroup["parameters"])
-	}
-	differences, ok := details["key_inconsistencies"].([]map[string]any)
-	if !ok || len(differences) != 1 {
-		t.Fatalf("expected one inconsistency, got %#v", details["key_inconsistencies"])
-	}
-	if differences[0]["parameter"] != "max_connections" {
-		t.Fatalf("unexpected inconsistent parameter: %#v", differences[0])
-	}
-}
-
-func TestCollectorWritesRawFilesAndIndex(t *testing.T) {
+func TestCollectorBuildsSQLFirstPayload(t *testing.T) {
 	cfg := cli.Config{GaussUser: "Ruby", GaussEnvFile: "~/gauss_env_file"}
 	writer := newMemoryWriter()
-	runner := &fakeRunner{outputs: map[string]string{}}
-	runner.outputs[buildMetadataCommand(cfg)] = "__DBCHECK_META_BEGIN__\ngaussdb version\n__DBCHECK_SPLIT__\ngsql version\n__DBCHECK_SPLIT__\ngs_check version\n__DBCHECK_SPLIT__\nPGUSER=rdsAdmin\n"
-	for _, item := range itemCatalog {
-		summary := fmt.Sprintf("%s passed.", item.Name)
-		if item.Name == "CheckGUCConsistent" {
-			summary = `{"CN_5001":{"max_connections":"400","shared_buffers":"1GB"},"DN_6001":{"max_connections":"3000","shared_buffers":"1GB"}}`
-		}
-		runner.outputs[buildItemCommand(cfg, item.Name)] = fmt.Sprintf("2026-03-12 18:14:09 [NAM] %s\n2026-03-12 18:14:09 [STD]\n2026-03-12 18:14:09 [RST] OK\n%s\n2026-03-12 18:14:09 [RAW]\nraw output\n", item.Name, summary)
-	}
 	collector := Collector{
-		NewRunner: func(cli.Config) (remoteRunner, error) { return runner, nil },
 		CollectSQL: func(context.Context, cli.Config, string, core.ArtifactWriter) (sqlCollectionResult, error) {
 			return sqlCollectionResult{
+				Metadata: map[string]any{"gaussdb_version": "GaussDB Kernel 505.2.1", "version": "505.2.1"},
+				Records: []itemRecord{
+					normalRecord(itemSpec{Name: "CheckDBConnection", Domain: "basic_info", Label: "数据库连接"}, "Database connection is normal.", map[string]any{}, 10),
+					notApplicableRecord(itemSpec{Name: "CheckErrorInLog", Domain: "performance", Label: "运行日志"}),
+				},
 				Domains: map[string]sqlDomainExtra{
 					"sql_analysis": {
 						Summary: map[string]any{"no_statistics_table_count": 7},
@@ -158,6 +55,7 @@ func TestCollectorWritesRawFilesAndIndex(t *testing.T) {
 					},
 				},
 				RawIndex: []map[string]any{{"item": "NoStatisticsSummary"}},
+				Errors:   []string{"GaussDB SQL-first mode ignores --gauss-user, --gauss-env-file"},
 			}, nil
 		},
 		Now: func() time.Time { return time.Date(2026, 3, 12, 18, 0, 0, 0, time.UTC) },
@@ -166,29 +64,13 @@ func TestCollectorWritesRawFilesAndIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect failed: %v", err)
 	}
-	if _, ok := writer.files["/tmp/run/gs_check/CheckDBConnection.stdout"]; !ok {
-		t.Fatalf("expected raw stdout file")
-	}
-	if _, ok := writer.files["/tmp/run/gs_check/index.json"]; !ok {
-		t.Fatalf("expected raw index file")
-	}
-	index := payload["gs_check_raw_index"].(map[string]any)
-	if index["count"].(int) != len(itemCatalog) {
-		t.Fatalf("unexpected raw index count: %v", index["count"])
+	if _, ok := payload["gs_check_raw_index"]; ok {
+		t.Fatalf("did not expect gs_check raw index in SQL-first mode")
 	}
 	basic := payload["basic_info"].(map[string]any)
 	summary := basic["summary"].(map[string]any)
-	if summary["gauss_user"] != "Ruby" {
-		t.Fatalf("unexpected gauss user metadata: %v", summary["gauss_user"])
-	}
-	config := payload["config_check"].(map[string]any)
-	configSummary := config["summary"].(map[string]any)
-	gucDetails, ok := configSummary["checkgucconsistent_details"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected guc structured details")
-	}
-	if gucDetails["key_inconsistent_parameter_count"] != 1 {
-		t.Fatalf("unexpected inconsistency count: %v", gucDetails["key_inconsistent_parameter_count"])
+	if summary["checkdbconnection_status"] != "normal" {
+		t.Fatalf("unexpected connection status: %v", summary["checkdbconnection_status"])
 	}
 	sqlAnalysis := payload["sql_analysis"].(map[string]any)
 	sqlSummary := sqlAnalysis["summary"].(map[string]any)
@@ -197,6 +79,21 @@ func TestCollectorWritesRawFilesAndIndex(t *testing.T) {
 	}
 	if _, ok := payload["sql_raw_index"].(map[string]any); !ok {
 		t.Fatalf("expected sql raw index")
+	}
+	errors, ok := payload["collect_errors"].([]string)
+	if !ok || len(errors) != 1 {
+		t.Fatalf("expected collect errors, got %#v", payload["collect_errors"])
+	}
+}
+
+func TestSQLFailureProducesAbnormalRecord(t *testing.T) {
+	item := itemSpec{Name: "CheckDBConnection", Domain: "basic_info", Label: "数据库连接"}
+	record := failedSQLRecord(item, "select 1", 25, context.DeadlineExceeded)
+	if record.NormalizedStatus != "abnormal" {
+		t.Fatalf("expected abnormal, got %s", record.NormalizedStatus)
+	}
+	if record.Details["error"] == "" {
+		t.Fatalf("expected error detail")
 	}
 }
 

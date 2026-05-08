@@ -1,6 +1,6 @@
 # dbcheck-web 前后端逻辑（db-web + web/）
 
-适用范围：`db-web`（Go 后端）+ `web/`（Next.js 前端）  
+适用范围：`db-web`（Go 后端）+ `web/`（Next.js 前端）
 目标：让维护者能快速定位代码入口、理解端到端数据流，并能稳定联调/部署。
 
 ## 1. 总览
@@ -38,7 +38,7 @@ sequenceDiagram
   - 必需：
     - `DBCHECK_DATA_DIR`：任务落盘目录（内部会创建 `tasks/`）
     - `ALLOWED_ORIGINS`：CORS/WS origin 白名单（逗号分隔；支持 `*`）
-    - `DBCHECK_API_TOKEN`：HTTP Bearer token + WS subprotocol token
+    - `DBCHECK_API_TOKEN`：HTTP Bearer token + WS subprotocol token（默认 `ATI`）
   - 常用参数：
     - `--addr` / `DBCHECK_ADDR`：监听地址（默认 `:8080`）
     - `--python-bin` / `DBCHECK_PYTHON_BIN`：执行 orchestrator 的 python（默认 `python3`）
@@ -126,7 +126,7 @@ CORS/Origin allowlist：
 - API 基址与 WS URL：
   - `web/src/lib/api.ts`
     - `getApiBase()`：优先 sessionStorage，其次 `NEXT_PUBLIC_API_BASE`，最后从 `window.location` 推断
-    - dev 便捷推断：当前页面端口是 `3000` 时，默认后端 `http://127.0.0.1:8080`
+    - dev 便捷推断：当前页面端口是 `3000` 时，默认后端为同一 hostname + `NEXT_PUBLIC_API_PORT`（默认从 `DBCHECK_ADDR` 派生）
     - `wsUrl(path)`：根据 API base 协议切换 `ws/wss`
 
 ### 3.2 用户流程（3-step）
@@ -137,13 +137,14 @@ CORS/Origin allowlist：
   - ZIP 列表与 AWR（Oracle）配对 UI：`web/src/components/file-pair-card.tsx`
 3. Step 3 生成 + 下载：
   - `web/src/components/generation-step.tsx`
+  - 先用 `/api/reports/status/frontend-probe` 探测 API 可达性、Token 与 Origin 配置
   - `fetch POST /api/reports/generate` → 拿到 `{task_id, ws_url}`
   - 通过 WebSocket 订阅 `ws_url`，实时更新日志与进度，完成后展示下载按钮
 
 ### 3.3 Token / API base 的处理策略
 
 - Token：
-  - UI 输入后保存到 zustand store
+  - UI 默认填入 `ATI`，输入确认后保存到 zustand store
   - 同时写入 `sessionStorage["dbcheck_api_token"]`，刷新/重连可恢复
 - API base：
   - 可在生成页手动输入（写入 `sessionStorage["dbcheck_api_base"]`）
@@ -164,12 +165,14 @@ CORS/Origin allowlist：
 仓库现有：
 
 - PM2 入口：`ecosystem.config.cjs`
+  - 启动前会读取仓库根目录 `.env`，且不会覆盖已 export 的同名环境变量
+  - `dbcheck-web` 会把 `ALLOWED_ORIGINS` 派生为 `NEXT_ALLOWED_DEV_ORIGINS`，供 Next dev server 放行远程 IP 访问
   - `dbcheck-api`：通过 `scripts/pm2/run_api.sh` 拉起 Go 后端（dev: `go run`；prod: 优先 `bin/db-web`）
   - `dbcheck-web`：通过 `scripts/pm2/run_web.sh` 拉起 Next 前端（dev: `next dev`；prod: `next start`）
 
 建议：
 
-- **PM2 只用于管理 Web 服务前后端**（`db-web` + `web/`），不管理 `db-collector` / `db-reporter` 这类一次性 CLI 任务。
+- **PM2 只用于管理 Web 服务前后端**（`db-web` + `web/`），不管理 `db-collector` 这类一次性 CLI 任务。
 - dev：确保已准备 `.venv`（Python 依赖）以及 `web/` 已 `npm install`，再执行：
   - `make pm2-start`
 - prod：先 build，再执行：
@@ -181,29 +184,29 @@ CORS/Origin allowlist：
 
 ## 5. 常见坑 / 联调注意事项
 
-1. **前端 API Base 推断对“局域网访问”不友好**  
-   `web/src/lib/api.ts` 中：只要页面端口是 `3000`，就会把后端推断为 `http://127.0.0.1:8080`。  
-   - 本机联调：这是期望行为  
-   - 让同网段其他机器访问 `http://<你的IP>:3000`：访问者浏览器会去请求它自己的 `127.0.0.1:8080`，必失败  
-   解决：显式设置 `NEXT_PUBLIC_API_BASE`（或在生成页手动输入 API Base）。
+1. **前端 API Base 推断策略**
+   `web/src/lib/api.ts` 中：只要页面端口是 `3000`，就会把后端推断为同一 hostname 的后端端口。
+   - 本机联调：`http://127.0.0.1:3000` → `http://127.0.0.1:8080`
+   - 远程访问：`http://<服务器IP>:3000` → `http://<服务器IP>:<DBCHECK_ADDR端口>`
+   如需后端不在同一主机，可显式设置 `NEXT_PUBLIC_API_BASE` 或在生成页手动输入 API Base。
 
-2. **WebSocket 鉴权依赖 `Sec-WebSocket-Protocol`**  
+2. **WebSocket 鉴权依赖 `Sec-WebSocket-Protocol`**
    前端用 `new WebSocket(url, [token])` 传 token；如果接入 Nginx/网关/反向代理，需要确保该 header 不被剥离，否则会出现“HTTP 正常但 WS 401”。
 
-3. **刷新页面不会自动接回旧任务**  
+3. **刷新页面不会自动接回旧任务**
    `web/src/components/generation-step.tsx` 写入了 `sessionStorage["dbcheck_task_id"]`，但当前没有读取它并用 `/api/reports/status/<id>` 恢复 UI 状态；刷新后更可能重新发起一次 `/generate`。
 
-4. **前端没有用 status 轮询做兜底**  
+4. **前端没有用 status 轮询做兜底**
    当前进度主要依赖 WS；如果 WS 在某些环境被限制，UI 可能无法更新（后端已有 `/api/reports/status/<task_id>` 可用）。
 
-5. **下载链接不能直接浏览器打开**  
+5. **下载链接不能直接浏览器打开**
    `download_url` 需要 `Authorization: Bearer ...` 才能访问；手动测试请用 `curl` 或前端下载按钮。
 
-6. **并发/压测不是当前设计目标**  
+6. **并发/压测不是当前设计目标**
    后端队列 `queue` 有容量上限（32）且满时会直接丢弃入队请求；当前是单 worker 处理，适合“一次少量 ZIP”的生成场景。
 
-7. **重启/审计诉求**  
+7. **重启/审计诉求**
    WS 日志缓存是内存态；服务重启会丢历史日志（任务本身可通过落盘恢复到队列继续跑）。如需审计追溯，建议将 log 事件同步落盘。
 
-8. **安全与资源配额**  
+8. **安全与资源配额**
    当前限制了上传大小，但未对 ZIP 解压后的总体积/文件数设置硬限制；对外开放时建议增加解压配额限制，避免 zip bomb。

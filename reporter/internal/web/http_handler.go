@@ -409,6 +409,9 @@ func (h *apiHandler) runTask(p *Pipeline, queued queuedTask) {
 			task.Items[i].Error = result.Error
 			task.Items[i].ReportDocx = result.ReportDocx
 		}
+		if result.Status == ItemFailed {
+			h.hub.emitLog(task.ID, "error", fmt.Sprintf("[%s] 处理失败: %s", input.Name, result.Error))
+		}
 		task.Completed = countProcessed(task.Items)
 		_, _ = h.store.Update(task)
 

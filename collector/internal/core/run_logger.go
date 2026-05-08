@@ -44,12 +44,13 @@ var eventDescriptors = map[string]eventDescriptor{
 }
 
 type runLogger struct {
-	logger *zap.Logger
-	buffer *bytes.Buffer
-	runID  string
+	logger   *zap.Logger
+	buffer   *bytes.Buffer
+	runID    string
+	progress ProgressReporter
 }
 
-func newRunLogger(runID string) *runLogger {
+func newRunLogger(runID string, progress ProgressReporter) *runLogger {
 	buf := &bytes.Buffer{}
 	encoderCfg := zapcore.EncoderConfig{
 		TimeKey:          "ts",
@@ -69,15 +70,32 @@ func newRunLogger(runID string) *runLogger {
 		zap.InfoLevel,
 	)
 	logger := zap.New(core).Named("collector.runner")
-	return &runLogger{logger: logger, buffer: buf, runID: runID}
+	return &runLogger{logger: logger, buffer: buf, runID: runID, progress: progress}
 }
 
 func (l *runLogger) Info(event string, fields ...zap.Field) {
+	l.report("INFO", event, fields, nil)
 	l.logger.Info(composeLogEntry(event, l.runID, fields, nil))
 }
 
 func (l *runLogger) Error(event string, err error, fields ...zap.Field) {
+	l.report("ERROR", event, fields, err)
 	l.logger.Error(composeLogEntry(event, l.runID, fields, err))
+}
+
+func (l *runLogger) ProgressEvent(ev ProgressEvent) {
+	if ev.RunID == "" {
+		ev.RunID = l.runID
+	}
+	if l.progress != nil {
+		l.progress(ev)
+	}
+	entry := composeProgressLogEntry(ev)
+	if ev.Level == "ERROR" {
+		l.logger.Error(entry)
+		return
+	}
+	l.logger.Info(entry)
 }
 
 func (l *runLogger) Sync() {
@@ -86,6 +104,37 @@ func (l *runLogger) Sync() {
 
 func (l *runLogger) String() string {
 	return l.buffer.String()
+}
+
+func (l *runLogger) report(level string, event string, fields []zap.Field, err error) {
+	if l.progress == nil {
+		return
+	}
+	descriptor, ok := eventDescriptors[event]
+	message := event
+	step := 0
+	if ok {
+		message = descriptor.label
+		step = descriptor.step
+	}
+	eventErr := ""
+	if err != nil {
+		eventErr = err.Error()
+	}
+	l.progress(ProgressEvent{
+		Level: level, Event: event, Message: message, RunID: l.runID,
+		Step: step, Total: totalRunSteps, Tokens: progressTokens(fields), Error: eventErr,
+	})
+}
+
+func progressTokens(fields []zap.Field) []string {
+	tokens := make([]string, 0, len(fields))
+	for i := range fields {
+		if token, include := renderFieldToken(fields[i]); include {
+			tokens = append(tokens, token)
+		}
+	}
+	return tokens
 }
 
 func composeLogEntry(event string, runID string, fields []zap.Field, err error) string {
@@ -105,6 +154,22 @@ func composeLogEntry(event string, runID string, fields []zap.Field, err error) 
 	}
 	if err != nil {
 		segments = append(segments, encodeKV("error", err.Error()))
+	}
+	return fmt.Sprintf("%s | %s", message, strings.Join(segments, " "))
+}
+
+func composeProgressLogEntry(ev ProgressEvent) string {
+	segments := []string{fmt.Sprintf("event=%s", ev.Event), fmt.Sprintf("run_id=%s", ev.RunID)}
+	if ev.Step > 0 {
+		segments = append([]string{fmt.Sprintf("step=%d/%d", ev.Step, ev.Total)}, segments...)
+	}
+	segments = append(segments, ev.Tokens...)
+	if ev.Error != "" {
+		segments = append(segments, encodeKV("error", ev.Error))
+	}
+	message := ev.Message
+	if message == "" {
+		message = ev.Event
 	}
 	return fmt.Sprintf("%s | %s", message, strings.Join(segments, " "))
 }

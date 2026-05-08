@@ -16,7 +16,7 @@ func TestWebSocketAuthViaSubprotocol(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://example.com"},
-		APIToken:       "secret",
+		APIToken:       defaultAPIToken,
 	}
 	h, err := newAPIHandler(cfg, false)
 	if err != nil {
@@ -49,7 +49,7 @@ func TestWebSocketReplayAndProgressSnapshot(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://example.com"},
-		APIToken:       "secret",
+		APIToken:       defaultAPIToken,
 		LogReplayLines: 1000,
 	}
 	h, err := newAPIHandler(cfg, false)
@@ -109,7 +109,7 @@ func TestWebSocketAllowsWildcardOrigin(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"*"},
-		APIToken:       "secret",
+		APIToken:       defaultAPIToken,
 	}
 	h, err := newAPIHandler(cfg, false)
 	if err != nil {
@@ -156,7 +156,7 @@ func TestWebSocketAllowsHostOnlyOriginEntry(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"localhost:3000"},
-		APIToken:       "secret",
+		APIToken:       defaultAPIToken,
 	}
 	h, err := newAPIHandler(cfg, false)
 	if err != nil {
@@ -191,7 +191,7 @@ func TestWebSocketAllowsLocalhostAlias(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://localhost:3000"},
-		APIToken:       "secret",
+		APIToken:       defaultAPIToken,
 	}
 	h, err := newAPIHandler(cfg, false)
 	if err != nil {

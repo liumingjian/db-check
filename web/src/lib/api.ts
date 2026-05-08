@@ -1,5 +1,7 @@
 const ENV_API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").trim();
+const ENV_API_PORT = (process.env.NEXT_PUBLIC_API_PORT ?? "8080").trim() || "8080";
 const API_BASE_STORAGE_KEY = "dbcheck_api_base";
+const API_BASE_MANUAL_STORAGE_KEY = "dbcheck_api_base_manual";
 
 function hasScheme(s: string): boolean {
   return /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(s);
@@ -18,16 +20,22 @@ function inferDefaultApiBaseFromWindow(): string {
   const here = new URL(window.location.origin);
 
   // Dev convenience: when running Next.js dev server on :3000, assume backend is on :8080.
-  // This avoids the common misconfig where requests go to http://127.0.0.1:3000/api/... (404).
+  // Keep the same hostname so remote Linux deployments work when the server IP changes.
   if (here.port === "3000") {
-    // Prefer loopback for backend, even when the frontend is opened via the dev server
-    // "Network" address (e.g. 192.168.x.x). db-web is commonly bound to 127.0.0.1.
-    here.hostname = "127.0.0.1";
-    here.port = "8080";
+    here.port = ENV_API_PORT;
     return here.origin;
   }
 
   return here.origin;
+}
+
+function shouldUseStoredApiBase(origin: string): boolean {
+  if (typeof window === "undefined") return true;
+  if (sessionStorage.getItem(API_BASE_MANUAL_STORAGE_KEY) === "1") return true;
+  const here = new URL(window.location.origin);
+  if (here.port !== "3000") return true;
+  const stored = new URL(origin);
+  return stored.hostname === here.hostname;
 }
 
 export function getApiBase(): string {
@@ -35,7 +43,8 @@ export function getApiBase(): string {
   const stored = sessionStorage.getItem(API_BASE_STORAGE_KEY) ?? "";
   if (stored.trim()) {
     try {
-      return normalizeOrigin(stored);
+      const origin = normalizeOrigin(stored);
+      if (shouldUseStoredApiBase(origin)) return origin;
     } catch {
       // Fall through to other sources.
     }
@@ -55,10 +64,12 @@ export function setApiBase(base: string | null): void {
   const trimmed = (base ?? "").trim();
   if (!trimmed) {
     sessionStorage.removeItem(API_BASE_STORAGE_KEY);
+    sessionStorage.removeItem(API_BASE_MANUAL_STORAGE_KEY);
     return;
   }
   const origin = normalizeOrigin(trimmed);
   sessionStorage.setItem(API_BASE_STORAGE_KEY, origin);
+  sessionStorage.setItem(API_BASE_MANUAL_STORAGE_KEY, "1");
 }
 
 export function apiUrl(path: string): string {

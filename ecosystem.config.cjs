@@ -1,14 +1,51 @@
 /* eslint-env node */
 
+const fs = require("fs");
 const path = require("path");
 
 const ROOT = __dirname;
+
+function cleanEnvValue(value) {
+  if (value.length < 2) return value;
+  const first = value[0];
+  const last = value[value.length - 1];
+  if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+function loadDotEnv(filePath) {
+  if (!fs.existsSync(filePath)) return;
+  const content = fs.readFileSync(filePath, "utf8");
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const entry = line.startsWith("export ") ? line.slice(7).trim() : line;
+    const eq = entry.indexOf("=");
+    if (eq <= 0) continue;
+    const key = entry.slice(0, eq).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+    if (process.env[key] != null) continue;
+    process.env[key] = cleanEnvValue(entry.slice(eq + 1).trim());
+  }
+}
+
+loadDotEnv(path.join(ROOT, ".env"));
 
 function envOr(name, fallback) {
   const v = process.env[name];
   if (v == null) return fallback;
   const trimmed = String(v).trim();
   return trimmed === "" ? fallback : trimmed;
+}
+
+function portFromAddr(addr, fallback) {
+  const trimmed = String(addr ?? "").trim();
+  const idx = trimmed.lastIndexOf(":");
+  if (idx < 0 || idx === trimmed.length - 1) return fallback;
+  const port = trimmed.slice(idx + 1).trim();
+  return /^\d+$/.test(port) ? port : fallback;
 }
 
 module.exports = {
@@ -26,7 +63,7 @@ module.exports = {
           "ALLOWED_ORIGINS",
           "http://127.0.0.1:3000,http://localhost:3000",
         ),
-        DBCHECK_API_TOKEN: envOr("DBCHECK_API_TOKEN", "secret"),
+        DBCHECK_API_TOKEN: envOr("DBCHECK_API_TOKEN", "ATI"),
         // Prefer venv Python if present; can override via env DBCHECK_PYTHON_BIN.
         DBCHECK_PYTHON_BIN: envOr(
           "DBCHECK_PYTHON_BIN",
@@ -50,10 +87,18 @@ module.exports = {
       env: {
         DBCHECK_MODE: "dev",
         PORT: envOr("PORT", "3000"),
+        NEXT_ALLOWED_DEV_ORIGINS: envOr(
+          "NEXT_ALLOWED_DEV_ORIGINS",
+          envOr("ALLOWED_ORIGINS", ""),
+        ),
         // Used by Next.js in dev (and at build-time in prod if you run `npm run build` with it set).
         NEXT_PUBLIC_API_BASE: envOr(
           "NEXT_PUBLIC_API_BASE",
-          "http://127.0.0.1:8080",
+          "",
+        ),
+        NEXT_PUBLIC_API_PORT: envOr(
+          "NEXT_PUBLIC_API_PORT",
+          portFromAddr(envOr("DBCHECK_ADDR", "127.0.0.1:8080"), "8080"),
         ),
       },
       env_production: {
@@ -66,4 +111,3 @@ module.exports = {
     },
   ],
 };
-

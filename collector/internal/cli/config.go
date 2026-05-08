@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-	"strings"
 )
 
 const (
@@ -10,14 +9,14 @@ const (
 	DefaultMySQLPort         = 3306
 	DefaultOraclePort        = 1521
 	DefaultGaussDBPort       = 8000
-	DefaultOutputDir         = "./output"
+	DefaultOutputDir         = "./runs"
 	DefaultLogPath           = "./logs"
 	DefaultLogLevel          = "INFO"
 	DefaultSQLTimeoutSeconds = 180
 	DefaultTopN              = 20
 	DefaultOSPort            = 22
-	DefaultGaussUser         = "Ruby"
-	DefaultGaussEnvFile      = "~/gauss_env_file"
+	DefaultGaussUser         = ""
+	DefaultGaussEnvFile      = ""
 	Version                  = "1.2.0"
 )
 
@@ -34,7 +33,6 @@ type Config struct {
 	GaussEnvFile      string
 	Local             bool
 	OSOnly            bool
-	OSSkip            bool
 	OutputDir         string
 	LogPath           string
 	LogLevel          string
@@ -88,9 +86,9 @@ func Usage() string {
 	return `db-collector --db-type <mysql|oracle|gaussdb> [连接参数] [采集参数]
 
 最短命令：
-  db-collector --db-type mysql --db-host 127.0.0.1 --db-port 3306 --db-username root --db-password rootpwd --dbname dbcheck --output-dir ./runs
-  db-collector --db-type oracle --db-host 127.0.0.1 --db-port 1521 --db-username system --db-password oraclepwd --dbname ORCL --output-dir ./runs
-  db-collector --db-type gaussdb --db-host 10.0.0.10 --db-port 8000 --db-username root --db-password secret --dbname postgres --gauss-user Ruby --gauss-env-file ~/gauss_env_file --output-dir ./runs
+  db-collector --db-type mysql --db-host 127.0.0.1 --db-port 3306 --db-username root --db-password rootpwd --dbname dbcheck
+  db-collector --db-type oracle --db-host 127.0.0.1 --db-port 1521 --db-username system --db-password oraclepwd --dbname ORCL
+  db-collector --db-type gaussdb --db-host 10.0.0.10 --db-port 8000 --db-username root --db-password secret --dbname postgres
 
 核心参数：
   --db-type/-t                数据库类型，支持 mysql / oracle / gaussdb
@@ -99,15 +97,14 @@ func Usage() string {
   --db-username/-u            数据库用户名（非 --os-only 必填）
   --db-password/-p            数据库密码（非 --os-only 必填）
   --dbname/-d                 数据库名；Oracle 路径下表示 SID/实例名（非 --os-only 必填）
-  --gauss-user                GaussDB 主机侧执行 gs_check 的用户，默认 Ruby
-  --gauss-env-file            GaussDB 环境文件路径，默认 ~/gauss_env_file
+  --gauss-user                已废弃；SQL-first GaussDB 采集不会使用该参数
+  --gauss-env-file            已废弃；SQL-first GaussDB 采集不会使用该参数
   --local                     本地 OS 采集模式
   --os-only                   仅采集 OS（旁路）
-  --os-skip                   跳过 OS 采集
-  --output-dir/-o             输出目录
+  --output-dir/-o             输出目录，默认 ./runs
 
 远程 OS 参数（Linux over SSH）：
-  --os-host                   OS 主机地址，默认与 --db-host 相同
+  --os-host                   OS 主机地址，显式提供后启用远程 OS 采集
   --os-port                   SSH 端口，默认 22
   --os-username               SSH 用户名，默认与 --db-username 相同
   --os-password               SSH 密码，默认与 --db-password 相同
@@ -169,11 +166,8 @@ func fillDerivedDefaults(cfg *Config) {
 }
 
 func shouldUseRemoteOS(cfg Config, state parsedState) bool {
-	if cfg.Local || cfg.OSSkip {
+	if cfg.Local {
 		return false
 	}
-	if state.SSHFlagsProvided {
-		return true
-	}
-	return strings.TrimSpace(cfg.DBHost) != "" && !cfg.OSOnly
+	return state.SSHFlagsProvided
 }

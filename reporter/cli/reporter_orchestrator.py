@@ -226,7 +226,6 @@ def analyzer_args(paths: Paths, rule_file: Path, result_path: Path) -> list[str]
         "--manifest", str(paths.manifest),
         "--result", str(result_path),
         "--rule", str(rule_file),
-        "--strict-schema",
         "--out", str(paths.summary),
     ]
 
@@ -285,7 +284,6 @@ def validate_outputs(paths: Paths, rule_file: Path, result_path: Path) -> int:
             "--result", str(result_path),
             "--summary", str(paths.summary),
             "--rule", str(rule_file),
-            "--strict-schema",
         ]
     )
     if code != EXIT_OK:

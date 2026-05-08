@@ -21,25 +21,13 @@ func validateCommon(cfg Config, state parsedState) error {
 	if cfg.TopN <= 0 {
 		return errors.New("--top-n 必须 > 0")
 	}
-	if cfg.OSSkip && cfg.OSOnly {
-		return errors.New("--os-skip 与 --os-only 互斥")
-	}
 	if cfg.Local && state.SSHFlagsProvided {
 		return errors.New("--local 与 SSH 参数互斥")
-	}
-	if cfg.DBType == "gaussdb" && strings.TrimSpace(cfg.GaussUser) == "" {
-		return errors.New("gaussdb 缺少 --gauss-user")
-	}
-	if cfg.DBType == "gaussdb" && strings.TrimSpace(cfg.GaussEnvFile) == "" {
-		return errors.New("gaussdb 缺少 --gauss-env-file")
 	}
 	return nil
 }
 
 func validateCollectConfig(cfg Config, state parsedState) error {
-	if cfg.OSSkip && (state.IntervalChanged || state.DurationChanged || state.CountChanged) {
-		return errors.New("--os-skip 与 OS 采样控制参数互斥")
-	}
 	if cfg.OSCollectDuration > 0 && cfg.OSCollectCount > 0 {
 		return errors.New("--os-collect-duration 与 --os-collect-count 互斥")
 	}
@@ -53,7 +41,14 @@ func validateCollectConfig(cfg Config, state parsedState) error {
 	if cfg.OSCollectInterval == 0 && (cfg.OSCollectDuration > 0 || cfg.OSCollectCount > 0) {
 		return errors.New("配置了 duration/count 时必须显式设置 --os-collect-interval > 0")
 	}
+	if hasOSSampling(state) && !cfg.Local && !cfg.OSOnly && !state.SSHFlagsProvided {
+		return errors.New("OS 采样控制参数必须搭配 --local、--os-only 或远程 OS 参数")
+	}
 	return nil
+}
+
+func hasOSSampling(state parsedState) bool {
+	return state.IntervalChanged || state.DurationChanged || state.CountChanged
 }
 
 func validateDBRequirements(cfg Config) error {
