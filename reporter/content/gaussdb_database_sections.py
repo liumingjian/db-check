@@ -20,7 +20,7 @@ def build_gaussdb_database_sections(result: dict[str, object]) -> tuple[SectionB
         _transaction_section(result),
         _performance_section(result),
         _sql_analysis_section(result),
-        _wdr_section(result),
+        build_wdr_section(result),
     )
     return tuple(section for section in sections if section is not None)
 
@@ -196,10 +196,3 @@ def _row_table(title: str, fields: tuple[str, ...], columns: tuple[str, ...], ro
 def _section(title: str, tables: list[TableBlock | None]) -> SectionBlock | None:
     resolved = tuple(table for table in tables if table is not None)
     return SectionBlock(title=title, tables=resolved) if resolved else None
-
-
-def _wdr_section(result: dict[str, object]) -> SectionBlock | None:
-    db = result.get("db")
-    if not isinstance(db, dict) or not isinstance(db.get("wdr"), dict):
-        return None
-    return build_wdr_section(result)

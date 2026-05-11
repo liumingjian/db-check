@@ -51,7 +51,7 @@ func TestPipelineContinuesOnItemFailureAndStreamsLogs(t *testing.T) {
 	}
 }
 
-func TestPipelinePassesWDRFileForGaussDB(t *testing.T) {
+func TestPipelinePassesWDRFilesForGaussDB(t *testing.T) {
 	root := t.TempDir()
 	p := NewPipeline("ignored", "python3")
 	p.ExtractZip = func(zipPath string, destDir string) error { return nil }
@@ -62,12 +62,19 @@ func TestPipelinePassesWDRFileForGaussDB(t *testing.T) {
 	runner := &fakeRunner{}
 	p.Runner = runner
 
-	results := p.RunItems(root, []ItemInput{{ID: "i1", ZipPath: "/tmp/a.zip", WDRPath: "/tmp/wdr.html"}}, nil)
+	results := p.RunItems(root, []ItemInput{{
+		ID:       "i1",
+		ZipPath:  "/tmp/a.zip",
+		WDRPaths: []string{"/tmp/wdr-cluster.html", "/tmp/wdr-node.html"},
+	}}, nil)
 	if results[0].Status != ItemDone {
 		t.Fatalf("expected done: %#v", results[0])
 	}
-	if !hasArg(runner.lastArgs, "--wdr-file", "/tmp/wdr.html") {
-		t.Fatalf("expected --wdr-file in args: %#v", runner.lastArgs)
+	if !hasArg(runner.lastArgs, "--wdr-file", "/tmp/wdr-cluster.html") {
+		t.Fatalf("expected cluster --wdr-file in args: %#v", runner.lastArgs)
+	}
+	if !hasArg(runner.lastArgs, "--wdr-file", "/tmp/wdr-node.html") {
+		t.Fatalf("expected node --wdr-file in args: %#v", runner.lastArgs)
 	}
 }
 
@@ -98,10 +105,10 @@ func TestPipelineRejectsMismatchedHTMLAttachments(t *testing.T) {
 		item    ItemInput
 		wantErr string
 	}{
-		{name: "oracle wdr", dbType: "oracle", item: ItemInput{ID: "i1", ZipPath: "/tmp/a.zip", WDRPath: "/tmp/wdr.html"}, wantErr: "wdr file is only supported for GaussDB"},
+		{name: "oracle wdr", dbType: "oracle", item: ItemInput{ID: "i1", ZipPath: "/tmp/a.zip", WDRPaths: []string{"/tmp/wdr.html"}}, wantErr: "wdr file is only supported for GaussDB"},
 		{name: "gaussdb awr", dbType: "gaussdb", item: ItemInput{ID: "i1", ZipPath: "/tmp/a.zip", AWRPath: "/tmp/awr.html"}, wantErr: "awr file is only supported for Oracle"},
 		{name: "mysql awr", dbType: "mysql", item: ItemInput{ID: "i1", ZipPath: "/tmp/a.zip", AWRPath: "/tmp/awr.html"}, wantErr: "AWR/WDR HTML is not supported for MySQL"},
-		{name: "mysql wdr", dbType: "mysql", item: ItemInput{ID: "i1", ZipPath: "/tmp/a.zip", WDRPath: "/tmp/wdr.html"}, wantErr: "AWR/WDR HTML is not supported for MySQL"},
+		{name: "mysql wdr", dbType: "mysql", item: ItemInput{ID: "i1", ZipPath: "/tmp/a.zip", WDRPaths: []string{"/tmp/wdr.html"}}, wantErr: "AWR/WDR HTML is not supported for MySQL"},
 	}
 
 	for _, tc := range cases {

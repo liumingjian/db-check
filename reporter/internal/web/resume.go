@@ -50,7 +50,7 @@ func loadTaskInputs(taskDir string, task Task) ([]ItemInput, error) {
 
 	zips := make(map[string]upload)
 	awrs := make(map[string]string)
-	wdrs := make(map[string]string)
+	wdrs := make(map[string][]string)
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -83,7 +83,7 @@ func loadTaskInputs(taskDir string, task Task) ([]ItemInput, error) {
 			if err := validateTaskID(id); err != nil {
 				continue
 			}
-			wdrs[id] = filepath.Join(uploadsDir, name)
+			wdrs[id] = append(wdrs[id], filepath.Join(uploadsDir, name))
 		}
 	}
 
@@ -99,11 +99,11 @@ func loadTaskInputs(taskDir string, task Task) ([]ItemInput, error) {
 				name = zip.name
 			}
 			out = append(out, ItemInput{
-				ID:      item.ID,
-				Name:    name,
-				ZipPath: zip.path,
-				AWRPath: awrs[item.ID],
-				WDRPath: wdrs[item.ID],
+				ID:       item.ID,
+				Name:     name,
+				ZipPath:  zip.path,
+				AWRPath:  awrs[item.ID],
+				WDRPaths: wdrs[item.ID],
 			})
 		}
 		return out, nil
@@ -125,11 +125,11 @@ func loadTaskInputs(taskDir string, task Task) ([]ItemInput, error) {
 	for _, id := range ids {
 		zip := zips[id]
 		out = append(out, ItemInput{
-			ID:      id,
-			Name:    zip.name,
-			ZipPath: zip.path,
-			AWRPath: awrs[id],
-			WDRPath: wdrs[id],
+			ID:       id,
+			Name:     zip.name,
+			ZipPath:  zip.path,
+			AWRPath:  awrs[id],
+			WDRPaths: wdrs[id],
 		})
 	}
 	if len(out) == 0 {

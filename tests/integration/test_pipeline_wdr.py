@@ -35,6 +35,8 @@ class PipelineWDRIntegrationTests(unittest.TestCase):
                 str(ROOT / ".venv" / "bin" / "python3"),
                 "--wdr-file",
                 str(ROOT / "resources" / "wdr_cluster.html"),
+                "--wdr-file",
+                str(ROOT / "resources" / "wdr_cluster.html"),
             ]
             completed = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, check=False)
             self.assertEqual(completed.returncode, 0, msg=completed.stderr)
@@ -49,6 +51,8 @@ class PipelineWDRIntegrationTests(unittest.TestCase):
             summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
             effective_rule = json.loads((run_dir / "rule.effective.json").read_text(encoding="utf-8"))
             self.assertEqual(summary["counts"]["total_checks"], _count_checks(effective_rule))
+            enriched = json.loads((run_dir / "result.enriched.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(enriched["db"]["wdr_reports"]), 2)
 
             abnormal_ids = {item["check_id"] for item in summary.get("abnormal_items", [])}
             self.assertIn("7.6", abnormal_ids)
@@ -117,4 +121,3 @@ def _gaussdb_result() -> dict:
             }
         },
     }
-

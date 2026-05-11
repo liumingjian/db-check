@@ -10,6 +10,7 @@ from reporter.wdr.enrich import ENRICHED_RESULT_NAME, write_enriched_result
 from tasks.validate_frozen_contracts import Validator
 
 ROOT = Path(__file__).resolve().parents[2]
+NODE_WDR = Path("/Users/lmj/Documents/temp/wdr_node_dn_6001_6002_6003.html")
 
 
 class WDREnrichTests(unittest.TestCase):
@@ -42,11 +43,12 @@ class WDREnrichTests(unittest.TestCase):
                 "db": {},
             }
             (run_dir / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-            out = write_enriched_result(run_dir=run_dir, wdr_file=ROOT / "resources" / "wdr_cluster.html")
+            out = write_enriched_result(run_dir=run_dir, wdr_files=[ROOT / "resources" / "wdr_cluster.html"])
             self.assertEqual(out, run_dir / ENRICHED_RESULT_NAME)
             self.assertTrue(out.exists())
 
             enriched = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(len(enriched["db"]["wdr_reports"]), 1)
             meta = enriched["db"]["wdr"]["metadata"]
             self.assertIn("postgres", meta["db_names"])
             self.assertGreaterEqual(enriched["db"]["wdr"]["database_stat"]["count"], 1)
@@ -54,6 +56,29 @@ class WDREnrichTests(unittest.TestCase):
             validator = Validator(strict_schema=False)
             validator.validate_result(enriched)
             self.assertFalse(validator.errors, msg="; ".join(validator.errors))
+        finally:
+            shutil.rmtree(run_dir, ignore_errors=True)
+
+    @unittest.skipUnless(NODE_WDR.exists(), "local node-level WDR fixture is not available")
+    def test_write_enriched_result_aggregates_multiple_wdr_files(self) -> None:
+        run_dir = Path(tempfile.mkdtemp())
+        try:
+            result = {
+                "meta": {"db_type": "gaussdb", "db_name": "postgres"},
+                "os": {},
+                "db": {},
+            }
+            (run_dir / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+
+            out = write_enriched_result(
+                run_dir=run_dir,
+                wdr_files=[ROOT / "resources" / "wdr_cluster.html", NODE_WDR],
+            )
+
+            enriched = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(len(enriched["db"]["wdr_reports"]), 2)
+            self.assertIn("dn_6001_6002_6003", enriched["db"]["wdr"]["metadata"]["node_names"])
+            self.assertGreaterEqual(enriched["db"]["wdr"]["sql"]["by_elapsed_time"]["count"], 2)
         finally:
             shutil.rmtree(run_dir, ignore_errors=True)
 
@@ -87,8 +112,7 @@ class WDREnrichTests(unittest.TestCase):
             }
             (run_dir / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
             with self.assertRaises(RuntimeError) as ctx:
-                write_enriched_result(run_dir=run_dir, wdr_file=ROOT / "resources" / "wdr_cluster.html")
+                write_enriched_result(run_dir=run_dir, wdr_files=[ROOT / "resources" / "wdr_cluster.html"])
             self.assertIn("WDR identity mismatch", str(ctx.exception))
         finally:
             shutil.rmtree(run_dir, ignore_errors=True)
-

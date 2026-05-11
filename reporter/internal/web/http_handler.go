@@ -169,7 +169,7 @@ func (h *apiHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var awrPath string
-		var wdrPath string
+		wdrPaths := make([]string, 0, 2)
 		switch {
 		case len(awrs) == len(zips) && awrs[i] != nil:
 			path, _, err := saveUpload(uploadsDir, "awr", itemID, awrs[i])
@@ -179,7 +179,13 @@ func (h *apiHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 			}
 			awrPath = path
 		default:
-			if hdr := firstFileForKey(r.MultipartForm, "awr_"+itemID); hdr != nil {
+			indexedAWRs := filesForKey(r.MultipartForm, "awr_"+itemID)
+			if len(indexedAWRs) > 1 {
+				writeError(w, http.StatusBadRequest, "Oracle AWR only supports one HTML file per zip")
+				return
+			}
+			if len(indexedAWRs) == 1 {
+				hdr := indexedAWRs[0]
 				path, _, err := saveUpload(uploadsDir, "awr", itemID, hdr)
 				if err != nil {
 					writeError(w, http.StatusBadRequest, err.Error())
@@ -190,28 +196,28 @@ func (h *apiHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		}
 		switch {
 		case len(wdrs) == len(zips) && wdrs[i] != nil:
-			path, _, err := saveUpload(uploadsDir, "wdr", itemID, wdrs[i])
+			path, _, err := saveUpload(uploadsDir, "wdr", wdrUploadID(itemID, len(wdrPaths)), wdrs[i])
 			if err != nil {
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			wdrPath = path
+			wdrPaths = append(wdrPaths, path)
 		default:
-			if hdr := firstFileForKey(r.MultipartForm, "wdr_"+itemID); hdr != nil {
-				path, _, err := saveUpload(uploadsDir, "wdr", itemID, hdr)
+			for _, hdr := range filesForKey(r.MultipartForm, "wdr_"+itemID) {
+				path, _, err := saveUpload(uploadsDir, "wdr", wdrUploadID(itemID, len(wdrPaths)), hdr)
 				if err != nil {
 					writeError(w, http.StatusBadRequest, err.Error())
 					return
 				}
-				wdrPath = path
+				wdrPaths = append(wdrPaths, path)
 			}
 		}
 		items = append(items, ItemInput{
-			ID:      itemID,
-			Name:    name,
-			ZipPath: zipPath,
-			AWRPath: awrPath,
-			WDRPath: wdrPath,
+			ID:       itemID,
+			Name:     name,
+			ZipPath:  zipPath,
+			AWRPath:  awrPath,
+			WDRPaths: wdrPaths,
 		})
 	}
 
@@ -223,6 +229,10 @@ func (h *apiHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		"total":   task.Total,
 		"ws_url":  fmt.Sprintf("/api/reports/ws/%s", task.ID),
 	})
+}
+
+func wdrUploadID(itemID string, existing int) string {
+	return fmt.Sprintf("%s-%d", itemID, existing+1)
 }
 
 func (h *apiHandler) handleStatus(w http.ResponseWriter, r *http.Request) {

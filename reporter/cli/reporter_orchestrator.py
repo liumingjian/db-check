@@ -40,7 +40,7 @@ class Options:
     rule_file: Path
     template_file: Path
     awr_file: Path | None
-    wdr_file: Path | None
+    wdr_files: tuple[Path, ...]
     out_docx: Path
     out_md: Path | None
     document_name: str
@@ -64,7 +64,7 @@ def build_parser() -> _ArgumentParser:
     parser.add_argument("--rule-file", type=Path, required=True)
     parser.add_argument("--template-file", type=Path, required=True)
     parser.add_argument("--awr-file", type=Path)
-    parser.add_argument("--wdr-file", type=Path)
+    parser.add_argument("--wdr-file", type=Path, action="append", default=[])
     parser.add_argument("--out-docx", type=Path)
     parser.add_argument("--out-md", type=Path)
     parser.add_argument("--document-name", default="")
@@ -87,7 +87,7 @@ def parse_args(argv: Sequence[str] | None) -> Options:
         rule_file=args.rule_file.resolve(),
         template_file=args.template_file.resolve(),
         awr_file=args.awr_file.resolve() if args.awr_file else None,
-        wdr_file=args.wdr_file.resolve() if args.wdr_file else None,
+        wdr_files=tuple(path.resolve() for path in args.wdr_file),
         out_docx=out_docx,
         out_md=args.out_md.resolve() if args.out_md else None,
         document_name=args.document_name or out_docx.name,
@@ -108,7 +108,7 @@ def run(argv: Sequence[str] | None = None) -> int:
         ensure_inputs(options, paths)
         result_path = paths.result
         rule_path = options.rule_file
-        if options.awr_file is not None and options.wdr_file is not None:
+        if options.awr_file is not None and options.wdr_files:
             raise RuntimeError("--awr-file and --wdr-file cannot be used together")
         if options.awr_file is not None:
             result_path = write_awr_enriched_result(run_dir=options.run_dir, awr_file=options.awr_file)
@@ -116,8 +116,8 @@ def run(argv: Sequence[str] | None = None) -> int:
             if not extension_rule.exists():
                 raise RuntimeError(f"AWR extension rule not found: {extension_rule}")
             rule_path = write_effective_rule(run_dir=options.run_dir, base_rule=options.rule_file, extension_rule=extension_rule)
-        if options.wdr_file is not None:
-            result_path = write_wdr_enriched_result(run_dir=options.run_dir, wdr_file=options.wdr_file)
+        if options.wdr_files:
+            result_path = write_wdr_enriched_result(run_dir=options.run_dir, wdr_files=options.wdr_files)
             extension_rule = options.rule_file.parent / "rule.wdr.json"
             if not extension_rule.exists():
                 raise RuntimeError(f"WDR extension rule not found: {extension_rule}")
@@ -167,8 +167,9 @@ def ensure_inputs(options: Options, paths: Paths) -> None:
             raise ValueError(f"{label} 文件不存在: {path}")
     if options.awr_file is not None and (not options.awr_file.exists() or not options.awr_file.is_file()):
         raise ValueError(f"awr-file 文件不存在: {options.awr_file}")
-    if options.wdr_file is not None and (not options.wdr_file.exists() or not options.wdr_file.is_file()):
-        raise ValueError(f"wdr-file 文件不存在: {options.wdr_file}")
+    for wdr_file in options.wdr_files:
+        if not wdr_file.exists() or not wdr_file.is_file():
+            raise ValueError(f"wdr-file 文件不存在: {wdr_file}")
 
 
 def required_paths(paths: Paths, options: Options) -> list[tuple[str, Path]]:

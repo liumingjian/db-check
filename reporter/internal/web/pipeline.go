@@ -18,12 +18,11 @@ func (launcherLayoutResolver) Resolve(executablePath string, cfg launcher.Config
 }
 
 type ItemInput struct {
-	ID      string
-	Name    string
-	ZipPath string
-	// Optional AWR/WDR HTML paths can be added later when HTTP handlers are implemented.
-	AWRPath string
-	WDRPath string
+	ID       string
+	Name     string
+	ZipPath  string
+	AWRPath  string
+	WDRPaths []string
 }
 
 type ItemStatus string
@@ -102,10 +101,10 @@ func (p *Pipeline) runOne(taskDir string, item ItemInput, onLog func(itemID stri
 
 	outDocx := filepath.Join(itemDir, "report.docx")
 	cfg := launcher.Config{
-		RunDir:  runDir,
-		OutDocx: outDocx,
-		AWRFile: item.AWRPath,
-		WDRFile: item.WDRPath,
+		RunDir:   runDir,
+		OutDocx:  outDocx,
+		AWRFile:  item.AWRPath,
+		WDRFiles: item.WDRPaths,
 	}
 	layout, err := p.LayoutResolver.Resolve(p.ExecutablePath, cfg)
 	if err != nil {
@@ -126,7 +125,7 @@ func (p *Pipeline) runOne(taskDir string, item ItemInput, onLog func(itemID stri
 
 func validateHTMLAttachment(dbType string, item ItemInput) error {
 	hasAWR := item.AWRPath != ""
-	hasWDR := item.WDRPath != ""
+	hasWDR := len(item.WDRPaths) != 0
 	switch dbType {
 	case "oracle":
 		if hasWDR {

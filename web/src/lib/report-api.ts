@@ -60,7 +60,7 @@ export async function generateReportTask(
   token: string,
   dbType: DbType,
   zipFiles: ZipFileEntry[],
-  awrFiles: Record<string, File>,
+  awrFiles: Record<string, File[]>,
 ): Promise<GenerateResponse> {
   await probeReportBackend(token);
 
@@ -69,11 +69,12 @@ export async function generateReportTask(
     form.append("zips", z.file, z.name);
   });
   zipFiles.forEach((z, idx) => {
-    const awr = awrFiles[z.id];
-    if (awr) {
-      const field = dbType === "gaussdb" ? "wdr" : "awr";
-      form.append(`${field}_${idx + 1}`, awr, awr.name);
-    }
+    const files = awrFiles[z.id] ?? [];
+    const field = dbType === "gaussdb" ? "wdr" : "awr";
+    const selected = dbType === "gaussdb" ? files : files.slice(0, 1);
+    selected.forEach((file) => {
+      form.append(`${field}_${idx + 1}`, file, file.name);
+    });
   });
 
   let resp: Response;

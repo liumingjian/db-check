@@ -36,3 +36,28 @@ func TestParseArgsRejectsAWRFileWithRuleFile(t *testing.T) {
 		t.Fatalf("expected awr-file + rule-file error")
 	}
 }
+
+func TestOrchestratorArgsPassesMultipleWDRFiles(t *testing.T) {
+	cfg := Config{
+		RunDir:   "/tmp/run",
+		OutDocx:  "/tmp/report.docx",
+		WDRFiles: []string{"/tmp/wdr-cluster.html", "/tmp/wdr-node.html"},
+	}
+	layout := AssetLayout{RuleFile: "rule.json", TemplateFile: "template.docx"}
+	args := OrchestratorArgs(cfg, layout)
+	if !containsArgPair(args, "--wdr-file", "/tmp/wdr-cluster.html") {
+		t.Fatalf("missing cluster WDR arg: %#v", args)
+	}
+	if !containsArgPair(args, "--wdr-file", "/tmp/wdr-node.html") {
+		t.Fatalf("missing node WDR arg: %#v", args)
+	}
+}
+
+func containsArgPair(args []string, flag string, value string) bool {
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == flag && args[i+1] == value {
+			return true
+		}
+	}
+	return false
+}

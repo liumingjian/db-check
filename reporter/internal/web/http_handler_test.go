@@ -233,7 +233,7 @@ func TestGenerateCreatesTaskRecord(t *testing.T) {
 	}
 }
 
-func TestGenerateAcceptsIndexedWDRUpload(t *testing.T) {
+func TestGenerateAcceptsMultipleIndexedWDRUploads(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := Config{
 		DataDir:        dataDir,
@@ -247,9 +247,10 @@ func TestGenerateAcceptsIndexedWDRUpload(t *testing.T) {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
 
-	req := multipartRequest(t, map[string]string{
-		"zips":  "demo.zip",
-		"wdr_1": "wdr.html",
+	req := multipartRequestPairs(t, []filePart{
+		{field: "zips", name: "demo.zip"},
+		{field: "wdr_1", name: "wdr-cluster.html"},
+		{field: "wdr_1", name: "wdr-node.html"},
 	})
 	rec := httptest.NewRecorder()
 	h.handler().ServeHTTP(rec, req)
@@ -259,8 +260,11 @@ func TestGenerateAcceptsIndexedWDRUpload(t *testing.T) {
 
 	select {
 	case queued := <-h.queue:
-		if len(queued.Items) != 1 || queued.Items[0].WDRPath == "" {
-			t.Fatalf("expected WDRPath to be queued: %#v", queued.Items)
+		if len(queued.Items) != 1 || len(queued.Items[0].WDRPaths) != 2 {
+			t.Fatalf("expected two WDRPaths to be queued: %#v", queued.Items)
+		}
+		if queued.Items[0].WDRPaths[0] == queued.Items[0].WDRPaths[1] {
+			t.Fatalf("expected unique WDR upload paths: %#v", queued.Items[0].WDRPaths)
 		}
 		if queued.Items[0].AWRPath != "" {
 			t.Fatalf("did not expect AWRPath: %#v", queued.Items[0])
@@ -291,6 +295,31 @@ func TestGenerateAcceptsBulkWDRUpload(t *testing.T) {
 	h.handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected %d got %d body=%s", http.StatusOK, rec.Code, rec.Body.String())
+	}
+}
+
+func TestGenerateRejectsMultipleIndexedAWRUploads(t *testing.T) {
+	cfg := Config{
+		DataDir:        t.TempDir(),
+		AllowedOrigins: []string{"http://example.com"},
+		APIToken:       defaultAPIToken,
+		MaxUploadBytes: 0,
+		PythonBin:      "python3",
+	}
+	h, err := newAPIHandler(cfg, false)
+	if err != nil {
+		t.Fatalf("newAPIHandler failed: %v", err)
+	}
+
+	req := multipartRequestPairs(t, []filePart{
+		{field: "zips", name: "demo.zip"},
+		{field: "awr_1", name: "awr-a.html"},
+		{field: "awr_1", name: "awr-b.html"},
+	})
+	rec := httptest.NewRecorder()
+	h.handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected %d got %d body=%s", http.StatusBadRequest, rec.Code, rec.Body.String())
 	}
 }
 
@@ -330,10 +359,24 @@ func TestGenerateEnforcesUploadLimit(t *testing.T) {
 
 func multipartRequest(t *testing.T, files map[string]string) *http.Request {
 	t.Helper()
+	parts := make([]filePart, 0, len(files))
+	for field, name := range files {
+		parts = append(parts, filePart{field: field, name: name})
+	}
+	return multipartRequestPairs(t, parts)
+}
+
+type filePart struct {
+	field string
+	name  string
+}
+
+func multipartRequestPairs(t *testing.T, files []filePart) *http.Request {
+	t.Helper()
 	var body bytes.Buffer
 	mw := multipart.NewWriter(&body)
-	for field, name := range files {
-		part, err := mw.CreateFormFile(field, name)
+	for _, file := range files {
+		part, err := mw.CreateFormFile(file.field, file.name)
 		if err != nil {
 			t.Fatalf("CreateFormFile failed: %v", err)
 		}

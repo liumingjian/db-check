@@ -18,10 +18,10 @@ interface ReportStore {
 
   /* Step 2 */
   zipFiles: ZipFileEntry[];
-  awrFiles: Record<string, File>; // zipId → awrFile
+  awrFiles: Record<string, File[]>;
   addZipFiles: (files: File[]) => void;
   removeZipFile: (id: string) => void;
-  setAwrFile: (zipId: string, file: File | null) => void;
+  setAwrFile: (zipId: string, files: File[] | null) => void;
 
   /* Step 3 */
   currentStep: 1 | 2 | 3;
@@ -99,14 +99,14 @@ export const useReportStore = create<ReportStore>((set) => ({
       };
     }),
 
-  setAwrFile: (zipId, file) =>
+  setAwrFile: (zipId, files) =>
     set((state) => {
-      if (file === null) {
+      if (files === null || files.length === 0) {
         const rest = { ...state.awrFiles };
         delete rest[zipId];
         return { awrFiles: rest };
       }
-      return { awrFiles: { ...state.awrFiles, [zipId]: file } };
+      return { awrFiles: { ...state.awrFiles, [zipId]: files } };
     }),
 
   nextStep: () =>

@@ -48,8 +48,8 @@ func OrchestratorArgs(cfg Config, layout AssetLayout) []string {
 	if cfg.AWRFile != "" {
 		args = append(args, "--awr-file", cfg.AWRFile)
 	}
-	if cfg.WDRFile != "" {
-		args = append(args, "--wdr-file", cfg.WDRFile)
+	for _, file := range cfg.WDRFiles {
+		args = append(args, "--wdr-file", file)
 	}
 	if cfg.OutMD != "" {
 		args = append(args, "--out-md", cfg.OutMD)

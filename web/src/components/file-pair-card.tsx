@@ -8,8 +8,9 @@ interface FilePairCardProps {
   zipName: string;
   zipSize: number;
   awrLabel: string;
-  awrFileName: string | null;
-  onAwrSelect: (file: File) => void;
+  awrFileNames: string[];
+  allowMultiple: boolean;
+  onAwrSelect: (files: File[]) => void;
   onAwrRemove: () => void;
   onRemove: () => void;
 }
@@ -24,12 +25,18 @@ export function FilePairCard({
   zipName,
   zipSize,
   awrLabel,
-  awrFileName,
+  awrFileNames,
+  allowMultiple,
   onAwrSelect,
   onAwrRemove,
   onRemove,
 }: FilePairCardProps) {
   const awrInputRef = useRef<HTMLInputElement>(null);
+  const hasAwrFile = awrFileNames.length > 0;
+  const awrFileText =
+    awrFileNames.length > 1
+      ? `${awrFileNames.length} 个文件：${awrFileNames.join("、")}`
+      : awrFileNames[0];
 
   return (
     <div className="group relative rounded-lg border border-border bg-card p-4 transition-colors duration-150 hover:border-primary/30">
@@ -66,11 +73,11 @@ export function FilePairCard({
             {awrLabel}:
           </span>
 
-          {awrFileName ? (
+          {hasAwrFile ? (
             <div className="flex items-center gap-1.5 min-w-0">
               <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
               <span className="truncate text-xs text-primary">
-                {awrFileName}
+                {awrFileText}
               </span>
               <button
                 type="button"
@@ -100,10 +107,11 @@ export function FilePairCard({
             ref={awrInputRef}
             type="file"
             accept=".html,.htm"
+            multiple={allowMultiple}
             className="hidden"
             onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) onAwrSelect(file);
+              const files = Array.from(e.target.files ?? []);
+              if (files.length > 0) onAwrSelect(files);
               e.target.value = "";
             }}
           />

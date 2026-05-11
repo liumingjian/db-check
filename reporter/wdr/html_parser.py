@@ -28,6 +28,11 @@ from reporter.wdr.html_tables import _parse_int, _parse_number
 
 @dataclass(frozen=True)
 class WDRMetadata:
+    report_type: str
+    report_scope: str
+    report_node: str
+    snapshots: tuple[dict[str, Any], ...]
+    host_info: tuple[dict[str, Any], ...]
     node_names: tuple[str, ...]
     db_names: tuple[str, ...]
 
@@ -38,16 +43,26 @@ class WDRPayload:
     database_stat: dict[str, Any]
     load_profile: dict[str, Any]
     instance_efficiency: dict[str, Any]
+    wait_events: dict[str, Any]
     io_profile: dict[str, Any]
     sql: dict[str, Any]
     appendix: dict[str, Any]
 
     def to_result_payload(self) -> dict[str, Any]:
         return {
-            "metadata": {"node_names": list(self.metadata.node_names), "db_names": list(self.metadata.db_names)},
+            "metadata": {
+                "report_type": self.metadata.report_type,
+                "report_scope": self.metadata.report_scope,
+                "report_node": self.metadata.report_node,
+                "snapshots": list(self.metadata.snapshots),
+                "host_info": list(self.metadata.host_info),
+                "node_names": list(self.metadata.node_names),
+                "db_names": list(self.metadata.db_names),
+            },
             "database_stat": self.database_stat,
             "load_profile": self.load_profile,
             "instance_efficiency": self.instance_efficiency,
+            "wait_events": self.wait_events,
             "io_profile": self.io_profile,
             "sql": self.sql,
             "appendix": self.appendix,
@@ -62,8 +77,13 @@ def parse_wdr_html(path: Path) -> WDRPayload:
     collector.feed(path.read_text(encoding="utf-8", errors="strict"))
     tables = collector.tables
 
-    database_stat = _parse_database_stat(_require_table(tables, summary_contains="database stat"))
-    metadata = _parse_metadata(database_stat)
+    report_info = _parse_report_info(_require_table(tables, summary_contains="report type"))
+    snapshots = _parse_snapshots(_require_table(tables, summary_contains="snapshot info"))
+    host_info = _parse_host_info(_require_table(tables, summary_contains="host info"))
+    default_node_name = _default_node_name(report_info, host_info)
+
+    database_stat = _parse_database_stat(_require_table(tables, summary_contains="database stat"), default_node_name)
+    metadata = _parse_metadata(database_stat, report_info, snapshots, host_info)
 
     workload_table = _require_load_profile_workload_table(tables)
     response_table = _optional_load_profile_response_time_table(tables)
@@ -72,9 +92,10 @@ def parse_wdr_html(path: Path) -> WDRPayload:
     instance_efficiency = _parse_instance_efficiency(
         _require_table(tables, summary_contains="instance efficiency percentages")
     )
+    wait_events = _parse_wait_events(tables)
     io_profile = _parse_io_profile(_require_table(tables, summary_contains="io profile"))
-    sql_elapsed = parse_sql_by_elapsed(_require_table(tables, summary_contains="sql ordered by elapsed time"))
-    sql_cpu = parse_sql_by_cpu(_require_table(tables, summary_contains="sql ordered by cpu time"))
+    sql_elapsed = parse_sql_by_elapsed(_require_table(tables, summary_contains="sql ordered by elapsed time"), default_node_name=default_node_name)
+    sql_cpu = parse_sql_by_cpu(_require_table(tables, summary_contains="sql ordered by cpu time"), default_node_name=default_node_name)
 
     appendix = parse_appendix(tables)
 
@@ -83,13 +104,108 @@ def parse_wdr_html(path: Path) -> WDRPayload:
         database_stat=database_stat,
         load_profile=load_profile,
         instance_efficiency=instance_efficiency,
+        wait_events=wait_events,
         io_profile=io_profile,
         sql={"by_elapsed_time": sql_elapsed, "by_cpu_time": sql_cpu},
         appendix=appendix,
     )
 
 
-def _parse_metadata(database_stat: dict[str, Any]) -> WDRMetadata:
+def _parse_report_info(table: _Table) -> dict[str, str]:
+    header = _normalized_header(table)
+    rows = table.rows[1:]
+    if not rows:
+        raise WDRParseError("Report Type table is empty")
+    record = _row_dict(header, rows[0])
+    return {
+        "report_type": str(record.get("report type") or "").strip(),
+        "report_scope": str(record.get("report scope") or "").strip(),
+        "report_node": str(record.get("report node") or "").strip(),
+    }
+
+
+def _parse_snapshots(table: _Table) -> tuple[dict[str, Any], ...]:
+    header = _normalized_header(table)
+    items: list[dict[str, Any]] = []
+    for row in table.rows[1:]:
+        record = _row_dict(header, row)
+        snapshot_id = str(record.get("snapshot id") or "").strip()
+        if not snapshot_id:
+            continue
+        items.append(
+            {
+                "snapshot_id": snapshot_id,
+                "start_time": str(record.get("start time") or "").strip(),
+                "end_time": str(record.get("end time") or "").strip(),
+            }
+        )
+    return tuple(items)
+
+
+def _parse_host_info(table: _Table) -> tuple[dict[str, Any], ...]:
+    header = _normalized_header(table)
+    items: list[dict[str, Any]] = []
+    for row in table.rows[1:]:
+        record = _row_dict(header, row)
+        node_name = str(record.get("host node name") or record.get("node name") or "").strip()
+        if not node_name:
+            continue
+        items.append(
+            {
+                "node_name": node_name,
+                "cpus": _parse_int(record.get("cpus")),
+                "cpu_cores": _parse_int(record.get("cpu cores")),
+                "cpu_sockets": _parse_int(record.get("cpu sockets")),
+                "physical_memory_bytes": _parse_size_bytes(record.get("physical memory")),
+                "gaussdb_version": str(record.get("gaussdb version") or "").strip(),
+            }
+        )
+    return tuple(items)
+
+
+def _default_node_name(report_info: dict[str, str], host_info: tuple[dict[str, Any], ...]) -> str:
+    report_node = str(report_info.get("report_node") or "").strip()
+    if report_node:
+        return report_node
+    if len(host_info) == 1:
+        return str(host_info[0].get("node_name") or "").strip()
+    return ""
+
+
+def _parse_size_bytes(value: Any) -> int | None:
+    if value is None:
+        return None
+    text = str(value).strip().replace(",", "")
+    if not text:
+        return None
+    parts = text.split()
+    if len(parts) == 1:
+        number_text = "".join(ch for ch in text if ch.isdigit() or ch == ".")
+        unit_text = text[len(number_text) :].strip()
+        parts = [number_text, unit_text] if unit_text else [number_text]
+    try:
+        number = float(parts[0])
+    except ValueError:
+        return None
+    unit = parts[1].lower() if len(parts) > 1 else "bytes"
+    multiplier = {
+        "b": 1,
+        "byte": 1,
+        "bytes": 1,
+        "kb": 1024,
+        "mb": 1024**2,
+        "gb": 1024**3,
+        "tb": 1024**4,
+    }.get(unit)
+    return int(number * multiplier) if multiplier is not None else None
+
+
+def _parse_metadata(
+    database_stat: dict[str, Any],
+    report_info: dict[str, str],
+    snapshots: tuple[dict[str, Any], ...],
+    host_info: tuple[dict[str, Any], ...],
+) -> WDRMetadata:
     items = database_stat.get("items")
     if not isinstance(items, list) or not items:
         raise WDRParseError("Database Stat table is empty")
@@ -101,19 +217,27 @@ def _parse_metadata(database_stat: dict[str, Any]) -> WDRMetadata:
         raise WDRParseError("Database Stat: node_names is empty")
     if not db_names:
         raise WDRParseError("Database Stat: db_names is empty")
-    return WDRMetadata(node_names=tuple(sorted(node_names)), db_names=tuple(sorted(db_names)))
+    return WDRMetadata(
+        report_type=str(report_info.get("report_type") or ""),
+        report_scope=str(report_info.get("report_scope") or ""),
+        report_node=str(report_info.get("report_node") or ""),
+        snapshots=snapshots,
+        host_info=host_info,
+        node_names=tuple(sorted(node_names)),
+        db_names=tuple(sorted(db_names)),
+    )
 
 
-def _parse_database_stat(table: _Table) -> dict[str, Any]:
+def _parse_database_stat(table: _Table, default_node_name: str) -> dict[str, Any]:
     header = _normalized_header(table)
-    if "node name" not in header or "db name" not in header:
-        raise WDRParseError("Database Stat header is invalid (missing Node Name/DB Name)")
+    if "db name" not in header:
+        raise WDRParseError("Database Stat header is invalid (missing DB Name)")
     items: list[dict[str, Any]] = []
     for row in table.rows[1:]:
         if len(row) < len(header):
             continue
         record = _row_dict(header, row)
-        node_name = str(record.get("node name") or "").strip()
+        node_name = str(record.get("node name") or default_node_name or "").strip()
         db_name = str(record.get("db name") or "").strip()
         if not node_name or not db_name:
             continue
@@ -281,4 +405,30 @@ def _parse_io_profile(table: _Table) -> dict[str, Any]:
         )
     if not items:
         raise WDRParseError("IO Profile table is empty")
+    return {"items": items, "count": len(items)}
+
+
+def _parse_wait_events(tables: list[_Table]) -> dict[str, Any]:
+    candidates = _optional_tables(tables, summary_contains="top 10 events by total wait time")
+    if not candidates:
+        return {"items": [], "count": 0}
+    table = candidates[0]
+    header = _normalized_header(table)
+    items = []
+    for row in table.rows[1:]:
+        if len(row) < len(header):
+            continue
+        record = _row_dict(header, row)
+        event = str(record.get("event") or "").strip()
+        if not event:
+            continue
+        items.append(
+            {
+                "event": event,
+                "waits": _parse_int(record.get("waits")),
+                "total_wait_time_us": _parse_number(record.get("total wait time(us)")),
+                "avg_wait_time_us": _parse_number(record.get("avg wait time(us)")),
+                "type": str(record.get("type") or "").strip(),
+            }
+        )
     return {"items": items, "count": len(items)}

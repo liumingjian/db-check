@@ -8,6 +8,7 @@ from reporter.wdr.errors import WDRParseError
 from reporter.wdr.html_parser import parse_wdr_html
 
 ROOT = Path(__file__).resolve().parents[2]
+NODE_WDR = Path("/Users/lmj/Documents/temp/wdr_node_dn_6001_6002_6003.html")
 
 
 class WDRParserTests(unittest.TestCase):
@@ -15,6 +16,7 @@ class WDRParserTests(unittest.TestCase):
         wdr = parse_wdr_html(ROOT / "resources" / "wdr_cluster.html")
         self.assertIn("dn_6001_6002_6003", wdr.metadata.node_names)
         self.assertIn("postgres", wdr.metadata.db_names)
+        self.assertEqual(wdr.metadata.report_scope, "Cluster")
 
         self.assertGreaterEqual(wdr.database_stat["count"], 1)
         self.assertGreaterEqual(wdr.load_profile["workload"]["count"], 1)
@@ -33,6 +35,17 @@ class WDRParserTests(unittest.TestCase):
         p95 = next((item for item in items if isinstance(item, dict) and item.get("metric") == "SQL response time P95(us)"), None)
         self.assertIsNotNone(p95)
         self.assertEqual(p95["value"], 4898.0)
+
+    @unittest.skipUnless(NODE_WDR.exists(), "local node-level WDR fixture is not available")
+    def test_parse_node_wdr_fills_missing_node_name_from_report_node(self) -> None:
+        wdr = parse_wdr_html(NODE_WDR)
+
+        self.assertEqual(wdr.metadata.report_scope, "Node")
+        self.assertEqual(wdr.metadata.report_node, "dn_6001_6002_6003")
+        self.assertIn("dn_6001_6002_6003", wdr.metadata.node_names)
+        elapsed_items = wdr.sql["by_elapsed_time"]["items"]
+        self.assertTrue(elapsed_items)
+        self.assertTrue(all(item["node_name"] == "dn_6001_6002_6003" for item in elapsed_items))
 
     def test_missing_required_table_fails_fast(self) -> None:
         html = """<!doctype html><html><body>

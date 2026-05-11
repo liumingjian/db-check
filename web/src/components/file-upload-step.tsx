@@ -20,6 +20,7 @@ export function FileUploadStep() {
   const option = DB_TYPE_OPTIONS.find((o) => o.type === dbType);
   const awrLabel = option?.awrWdrLabel ?? "";
   const hasAwrWdr = option?.hasAwrWdr ?? false;
+  const allowsMultipleDiagnostics = dbType === "gaussdb";
 
   return (
     <div className="flex flex-col gap-6">
@@ -56,8 +57,14 @@ export function FileUploadStep() {
                 zipName={z.name}
                 zipSize={z.size}
                 awrLabel={hasAwrWdr ? awrLabel : ""}
-                awrFileName={awrFiles[z.id]?.name ?? null}
-                onAwrSelect={(file) => setAwrFile(z.id, file)}
+                awrFileNames={(awrFiles[z.id] ?? []).map((file) => file.name)}
+                allowMultiple={allowsMultipleDiagnostics}
+                onAwrSelect={(files) =>
+                  setAwrFile(
+                    z.id,
+                    allowsMultipleDiagnostics ? files : files.slice(0, 1),
+                  )
+                }
                 onAwrRemove={() => setAwrFile(z.id, null)}
                 onRemove={() => removeZipFile(z.id)}
               />
