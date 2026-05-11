@@ -32,9 +32,8 @@ export const DB_TYPE_OPTIONS: DbTypeOption[] = [
     label: "GaussDB",
     versions: "505.2.1",
     description: "华为 GaussDB 数据库",
-    // Web 版暂不支持 WDR 上传
-    hasAwrWdr: false,
-    awrWdrLabel: "",
+    hasAwrWdr: true,
+    awrWdrLabel: "WDR 报告",
   },
 ];
 

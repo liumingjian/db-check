@@ -92,6 +92,13 @@ func (p *Pipeline) runOne(taskDir string, item ItemInput, onLog func(itemID stri
 	if err != nil {
 		return ItemResult{ID: item.ID, Status: ItemFailed, Error: fmt.Errorf("detect run dir failed: %w", err).Error()}
 	}
+	dbType, err := launcher.DetectRunDirDBType(runDir)
+	if err != nil {
+		return ItemResult{ID: item.ID, Status: ItemFailed, Error: fmt.Errorf("detect db type failed: %w", err).Error()}
+	}
+	if err := validateHTMLAttachment(dbType, item); err != nil {
+		return ItemResult{ID: item.ID, Status: ItemFailed, Error: err.Error()}
+	}
 
 	outDocx := filepath.Join(itemDir, "report.docx")
 	cfg := launcher.Config{
@@ -115,4 +122,28 @@ func (p *Pipeline) runOne(taskDir string, item ItemInput, onLog func(itemID stri
 	}
 
 	return ItemResult{ID: item.ID, Status: ItemDone, ReportDocx: outDocx}
+}
+
+func validateHTMLAttachment(dbType string, item ItemInput) error {
+	hasAWR := item.AWRPath != ""
+	hasWDR := item.WDRPath != ""
+	switch dbType {
+	case "oracle":
+		if hasWDR {
+			return fmt.Errorf("wdr file is only supported for GaussDB run-dir, current db_type=%q", dbType)
+		}
+	case "gaussdb":
+		if hasAWR {
+			return fmt.Errorf("awr file is only supported for Oracle run-dir, current db_type=%q", dbType)
+		}
+	case "mysql":
+		if hasAWR || hasWDR {
+			return fmt.Errorf("AWR/WDR HTML is not supported for MySQL run-dir")
+		}
+	default:
+		if hasAWR || hasWDR {
+			return fmt.Errorf("AWR/WDR HTML requires mysql, oracle, or gaussdb run-dir, current db_type=%q", dbType)
+		}
+	}
+	return nil
 }

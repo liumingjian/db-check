@@ -18,6 +18,7 @@ const TASK_STORAGE_KEY = "dbcheck_task_id";
 export function GenerationStep() {
   const zipFiles = useReportStore((s) => s.zipFiles);
   const awrFiles = useReportStore((s) => s.awrFiles);
+  const dbType = useReportStore((s) => s.dbType);
   const progress = useReportStore((s) => s.progress);
   const logs = useReportStore((s) => s.logs);
   const isComplete = useReportStore((s) => s.isComplete);
@@ -88,7 +89,10 @@ export function GenerationStep() {
 
     (async () => {
       try {
-        const resp = await generateReportTask(token, zipFiles, awrFiles);
+        if (!dbType) {
+          throw new Error("未选择数据库类型");
+        }
+        const resp = await generateReportTask(token, dbType, zipFiles, awrFiles);
         if (cancelled) return;
 
         setTaskId(resp.task_id);
@@ -180,7 +184,7 @@ export function GenerationStep() {
       }
       wsRef.current?.close();
     };
-  }, [addLog, awrFiles, setComplete, setDownloadUrl, setGenerating, setHasError, setProgress, setTaskId, token, zipFiles]);
+  }, [addLog, awrFiles, dbType, setComplete, setDownloadUrl, setGenerating, setHasError, setProgress, setTaskId, token, zipFiles]);
 
   async function onConfirmToken() {
     const apiBase = apiBaseInput.trim();

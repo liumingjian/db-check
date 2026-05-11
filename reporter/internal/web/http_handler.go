@@ -125,13 +125,13 @@ func (h *apiHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	awrs := filesForKey(r.MultipartForm, "awrs")
-	if hasAnyWDR(r.MultipartForm) {
-		// Web service explicitly does not support WDR uploads.
-		writeError(w, http.StatusBadRequest, "WDR is not supported")
-		return
-	}
+	wdrs := filesForKey(r.MultipartForm, "wdrs")
 	if len(awrs) != 0 && len(awrs) != len(zips) {
 		writeError(w, http.StatusBadRequest, "invalid awrs: use awr_<index> fields or provide awrs with the same count as zips")
+		return
+	}
+	if len(wdrs) != 0 && len(wdrs) != len(zips) {
+		writeError(w, http.StatusBadRequest, "invalid wdrs: use wdr_<index> fields or provide wdrs with the same count as zips")
 		return
 	}
 
@@ -169,6 +169,7 @@ func (h *apiHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var awrPath string
+		var wdrPath string
 		switch {
 		case len(awrs) == len(zips) && awrs[i] != nil:
 			path, _, err := saveUpload(uploadsDir, "awr", itemID, awrs[i])
@@ -187,11 +188,30 @@ func (h *apiHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 				awrPath = path
 			}
 		}
+		switch {
+		case len(wdrs) == len(zips) && wdrs[i] != nil:
+			path, _, err := saveUpload(uploadsDir, "wdr", itemID, wdrs[i])
+			if err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			wdrPath = path
+		default:
+			if hdr := firstFileForKey(r.MultipartForm, "wdr_"+itemID); hdr != nil {
+				path, _, err := saveUpload(uploadsDir, "wdr", itemID, hdr)
+				if err != nil {
+					writeError(w, http.StatusBadRequest, err.Error())
+					return
+				}
+				wdrPath = path
+			}
+		}
 		items = append(items, ItemInput{
 			ID:      itemID,
 			Name:    name,
 			ZipPath: zipPath,
 			AWRPath: awrPath,
+			WDRPath: wdrPath,
 		})
 	}
 
@@ -481,21 +501,6 @@ func firstFileForKey(form *multipart.Form, key string) *multipart.FileHeader {
 	return files[0]
 }
 
-func hasAnyWDR(form *multipart.Form) bool {
-	if form == nil || form.File == nil {
-		return false
-	}
-	if len(form.File["wdrs"]) > 0 || len(form.File["wdr"]) > 0 {
-		return true
-	}
-	for key := range form.File {
-		if strings.HasPrefix(key, "wdr_") {
-			return true
-		}
-	}
-	return false
-}
-
 func saveUpload(dir string, kind string, itemID string, header *multipart.FileHeader) (string, string, error) {
 	if header == nil {
 		return "", "", errors.New("missing file")
@@ -516,8 +521,8 @@ func saveUpload(dir string, kind string, itemID string, header *multipart.FileHe
 	if kind == "zip" && ext != ".zip" {
 		return "", "", fmt.Errorf("invalid zip filename: %q", name)
 	}
-	if kind == "awr" && ext != ".html" && ext != ".htm" {
-		return "", "", fmt.Errorf("invalid awr filename: %q", name)
+	if (kind == "awr" || kind == "wdr") && ext != ".html" && ext != ".htm" {
+		return "", "", fmt.Errorf("invalid %s filename: %q", kind, name)
 	}
 
 	dstName := fmt.Sprintf("%s-%s-%s", kind, itemID, name)

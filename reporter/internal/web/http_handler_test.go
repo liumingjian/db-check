@@ -233,6 +233,67 @@ func TestGenerateCreatesTaskRecord(t *testing.T) {
 	}
 }
 
+func TestGenerateAcceptsIndexedWDRUpload(t *testing.T) {
+	dataDir := t.TempDir()
+	cfg := Config{
+		DataDir:        dataDir,
+		AllowedOrigins: []string{"http://example.com"},
+		APIToken:       defaultAPIToken,
+		MaxUploadBytes: 0,
+		PythonBin:      "python3",
+	}
+	h, err := newAPIHandler(cfg, false)
+	if err != nil {
+		t.Fatalf("newAPIHandler failed: %v", err)
+	}
+
+	req := multipartRequest(t, map[string]string{
+		"zips":  "demo.zip",
+		"wdr_1": "wdr.html",
+	})
+	rec := httptest.NewRecorder()
+	h.handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected %d got %d body=%s", http.StatusOK, rec.Code, rec.Body.String())
+	}
+
+	select {
+	case queued := <-h.queue:
+		if len(queued.Items) != 1 || queued.Items[0].WDRPath == "" {
+			t.Fatalf("expected WDRPath to be queued: %#v", queued.Items)
+		}
+		if queued.Items[0].AWRPath != "" {
+			t.Fatalf("did not expect AWRPath: %#v", queued.Items[0])
+		}
+	default:
+		t.Fatalf("expected queued task")
+	}
+}
+
+func TestGenerateAcceptsBulkWDRUpload(t *testing.T) {
+	cfg := Config{
+		DataDir:        t.TempDir(),
+		AllowedOrigins: []string{"http://example.com"},
+		APIToken:       defaultAPIToken,
+		MaxUploadBytes: 0,
+		PythonBin:      "python3",
+	}
+	h, err := newAPIHandler(cfg, false)
+	if err != nil {
+		t.Fatalf("newAPIHandler failed: %v", err)
+	}
+
+	req := multipartRequest(t, map[string]string{
+		"zips": "demo.zip",
+		"wdrs": "wdr.html",
+	})
+	rec := httptest.NewRecorder()
+	h.handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected %d got %d body=%s", http.StatusOK, rec.Code, rec.Body.String())
+	}
+}
+
 func TestGenerateEnforcesUploadLimit(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
@@ -265,4 +326,26 @@ func TestGenerateEnforcesUploadLimit(t *testing.T) {
 	if rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("expected %d got %d body=%s", http.StatusRequestEntityTooLarge, rec.Code, rec.Body.String())
 	}
+}
+
+func multipartRequest(t *testing.T, files map[string]string) *http.Request {
+	t.Helper()
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	for field, name := range files {
+		part, err := mw.CreateFormFile(field, name)
+		if err != nil {
+			t.Fatalf("CreateFormFile failed: %v", err)
+		}
+		if _, err := part.Write([]byte("content")); err != nil {
+			t.Fatalf("write part failed: %v", err)
+		}
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatalf("close multipart failed: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/reports/generate", &body)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+defaultAPIToken)
+	return req
 }

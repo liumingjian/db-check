@@ -1,5 +1,5 @@
 import { apiUrl, getApiBase } from "@/lib/api";
-import type { GenerateResponse, ZipFileEntry } from "@/lib/types";
+import type { DbType, GenerateResponse, ZipFileEntry } from "@/lib/types";
 
 const BACKEND_PROBE_TASK_ID = "frontend-probe";
 
@@ -58,6 +58,7 @@ export async function probeReportBackend(token: string): Promise<void> {
 
 export async function generateReportTask(
   token: string,
+  dbType: DbType,
   zipFiles: ZipFileEntry[],
   awrFiles: Record<string, File>,
 ): Promise<GenerateResponse> {
@@ -70,7 +71,8 @@ export async function generateReportTask(
   zipFiles.forEach((z, idx) => {
     const awr = awrFiles[z.id];
     if (awr) {
-      form.append(`awr_${idx + 1}`, awr, awr.name);
+      const field = dbType === "gaussdb" ? "wdr" : "awr";
+      form.append(`${field}_${idx + 1}`, awr, awr.name);
     }
   });
 
