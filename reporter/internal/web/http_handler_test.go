@@ -215,7 +215,7 @@ func TestStatusReturnsAuthoritativeTaskSnapshot(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &snapshot); err != nil {
 		t.Fatalf("decode status failed: %v", err)
 	}
-	if snapshot.TaskID != "t1" || snapshot.Status != TaskDone || snapshot.Completed != 2 || snapshot.DownloadURL != "/api/reports/download/t1" {
+	if snapshot.TaskID != "t1" || snapshot.Status != TaskDone || snapshot.Completed != 2 || snapshot.SucceededCount != 1 || snapshot.FailedCount != 1 || snapshot.DownloadURL != "/api/reports/download/t1" {
 		t.Fatalf("unexpected status snapshot: %#v", snapshot)
 	}
 	if len(snapshot.Items) != 2 || snapshot.Items[0].ReportDocx != "first.docx" || snapshot.Items[1].Error != "invalid data" {
