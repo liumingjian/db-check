@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -15,10 +16,11 @@ import (
 )
 
 var (
-	ErrLifecycleClosed   = errors.New("task lifecycle is closed")
-	ErrTaskNotFinished   = errors.New("task not finished")
-	ErrInvalidSubmission = errors.New("invalid report submission")
-	ErrTaskCapacity      = errors.New("report task capacity exhausted")
+	ErrLifecycleClosed     = errors.New("task lifecycle is closed")
+	ErrTaskNotFinished     = errors.New("task not finished")
+	ErrInvalidSubmission   = errors.New("invalid report submission")
+	ErrTaskCapacity        = errors.New("report task capacity exhausted")
+	ErrIdempotencyConflict = errors.New("idempotency key was reused with a different submission")
 )
 
 type queuedTask struct {
@@ -43,7 +45,6 @@ type ReportSubmission struct {
 }
 
 // SubmissionRequest keeps request metadata available before an input body is read.
-// Key is reserved for the keyed-submission flow and has no behavior in this release.
 type SubmissionRequest struct {
 	Key         string
 	Materialize func(context.Context) (ReportSubmission, error)
@@ -83,6 +84,9 @@ type TaskLifecycle struct {
 	reservations       int
 	acceptedUnfinished int
 	nextAcceptedOrder  uint64
+	keyIndex           map[string]*retainedSubmission
+	keyFlights         map[string]*keyedSubmissionFlight
+	probeSlots         chan struct{}
 	startOnce          sync.Once
 	startErr           error
 	closeOnce          sync.Once
@@ -126,6 +130,9 @@ func newTaskLifecycle(cfg Config, newPipeline pipelineFactory) (*TaskLifecycle, 
 		wake:              make(chan struct{}, 1),
 		newPipeline:       newPipeline,
 		nextAcceptedOrder: 1,
+		keyIndex:          make(map[string]*retainedSubmission),
+		keyFlights:        make(map[string]*keyedSubmissionFlight),
+		probeSlots:        make(chan struct{}, cfg.MaxAcceptedTasks),
 		stop:              make(chan struct{}),
 		workerDone:        make(chan struct{}),
 		retentionDone:     make(chan struct{}),
@@ -145,6 +152,13 @@ func (l *TaskLifecycle) Start(ctx context.Context) error {
 		if l.closed {
 			l.mu.Unlock()
 			l.startErr = ErrLifecycleClosed
+			l.finishWorker()
+			l.finishRetention()
+			return
+		}
+		if err := l.rebuildKeyIndexLocked(); err != nil {
+			l.mu.Unlock()
+			l.startErr = fmt.Errorf("rebuild idempotency index: %w", err)
 			l.finishWorker()
 			l.finishRetention()
 			return
@@ -203,9 +217,24 @@ func (l *TaskLifecycle) Submit(ctx context.Context, request SubmissionRequest) (
 	if request.Materialize == nil {
 		return Task{}, invalidSubmission(errors.New("missing submission materializer"))
 	}
+	key, err := normalizeIdempotencyKey(request.Key)
+	if err != nil {
+		return Task{}, err
+	}
+	if key != "" {
+		return l.submitKeyed(ctx, request, key)
+	}
+	return l.submitNew(ctx, request, "")
+}
+
+func (l *TaskLifecycle) submitNew(ctx context.Context, request SubmissionRequest, key string) (task Task, err error) {
 	if err := l.reserveSubmission(); err != nil {
 		return Task{}, err
 	}
+	return l.submitReserved(ctx, request, key)
+}
+
+func (l *TaskLifecycle) submitReserved(ctx context.Context, request SubmissionRequest, key string) (task Task, err error) {
 	reserved := true
 	stagingDir := ""
 	published := false
@@ -237,7 +266,7 @@ func (l *TaskLifecycle) Submit(ctx context.Context, request SubmissionRequest) (
 	if err := ctx.Err(); err != nil {
 		return Task{}, err
 	}
-	taskItems, err := stageSubmission(ctx, stagingDir, submission)
+	taskItems, digest, err := stageSubmission(ctx, stagingDir, submission)
 	if err != nil {
 		return Task{}, err
 	}
@@ -252,7 +281,18 @@ func (l *TaskLifecycle) Submit(ctx context.Context, request SubmissionRequest) (
 		Completed: 0,
 		Items:     taskItems,
 	}
-	task, err = l.publishSubmission(ctx, stagingDir, task)
+	if key != "" {
+		task.IdempotencyKey = key
+		task.PayloadDigest = digest
+	}
+	task, err = l.publishSubmission(ctx, stagingDir, task, func(publishedTask Task) {
+		if key != "" {
+			l.keyIndex[key] = &retainedSubmission{
+				taskID: publishedTask.ID,
+				digest: publishedTask.PayloadDigest,
+			}
+		}
+	})
 	if err != nil {
 		return Task{}, err
 	}
@@ -282,7 +322,7 @@ func (l *TaskLifecycle) releaseReservation() {
 	}
 }
 
-func (l *TaskLifecycle) publishSubmission(ctx context.Context, stagingDir string, task Task) (Task, error) {
+func (l *TaskLifecycle) publishSubmission(ctx context.Context, stagingDir string, task Task, afterPublish func(Task)) (Task, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.closed {
@@ -306,6 +346,9 @@ func (l *TaskLifecycle) publishSubmission(ctx context.Context, stagingDir string
 	if err := l.store.Publish(stagingDir, task.ID); err != nil {
 		return Task{}, err
 	}
+	if afterPublish != nil {
+		afterPublish(task)
+	}
 
 	l.nextAcceptedOrder++
 	l.reservations--
@@ -314,35 +357,48 @@ func (l *TaskLifecycle) publishSubmission(ctx context.Context, stagingDir string
 	return task, nil
 }
 
-func stageSubmission(ctx context.Context, stagingDir string, submission ReportSubmission) ([]TaskItem, error) {
+func stageSubmission(ctx context.Context, stagingDir string, submission ReportSubmission) ([]TaskItem, string, error) {
 	if len(submission.Items) == 0 {
-		return nil, invalidSubmission(errors.New("missing zip files (field: zips)"))
+		return nil, "", invalidSubmission(errors.New("missing zip files (field: zips)"))
 	}
 	uploadsDir := filepath.Join(stagingDir, "uploads")
 	if err := os.MkdirAll(uploadsDir, 0o755); err != nil {
-		return nil, fmt.Errorf("create uploads dir failed: %w", err)
+		return nil, "", fmt.Errorf("create uploads dir failed: %w", err)
 	}
 
+	digest := newSubmissionDigest()
 	items := make([]TaskItem, 0, len(submission.Items))
 	for i, submitted := range submission.Items {
 		itemID := fmt.Sprintf("%d", i+1)
-		_, name, err := saveSubmissionFile(ctx, uploadsDir, "zip", itemID, submitted.Zip)
+		digest.writeString("item")
+		digest.writeNumber(i)
+		_, name, contentDigest, err := saveSubmissionFile(ctx, uploadsDir, "zip", itemID, submitted.Zip)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
+		digest.writeFile("zip", submitted.Zip.Name, contentDigest)
 		if submitted.AWR != nil {
-			if _, _, err := saveSubmissionFile(ctx, uploadsDir, "awr", itemID, *submitted.AWR); err != nil {
-				return nil, err
+			_, _, contentDigest, err := saveSubmissionFile(ctx, uploadsDir, "awr", itemID, *submitted.AWR)
+			if err != nil {
+				return nil, "", err
 			}
+			digest.writeString("awr-present")
+			digest.writeFile("awr", submitted.AWR.Name, contentDigest)
+		} else {
+			digest.writeString("awr-absent")
 		}
+		digest.writeString("wdr-count")
+		digest.writeNumber(len(submitted.WDRs))
 		for wdrIndex, wdr := range submitted.WDRs {
-			if _, _, err := saveSubmissionFile(ctx, uploadsDir, "wdr", wdrUploadID(itemID, wdrIndex), wdr); err != nil {
-				return nil, err
+			_, _, contentDigest, err := saveSubmissionFile(ctx, uploadsDir, "wdr", wdrUploadID(itemID, wdrIndex), wdr)
+			if err != nil {
+				return nil, "", err
 			}
+			digest.writeFile("wdr", wdr.Name, contentDigest)
 		}
 		items = append(items, TaskItem{ID: itemID, Name: name, Status: string(TaskQueued)})
 	}
-	return items, nil
+	return items, digest.sum(), nil
 }
 
 func (l *TaskLifecycle) Get(ctx context.Context, taskID string) (Task, error) {
@@ -475,7 +531,7 @@ func (l *TaskLifecycle) startRetentionCleanup() {
 			case <-l.stop:
 				return
 			case <-ticker.C:
-				_, _ = cleanupExpiredTasks(l.store, l.cfg.RetentionTTL, time.Now)
+				_, _ = l.cleanupExpiredRetainedTasks(time.Now)
 			}
 		}
 	}()
@@ -615,29 +671,29 @@ func wdrUploadID(itemID string, existing int) string {
 	return fmt.Sprintf("%s-%d", itemID, existing+1)
 }
 
-func saveSubmissionFile(ctx context.Context, dir string, kind string, itemID string, file SubmissionFile) (string, string, error) {
+func saveSubmissionFile(ctx context.Context, dir string, kind string, itemID string, file SubmissionFile) (string, string, []byte, error) {
 	if err := ctx.Err(); err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
 	name := filepath.Base(file.Name)
 	if file.Open == nil {
-		return "", "", invalidSubmission(errors.New("missing file"))
+		return "", "", nil, invalidSubmission(errors.New("missing file"))
 	}
 	if strings.TrimSpace(name) == "" {
-		return "", "", invalidSubmission(errors.New("invalid filename"))
+		return "", "", nil, invalidSubmission(errors.New("invalid filename"))
 	}
 
 	ext := strings.ToLower(filepath.Ext(name))
 	if kind == "zip" && ext != ".zip" {
-		return "", "", invalidSubmission(fmt.Errorf("invalid zip filename: %q", name))
+		return "", "", nil, invalidSubmission(fmt.Errorf("invalid zip filename: %q", name))
 	}
 	if (kind == "awr" || kind == "wdr") && ext != ".html" && ext != ".htm" {
-		return "", "", invalidSubmission(fmt.Errorf("invalid %s filename: %q", kind, name))
+		return "", "", nil, invalidSubmission(fmt.Errorf("invalid %s filename: %q", kind, name))
 	}
 
 	src, err := file.Open()
 	if err != nil {
-		return "", "", invalidSubmission(fmt.Errorf("open upload failed: %w", err))
+		return "", "", nil, invalidSubmission(fmt.Errorf("open upload failed: %w", err))
 	}
 	defer src.Close()
 
@@ -645,19 +701,20 @@ func saveSubmissionFile(ctx context.Context, dir string, kind string, itemID str
 	dstPath := filepath.Join(dir, dstName)
 	dst, err := os.OpenFile(dstPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
 	if err != nil {
-		return "", "", invalidSubmission(fmt.Errorf("save upload failed: %w", err))
+		return "", "", nil, invalidSubmission(fmt.Errorf("save upload failed: %w", err))
 	}
-	if err := copySubmissionFile(ctx, dst, src); err != nil {
+	contentHash := sha256.New()
+	if err := copySubmissionFile(ctx, io.MultiWriter(dst, contentHash), src); err != nil {
 		_ = dst.Close()
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return "", "", ctxErr
+			return "", "", nil, ctxErr
 		}
-		return "", "", invalidSubmission(fmt.Errorf("save upload failed: %w", err))
+		return "", "", nil, invalidSubmission(fmt.Errorf("save upload failed: %w", err))
 	}
 	if err := dst.Close(); err != nil {
-		return "", "", invalidSubmission(fmt.Errorf("save upload failed: %w", err))
+		return "", "", nil, invalidSubmission(fmt.Errorf("save upload failed: %w", err))
 	}
-	return dstPath, name, nil
+	return dstPath, name, contentHash.Sum(nil), nil
 }
 
 func copySubmissionFile(ctx context.Context, dst io.Writer, src io.Reader) error {

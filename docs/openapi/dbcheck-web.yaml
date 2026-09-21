@@ -14,6 +14,17 @@ paths:
       summary: Generate reports from uploaded ZIP packages
       security:
         - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: |
+            Client-generated key for an uncertain submission retry. The key is retained with a
+            terminal task for the configured retention lifetime. Reuse it only with the same
+            ordered files, original filenames, and optional-file pairing.
+          schema:
+            type: string
+            maxLength: 256
       requestBody:
         required: true
         content:
@@ -63,6 +74,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The Idempotency-Key was reused with a different payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdempotencyConflictResponse"
         "503":
           description: Accepted task capacity is full. The client keeps its selected files and retries manually. The response has no retry estimate.
           content:
@@ -233,6 +250,16 @@ components:
         code:
           type: string
           enum: ["capacity_exhausted"]
+        error:
+          type: string
+
+    IdempotencyConflictResponse:
+      type: object
+      required: [code, error]
+      properties:
+        code:
+          type: string
+          enum: ["idempotency_key_conflict"]
         error:
           type: string
 

@@ -70,7 +70,7 @@ func withCORS(allowedOrigins []string, next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization,Content-Type")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization,Content-Type,Idempotency-Key")
 			w.Header().Set("Access-Control-Max-Age", "600")
 		}
 
@@ -98,6 +98,7 @@ func (h *apiHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	task, err := h.lifecycle.Submit(r.Context(), SubmissionRequest{
+		Key: strings.TrimSpace(r.Header.Get("Idempotency-Key")),
 		Materialize: func(ctx context.Context) (ReportSubmission, error) {
 			if err := ctx.Err(); err != nil {
 				return ReportSubmission{}, err
@@ -122,6 +123,8 @@ func (h *apiHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, ErrTaskCapacity):
 			writeErrorCode(w, http.StatusServiceUnavailable, "capacity_exhausted", err.Error())
+		case errors.Is(err, ErrIdempotencyConflict):
+			writeErrorCode(w, http.StatusConflict, "idempotency_key_conflict", err.Error())
 		case errors.Is(err, errUploadTooLarge):
 			writeError(w, http.StatusRequestEntityTooLarge, err.Error())
 		case errors.Is(err, ErrInvalidSubmission):
