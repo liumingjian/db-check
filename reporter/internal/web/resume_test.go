@@ -33,21 +33,20 @@ func TestTaskLifecycleResumeTasksEnqueuesQueuedOrProcessing(t *testing.T) {
 
 	lifecycle.resumeTasks()
 
-	select {
-	case job := <-lifecycle.queue:
-		if job.TaskID != "t1" {
-			t.Fatalf("unexpected task id: %q", job.TaskID)
-		}
-		if len(job.Items) != 1 {
-			t.Fatalf("expected 1 item got %d", len(job.Items))
-		}
-		if job.Items[0].ID != "1" || job.Items[0].Name != "demo.zip" {
-			t.Fatalf("unexpected item: %#v", job.Items[0])
-		}
-		if job.Items[0].ZipPath == "" {
-			t.Fatalf("expected ZipPath")
-		}
-	default:
-		t.Fatalf("expected a resumed task to be enqueued")
+	job, found := lifecycle.nextQueuedTask()
+	if !found {
+		t.Fatal("expected a resumed queued task")
+	}
+	if job.TaskID != "t1" {
+		t.Fatalf("unexpected task id: %q", job.TaskID)
+	}
+	if len(job.Items) != 1 {
+		t.Fatalf("expected 1 item got %d", len(job.Items))
+	}
+	if job.Items[0].ID != "1" || job.Items[0].Name != "demo.zip" {
+		t.Fatalf("unexpected item: %#v", job.Items[0])
+	}
+	if job.Items[0].ZipPath == "" {
+		t.Fatalf("expected ZipPath")
 	}
 }

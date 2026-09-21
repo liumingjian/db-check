@@ -107,7 +107,7 @@ func TestHTTPSubmissionRunsThroughLifecycleToDownload(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &submitted); err != nil {
 		t.Fatalf("decode submission failed: %v", err)
 	}
-	if submitted.TaskID == "" || submitted.Status != string(TaskProcessing) {
+	if submitted.TaskID == "" || (submitted.Status != string(TaskQueued) && submitted.Status != string(TaskProcessing)) {
 		t.Fatalf("unexpected submission response: %#v", submitted)
 	}
 

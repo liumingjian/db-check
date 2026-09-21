@@ -18,6 +18,7 @@ var (
 	ErrLifecycleClosed   = errors.New("task lifecycle is closed")
 	ErrTaskNotFinished   = errors.New("task not finished")
 	ErrInvalidSubmission = errors.New("invalid report submission")
+	ErrTaskCapacity      = errors.New("report task capacity exhausted")
 )
 
 type queuedTask struct {
@@ -39,6 +40,13 @@ type ReportItemSubmission struct {
 
 type ReportSubmission struct {
 	Items []ReportItemSubmission
+}
+
+// SubmissionRequest keeps request metadata available before an input body is read.
+// Key is reserved for the keyed-submission flow and has no behavior in this release.
+type SubmissionRequest struct {
+	Key         string
+	Materialize func(context.Context) (ReportSubmission, error)
 }
 
 type TaskWatch struct {
@@ -65,16 +73,19 @@ type TaskLifecycle struct {
 	cfg   Config
 	store *TaskStore
 	hub   *taskHub
-	queue chan queuedTask
+	wake  chan struct{}
 
 	newPipeline pipelineFactory
 
-	mu        sync.Mutex
-	started   bool
-	closed    bool
-	startOnce sync.Once
-	startErr  error
-	closeOnce sync.Once
+	mu                 sync.Mutex
+	started            bool
+	closed             bool
+	reservations       int
+	acceptedUnfinished int
+	nextAcceptedOrder  uint64
+	startOnce          sync.Once
+	startErr           error
+	closeOnce          sync.Once
 
 	stop          chan struct{}
 	workerDone    chan struct{}
@@ -88,6 +99,12 @@ func NewTaskLifecycle(cfg Config) (*TaskLifecycle, error) {
 }
 
 func newTaskLifecycle(cfg Config, newPipeline pipelineFactory) (*TaskLifecycle, error) {
+	if cfg.MaxAcceptedTasks == 0 {
+		cfg.MaxAcceptedTasks = defaultMaxAcceptedTasks
+	}
+	if cfg.MaxAcceptedTasks < 0 {
+		return nil, errors.New("max accepted tasks must be greater than zero")
+	}
 	store, err := NewTaskStore(cfg.DataDir)
 	if err != nil {
 		return nil, err
@@ -103,14 +120,15 @@ func newTaskLifecycle(cfg Config, newPipeline pipelineFactory) (*TaskLifecycle, 
 	}
 
 	return &TaskLifecycle{
-		cfg:           cfg,
-		store:         store,
-		hub:           newTaskHub(cfg.LogReplayLines),
-		queue:         make(chan queuedTask, 32),
-		newPipeline:   newPipeline,
-		stop:          make(chan struct{}),
-		workerDone:    make(chan struct{}),
-		retentionDone: make(chan struct{}),
+		cfg:               cfg,
+		store:             store,
+		hub:               newTaskHub(cfg.LogReplayLines),
+		wake:              make(chan struct{}, 1),
+		newPipeline:       newPipeline,
+		nextAcceptedOrder: 1,
+		stop:              make(chan struct{}),
+		workerDone:        make(chan struct{}),
+		retentionDone:     make(chan struct{}),
 	}, nil
 }
 
@@ -155,7 +173,6 @@ func (l *TaskLifecycle) Close(ctx context.Context) error {
 		l.closed = true
 		started := l.started
 		close(l.stop)
-		close(l.queue)
 		l.mu.Unlock()
 
 		if !started {
@@ -179,76 +196,153 @@ func waitForLifecycle(ctx context.Context, done <-chan struct{}) error {
 	}
 }
 
-func (l *TaskLifecycle) Submit(ctx context.Context, submission ReportSubmission) (Task, error) {
+func (l *TaskLifecycle) Submit(ctx context.Context, request SubmissionRequest) (task Task, err error) {
 	if err := ctx.Err(); err != nil {
 		return Task{}, err
 	}
-	if len(submission.Items) == 0 {
-		return Task{}, invalidSubmission(errors.New("missing zip files (field: zips)"))
+	if request.Materialize == nil {
+		return Task{}, invalidSubmission(errors.New("missing submission materializer"))
 	}
-
-	l.mu.Lock()
-	closed := l.closed
-	l.mu.Unlock()
-	if closed {
-		return Task{}, ErrLifecycleClosed
+	if err := l.reserveSubmission(); err != nil {
+		return Task{}, err
 	}
+	reserved := true
+	stagingDir := ""
+	published := false
+	defer func() {
+		if published {
+			return
+		}
+		if stagingDir != "" {
+			_ = os.RemoveAll(stagingDir)
+		}
+		if reserved {
+			l.releaseReservation()
+		}
+	}()
 
 	taskID, err := newTaskID()
 	if err != nil {
 		return Task{}, err
 	}
-	task, err := l.store.Create(Task{
-		ID:        taskID,
-		Status:    TaskProcessing,
-		Total:     len(submission.Items),
-		Completed: 0,
-	})
+	stagingDir, err = l.store.CreateStaging(taskID)
 	if err != nil {
 		return Task{}, err
 	}
 
-	uploadsDir := filepath.Join(l.store.taskDir(task.ID), "uploads")
-	if err := os.MkdirAll(uploadsDir, 0o755); err != nil {
-		return Task{}, fmt.Errorf("create uploads dir failed: %w", err)
+	submission, err := request.Materialize(ctx)
+	if err != nil {
+		return Task{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return Task{}, err
+	}
+	taskItems, err := stageSubmission(ctx, stagingDir, submission)
+	if err != nil {
+		return Task{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return Task{}, err
 	}
 
-	items := make([]ItemInput, 0, len(submission.Items))
+	task = Task{
+		ID:        taskID,
+		Status:    TaskQueued,
+		Total:     len(taskItems),
+		Completed: 0,
+		Items:     taskItems,
+	}
+	task, err = l.publishSubmission(ctx, stagingDir, task)
+	if err != nil {
+		return Task{}, err
+	}
+	reserved = false
+	published = true
+	return task, nil
+}
+
+func (l *TaskLifecycle) reserveSubmission() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed {
+		return ErrLifecycleClosed
+	}
+	if l.acceptedUnfinished+l.reservations >= l.cfg.MaxAcceptedTasks {
+		return ErrTaskCapacity
+	}
+	l.reservations++
+	return nil
+}
+
+func (l *TaskLifecycle) releaseReservation() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.reservations > 0 {
+		l.reservations--
+	}
+}
+
+func (l *TaskLifecycle) publishSubmission(ctx context.Context, stagingDir string, task Task) (Task, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed {
+		return Task{}, ErrLifecycleClosed
+	}
+	if err := ctx.Err(); err != nil {
+		return Task{}, err
+	}
+
+	acceptedAt := l.store.now()
+	task.AcceptedOrder = l.nextAcceptedOrder
+	task.AcceptedAt = acceptedAt
+	task.CreatedAt = acceptedAt
+	task.UpdatedAt = acceptedAt
+	if err := l.store.WriteStagedTask(stagingDir, task); err != nil {
+		return Task{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return Task{}, err
+	}
+	if err := l.store.Publish(stagingDir, task.ID); err != nil {
+		return Task{}, err
+	}
+
+	l.nextAcceptedOrder++
+	l.reservations--
+	l.acceptedUnfinished++
+	l.signalDispatcherLocked()
+	return task, nil
+}
+
+func stageSubmission(ctx context.Context, stagingDir string, submission ReportSubmission) ([]TaskItem, error) {
+	if len(submission.Items) == 0 {
+		return nil, invalidSubmission(errors.New("missing zip files (field: zips)"))
+	}
+	uploadsDir := filepath.Join(stagingDir, "uploads")
+	if err := os.MkdirAll(uploadsDir, 0o755); err != nil {
+		return nil, fmt.Errorf("create uploads dir failed: %w", err)
+	}
+
+	items := make([]TaskItem, 0, len(submission.Items))
 	for i, submitted := range submission.Items {
 		itemID := fmt.Sprintf("%d", i+1)
-		zipPath, name, err := saveSubmissionFile(uploadsDir, "zip", itemID, submitted.Zip)
+		_, name, err := saveSubmissionFile(ctx, uploadsDir, "zip", itemID, submitted.Zip)
 		if err != nil {
-			return Task{}, err
+			return nil, err
 		}
-
-		var awrPath string
 		if submitted.AWR != nil {
-			awrPath, _, err = saveSubmissionFile(uploadsDir, "awr", itemID, *submitted.AWR)
-			if err != nil {
-				return Task{}, err
+			if _, _, err := saveSubmissionFile(ctx, uploadsDir, "awr", itemID, *submitted.AWR); err != nil {
+				return nil, err
 			}
 		}
-
-		wdrPaths := make([]string, 0, len(submitted.WDRs))
-		for _, wdr := range submitted.WDRs {
-			path, _, err := saveSubmissionFile(uploadsDir, "wdr", wdrUploadID(itemID, len(wdrPaths)), wdr)
-			if err != nil {
-				return Task{}, err
+		for wdrIndex, wdr := range submitted.WDRs {
+			if _, _, err := saveSubmissionFile(ctx, uploadsDir, "wdr", wdrUploadID(itemID, wdrIndex), wdr); err != nil {
+				return nil, err
 			}
-			wdrPaths = append(wdrPaths, path)
 		}
-
-		items = append(items, ItemInput{
-			ID:       itemID,
-			Name:     name,
-			ZipPath:  zipPath,
-			AWRPath:  awrPath,
-			WDRPaths: wdrPaths,
-		})
+		items = append(items, TaskItem{ID: itemID, Name: name, Status: string(TaskQueued)})
 	}
-
-	l.enqueue(queuedTask{TaskID: task.ID, Items: items})
-	return task, nil
+	return items, nil
 }
 
 func (l *TaskLifecycle) Get(ctx context.Context, taskID string) (Task, error) {
@@ -296,38 +390,65 @@ func (l *TaskLifecycle) Watch(ctx context.Context, taskID string) (*TaskWatch, e
 	}, nil
 }
 
-func (l *TaskLifecycle) enqueue(task queuedTask) {
+func (l *TaskLifecycle) workerLoop(pipeline *Pipeline) {
+	defer l.finishWorker()
+	for {
+		task, found := l.nextQueuedTask()
+		if found {
+			if task.TaskID != "" {
+				l.runTask(pipeline, task)
+			}
+			continue
+		}
+
+		select {
+		case <-l.stop:
+			return
+		case <-l.wake:
+		}
+	}
+}
+
+func (l *TaskLifecycle) nextQueuedTask() (queuedTask, bool) {
+	task, found, err := l.store.FindNextQueued()
+	if err != nil || !found {
+		return queuedTask{}, false
+	}
+	items, err := loadTaskInputs(l.store.taskDir(task.ID), task)
+	if err != nil {
+		task.Status = TaskFailed
+		task.Error = fmt.Sprintf("queued task inputs unavailable: %v", err)
+		task.CurrentFile = ""
+		if _, updateErr := l.store.Update(task); updateErr == nil {
+			l.releaseAcceptedTask()
+			l.hub.emitError(task.ID, task.Error)
+		}
+		return queuedTask{}, true
+	}
+	return queuedTask{TaskID: task.ID, Items: items}, true
+}
+
+func (l *TaskLifecycle) signalDispatcher() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	l.signalDispatcherLocked()
+}
+
+func (l *TaskLifecycle) signalDispatcherLocked() {
 	if l.closed {
 		return
 	}
 	select {
-	case l.queue <- task:
+	case l.wake <- struct{}{}:
 	default:
-		// Queue full: drop on the floor but keep the task record.
-		// This should be rare under single-worker design.
 	}
 }
 
-func (l *TaskLifecycle) workerLoop(pipeline *Pipeline) {
-	defer l.finishWorker()
-	for {
-		select {
-		case <-l.stop:
-			return
-		default:
-		}
-
-		select {
-		case <-l.stop:
-			return
-		case task, ok := <-l.queue:
-			if !ok {
-				return
-			}
-			l.runTask(pipeline, task)
-		}
+func (l *TaskLifecycle) releaseAcceptedTask() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.acceptedUnfinished > 0 {
+		l.acceptedUnfinished--
 	}
 }
 
@@ -443,14 +564,20 @@ func (l *TaskLifecycle) runTask(pipeline *Pipeline, queued queuedTask) {
 		task.Status = TaskFailed
 		task.Error = err.Error()
 		task.CurrentFile = ""
-		_, _ = l.store.Update(task)
+		if _, updateErr := l.store.Update(task); updateErr != nil {
+			return
+		}
+		l.releaseAcceptedTask()
 		l.hub.emitError(task.ID, err.Error())
 		return
 	}
 
 	task.Status = TaskDone
 	task.CurrentFile = ""
-	_, _ = l.store.Update(task)
+	if _, err := l.store.Update(task); err != nil {
+		return
+	}
+	l.releaseAcceptedTask()
 	l.hub.emitDone(task.ID, fmt.Sprintf("/api/reports/download/%s", task.ID))
 }
 
@@ -488,7 +615,10 @@ func wdrUploadID(itemID string, existing int) string {
 	return fmt.Sprintf("%s-%d", itemID, existing+1)
 }
 
-func saveSubmissionFile(dir string, kind string, itemID string, file SubmissionFile) (string, string, error) {
+func saveSubmissionFile(ctx context.Context, dir string, kind string, itemID string, file SubmissionFile) (string, string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", "", err
+	}
 	name := filepath.Base(file.Name)
 	if file.Open == nil {
 		return "", "", invalidSubmission(errors.New("missing file"))
@@ -517,11 +647,41 @@ func saveSubmissionFile(dir string, kind string, itemID string, file SubmissionF
 	if err != nil {
 		return "", "", invalidSubmission(fmt.Errorf("save upload failed: %w", err))
 	}
-	defer dst.Close()
-	if _, err := io.Copy(dst, src); err != nil {
+	if err := copySubmissionFile(ctx, dst, src); err != nil {
+		_ = dst.Close()
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return "", "", ctxErr
+		}
+		return "", "", invalidSubmission(fmt.Errorf("save upload failed: %w", err))
+	}
+	if err := dst.Close(); err != nil {
 		return "", "", invalidSubmission(fmt.Errorf("save upload failed: %w", err))
 	}
 	return dstPath, name, nil
+}
+
+func copySubmissionFile(ctx context.Context, dst io.Writer, src io.Reader) error {
+	buf := make([]byte, 32*1024)
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		n, readErr := src.Read(buf)
+		if n > 0 {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if _, err := dst.Write(buf[:n]); err != nil {
+				return err
+			}
+		}
+		if readErr == io.EOF {
+			return nil
+		}
+		if readErr != nil {
+			return readErr
+		}
+	}
 }
 
 type invalidSubmissionError struct {

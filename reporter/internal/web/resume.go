@@ -14,6 +14,7 @@ func (l *TaskLifecycle) resumeTasks() {
 	if err != nil {
 		return
 	}
+	resumed := false
 	for _, id := range ids {
 		task, err := l.store.Load(id)
 		if err != nil {
@@ -22,7 +23,7 @@ func (l *TaskLifecycle) resumeTasks() {
 		if task.Status != TaskQueued && task.Status != TaskProcessing {
 			continue
 		}
-		items, err := loadTaskInputs(l.store.taskDir(task.ID), task)
+		_, err = loadTaskInputs(l.store.taskDir(task.ID), task)
 		if err != nil {
 			task.Status = TaskFailed
 			task.Error = fmt.Sprintf("resume failed: %v", err)
@@ -31,8 +32,18 @@ func (l *TaskLifecycle) resumeTasks() {
 			l.hub.emitError(task.ID, task.Error)
 			continue
 		}
-		l.enqueue(queuedTask{TaskID: task.ID, Items: items})
+		if task.Status == TaskProcessing {
+			task.Status = TaskQueued
+			task.CurrentFile = ""
+			if _, err := l.store.Update(task); err != nil {
+				continue
+			}
+		}
+		resumed = true
 		l.hub.emitLog(task.ID, "info", "服务重启，任务已恢复到队列")
+	}
+	if resumed {
+		l.signalDispatcher()
 	}
 }
 
