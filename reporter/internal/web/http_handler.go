@@ -126,8 +126,8 @@ func (h *apiHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusRequestEntityTooLarge, err.Error())
 		case errors.Is(err, ErrInvalidSubmission):
 			writeError(w, http.StatusBadRequest, err.Error())
-		case errors.Is(err, ErrLifecycleClosed):
-			writeError(w, http.StatusServiceUnavailable, "service shutting down")
+		case errors.Is(err, ErrLifecycleClosed), errors.Is(err, ErrLifecycleNotReady):
+			writeError(w, http.StatusServiceUnavailable, "service unavailable")
 		default:
 			writeError(w, http.StatusInternalServerError, err.Error())
 		}

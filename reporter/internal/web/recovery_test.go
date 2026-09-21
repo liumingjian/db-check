@@ -32,6 +32,18 @@ func TestTaskLifecycleStartRejectsSecondWriterBeforeRecovery(t *testing.T) {
 	if !errors.Is(err, ErrDataDirInUse) {
 		t.Fatalf("second writer error=%v, want ErrDataDirInUse", err)
 	}
+	secondMaterialized := false
+	if _, err := second.Submit(context.Background(), SubmissionRequest{
+		Materialize: func(context.Context) (ReportSubmission, error) {
+			secondMaterialized = true
+			return testSubmission("second.zip", "second"), nil
+		},
+	}); !errors.Is(err, ErrLifecycleNotReady) {
+		t.Fatalf("submit after second-writer startup failure error=%v, want ErrLifecycleNotReady", err)
+	}
+	if secondMaterialized {
+		t.Fatal("failed second writer materialized a submission")
+	}
 	if _, err := os.Stat(abandoned); err != nil {
 		t.Fatalf("second writer cleaned staging before rejecting startup: %v", err)
 	}
@@ -207,6 +219,21 @@ func TestTaskLifecycleRecoveryFaultsAreTruthful(t *testing.T) {
 		if pipelineCreated {
 			t.Fatal("worker pipeline was created after corrupt metadata")
 		}
+		materialized := false
+		if _, err := lifecycle.Submit(context.Background(), SubmissionRequest{
+			Materialize: func(context.Context) (ReportSubmission, error) {
+				materialized = true
+				return testSubmission("new.zip", "new"), nil
+			},
+		}); !errors.Is(err, ErrLifecycleNotReady) {
+			t.Fatalf("submit after corrupt startup error=%v, want ErrLifecycleNotReady", err)
+		}
+		if materialized {
+			t.Fatal("failed startup materialized a submission")
+		}
+		if _, err := os.Stat(lifecycle.store.stagingDir()); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("failed startup created submission staging: %v", err)
+		}
 	})
 
 	t.Run("missing required input persists task failure", func(t *testing.T) {
@@ -298,6 +325,73 @@ func TestTaskLifecycleRecoveryFaultsAreTruthful(t *testing.T) {
 			t.Fatalf("task reported an unsaved failure: %#v", task)
 		}
 	})
+}
+
+func TestTaskLifecycleRejectsPreStartSubmissionWithoutMutatingTasks(t *testing.T) {
+	lifecycle := newRecoveryTestLifecycle(t, t.TempDir(), 1, controlledRecoveryPipeline)
+	defer closeRecoveryTestLifecycle(t, lifecycle)
+
+	materialized := false
+	if _, err := lifecycle.Submit(context.Background(), SubmissionRequest{
+		Materialize: func(context.Context) (ReportSubmission, error) {
+			materialized = true
+			return testSubmission("new.zip", "new"), nil
+		},
+	}); !errors.Is(err, ErrLifecycleNotReady) {
+		t.Fatalf("pre-start submit error=%v, want ErrLifecycleNotReady", err)
+	}
+	if materialized {
+		t.Fatal("pre-start submission materialized input")
+	}
+	assertNoPublishedTasks(t, lifecycle.store)
+	if _, err := os.Stat(lifecycle.store.stagingDir()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("pre-start submission created staging: %v", err)
+	}
+}
+
+func TestTaskLifecycleCloseDuringStartupReleasesWriterLock(t *testing.T) {
+	dataDir := t.TempDir()
+	factoryEntered := make(chan struct{})
+	releaseFactory := make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() {
+		releaseOnce.Do(func() { close(releaseFactory) })
+	}
+	defer release()
+
+	lifecycle := newRecoveryTestLifecycle(t, dataDir, 1, func() (*Pipeline, error) {
+		close(factoryEntered)
+		<-releaseFactory
+		return controlledLifecyclePipeline(), nil
+	})
+	startResult := make(chan error, 1)
+	go func() { startResult <- lifecycle.Start(context.Background()) }()
+	select {
+	case <-factoryEntered:
+	case <-time.After(time.Second):
+		t.Fatal("startup did not reach pipeline creation")
+	}
+
+	closeResult := make(chan error, 1)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		closeResult <- lifecycle.Close(ctx)
+	}()
+	waitForLifecycleStop(t, lifecycle)
+	release()
+	if err := <-startResult; !errors.Is(err, ErrLifecycleClosed) {
+		t.Fatalf("Start after concurrent Close error=%v, want ErrLifecycleClosed", err)
+	}
+	if err := <-closeResult; err != nil {
+		t.Fatalf("Close during startup failed: %v", err)
+	}
+
+	next := newRecoveryTestLifecycle(t, dataDir, 1, controlledRecoveryPipeline)
+	if err := next.Start(context.Background()); err != nil {
+		t.Fatalf("writer lock was not released after concurrent Close: %v", err)
+	}
+	defer closeRecoveryTestLifecycle(t, next)
 }
 
 func TestTaskLifecycleCloseLeavesUnfinishedTaskForRecovery(t *testing.T) {

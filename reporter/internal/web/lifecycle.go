@@ -16,6 +16,7 @@ import (
 
 var (
 	ErrLifecycleClosed   = errors.New("task lifecycle is closed")
+	ErrLifecycleNotReady = errors.New("task lifecycle is not ready")
 	ErrTaskNotFinished   = errors.New("task not finished")
 	ErrInvalidSubmission = errors.New("invalid report submission")
 	ErrTaskCapacity      = errors.New("report task capacity exhausted")
@@ -79,6 +80,7 @@ type TaskLifecycle struct {
 
 	mu                 sync.Mutex
 	started            bool
+	ready              bool
 	closed             bool
 	reservations       int
 	acceptedUnfinished int
@@ -88,9 +90,11 @@ type TaskLifecycle struct {
 	closeOnce          sync.Once
 	lockReleaseOnce    sync.Once
 	shutdownOnce       sync.Once
+	startupOnce        sync.Once
 	writerLock         writerLock
 
 	stop          chan struct{}
+	startupDone   chan struct{}
 	workerDone    chan struct{}
 	retentionDone chan struct{}
 	workerOnce    sync.Once
@@ -130,6 +134,7 @@ func newTaskLifecycle(cfg Config, newPipeline pipelineFactory) (*TaskLifecycle, 
 		newPipeline:       newPipeline,
 		nextAcceptedOrder: 1,
 		stop:              make(chan struct{}),
+		startupDone:       make(chan struct{}),
 		workerDone:        make(chan struct{}),
 		retentionDone:     make(chan struct{}),
 	}, nil
@@ -137,6 +142,7 @@ func newTaskLifecycle(cfg Config, newPipeline pipelineFactory) (*TaskLifecycle, 
 
 func (l *TaskLifecycle) Start(ctx context.Context) error {
 	l.startOnce.Do(func() {
+		defer l.finishStartup()
 		if err := ctx.Err(); err != nil {
 			l.failStart(err)
 			return
@@ -184,12 +190,13 @@ func (l *TaskLifecycle) Start(ctx context.Context) error {
 			return
 		}
 		l.mu.Lock()
-		closed = l.closed
-		l.mu.Unlock()
-		if closed {
+		if l.closed {
+			l.mu.Unlock()
 			l.failStart(ErrLifecycleClosed)
 			return
 		}
+		l.ready = true
+		l.mu.Unlock()
 
 		l.startRetentionCleanup()
 		go l.workerLoop(pipeline)
@@ -198,6 +205,9 @@ func (l *TaskLifecycle) Start(ctx context.Context) error {
 }
 
 func (l *TaskLifecycle) failStart(err error) {
+	l.mu.Lock()
+	l.ready = false
+	l.mu.Unlock()
 	l.startErr = err
 	l.releaseWriterLock()
 	l.finishWorker()
@@ -208,11 +218,13 @@ func (l *TaskLifecycle) Close(ctx context.Context) error {
 	l.closeOnce.Do(func() {
 		l.mu.Lock()
 		l.closed = true
+		l.ready = false
 		started := l.started
 		close(l.stop)
 		l.mu.Unlock()
 
 		if !started {
+			l.finishStartup()
 			l.finishWorker()
 			l.finishRetention()
 		}
@@ -232,9 +244,16 @@ func (l *TaskLifecycle) Close(ctx context.Context) error {
 }
 
 func (l *TaskLifecycle) releaseWriterLockWhenStopped() {
+	<-l.startupDone
 	<-l.workerDone
 	<-l.retentionDone
 	l.releaseWriterLock()
+}
+
+func (l *TaskLifecycle) finishStartup() {
+	l.startupOnce.Do(func() {
+		close(l.startupDone)
+	})
 }
 
 func (l *TaskLifecycle) releaseWriterLock() {
@@ -329,6 +348,9 @@ func (l *TaskLifecycle) reserveSubmission() error {
 	if l.closed {
 		return ErrLifecycleClosed
 	}
+	if !l.ready {
+		return ErrLifecycleNotReady
+	}
 	if l.acceptedUnfinished+l.reservations >= l.cfg.MaxAcceptedTasks {
 		return ErrTaskCapacity
 	}
@@ -349,6 +371,9 @@ func (l *TaskLifecycle) publishSubmission(ctx context.Context, stagingDir string
 	defer l.mu.Unlock()
 	if l.closed {
 		return Task{}, ErrLifecycleClosed
+	}
+	if !l.ready {
+		return Task{}, ErrLifecycleNotReady
 	}
 	if err := ctx.Err(); err != nil {
 		return Task{}, err
