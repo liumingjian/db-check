@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 )
@@ -81,6 +80,9 @@ func (l *TaskLifecycle) submitKeyed(ctx context.Context, request SubmissionReque
 func (l *TaskLifecycle) beginKeyedSubmission(key string) (*retainedSubmission, *keyedSubmissionFlight, bool, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.storageFault != nil {
+		return nil, nil, false, ErrStorageUnavailable
+	}
 	if l.closed {
 		return nil, nil, false, ErrLifecycleClosed
 	}
@@ -116,6 +118,9 @@ func (l *TaskLifecycle) finishKeyedSubmission(key string, flight *keyedSubmissio
 func (l *TaskLifecycle) acquireRetainedSubmission(key string) (*retainedSubmission, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.storageFault != nil {
+		return nil, ErrStorageUnavailable
+	}
 	if l.closed {
 		return nil, ErrLifecycleClosed
 	}
@@ -148,6 +153,9 @@ func (l *TaskLifecycle) loadRetainedSubmission(key string, retained *retainedSub
 	}
 	task, err := l.store.Load(retained.taskID)
 	if err != nil {
+		if isTaskReadFailure(err) {
+			return Task{}, l.pauseForStorage(err)
+		}
 		return Task{}, err
 	}
 	return task, nil
@@ -178,9 +186,13 @@ func (l *TaskLifecycle) probeSubmission(ctx context.Context, request SubmissionR
 	}
 	stagingDir, err := l.store.CreateStaging(probeID)
 	if err != nil {
-		return "", err
+		return "", l.pauseForStorage(err)
 	}
-	defer func() { _ = os.RemoveAll(stagingDir) }()
+	defer func() {
+		if cleanupErr := l.store.removeAll(stagingDir); cleanupErr != nil {
+			err = l.pauseForStorage(fmt.Errorf("remove staged probe: %w", cleanupErr))
+		}
+	}()
 
 	submission, err := request.Materialize(ctx)
 	if err != nil {
@@ -190,6 +202,9 @@ func (l *TaskLifecycle) probeSubmission(ctx context.Context, request SubmissionR
 		return "", err
 	}
 	_, digest, err = stageSubmission(ctx, stagingDir, submission)
+	if isSubmissionStorageError(err) {
+		return "", l.pauseForStorage(err)
+	}
 	return digest, err
 }
 
@@ -231,11 +246,28 @@ func (l *TaskLifecycle) cleanupExpiredRetainedTasks(now func() time.Time) (int, 
 		now = time.Now
 	}
 
+	newStorageFault := false
 	l.mu.Lock()
-	defer l.mu.Unlock()
+	defer func() {
+		l.mu.Unlock()
+		if newStorageFault {
+			l.signalDispatcher()
+			l.hub.closeSubscribers()
+		}
+	}()
+	if l.storageFault != nil {
+		return 0, ErrStorageUnavailable
+	}
+	if l.closed {
+		return 0, ErrLifecycleClosed
+	}
+	if !l.ready {
+		return 0, ErrLifecycleNotReady
+	}
 	tasks, err := l.store.ListTasks()
 	if err != nil {
-		return 0, err
+		newStorageFault = l.pauseForStorageLocked()
+		return 0, ErrStorageUnavailable
 	}
 
 	cutoff := now().Add(-l.cfg.RetentionTTL)
@@ -253,8 +285,9 @@ func (l *TaskLifecycle) cleanupExpiredRetainedTasks(now func() time.Time) (int, 
 		if retained != nil && retained.taskID == task.ID && retained.leases > 0 {
 			continue
 		}
-		if err := os.RemoveAll(l.store.taskDir(task.ID)); err != nil {
-			return deleted, fmt.Errorf("remove task dir failed: %w", err)
+		if err := l.store.removeAll(l.store.taskDir(task.ID)); err != nil {
+			newStorageFault = l.pauseForStorageLocked()
+			return deleted, ErrStorageUnavailable
 		}
 		if retained != nil && retained.taskID == task.ID {
 			delete(l.keyIndex, key)

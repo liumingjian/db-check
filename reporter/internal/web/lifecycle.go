@@ -83,6 +83,7 @@ type TaskLifecycle struct {
 	started            bool
 	ready              bool
 	closed             bool
+	storageFault       *StorageFault
 	reservations       int
 	acceptedUnfinished int
 	nextAcceptedOrder  uint64
@@ -312,6 +313,9 @@ func (l *TaskLifecycle) Submit(ctx context.Context, request SubmissionRequest) (
 func (l *TaskLifecycle) requireReady() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.storageFault != nil {
+		return ErrStorageUnavailable
+	}
 	if l.closed {
 		return ErrLifecycleClosed
 	}
@@ -337,7 +341,9 @@ func (l *TaskLifecycle) submitReserved(ctx context.Context, request SubmissionRe
 			return
 		}
 		if stagingDir != "" {
-			_ = os.RemoveAll(stagingDir)
+			if cleanupErr := l.store.removeAll(stagingDir); cleanupErr != nil {
+				err = l.pauseForStorage(fmt.Errorf("remove staged submission: %w", cleanupErr))
+			}
 		}
 		if reserved {
 			l.releaseReservation()
@@ -350,7 +356,7 @@ func (l *TaskLifecycle) submitReserved(ctx context.Context, request SubmissionRe
 	}
 	stagingDir, err = l.store.CreateStaging(taskID)
 	if err != nil {
-		return Task{}, err
+		return Task{}, l.pauseForStorage(err)
 	}
 
 	submission, err := request.Materialize(ctx)
@@ -362,6 +368,9 @@ func (l *TaskLifecycle) submitReserved(ctx context.Context, request SubmissionRe
 	}
 	taskItems, digest, err := stageSubmission(ctx, stagingDir, submission)
 	if err != nil {
+		if isSubmissionStorageError(err) {
+			return Task{}, l.pauseForStorage(err)
+		}
 		return Task{}, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -398,6 +407,9 @@ func (l *TaskLifecycle) submitReserved(ctx context.Context, request SubmissionRe
 func (l *TaskLifecycle) reserveSubmission() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.storageFault != nil {
+		return ErrStorageUnavailable
+	}
 	if l.closed {
 		return ErrLifecycleClosed
 	}
@@ -420,8 +432,18 @@ func (l *TaskLifecycle) releaseReservation() {
 }
 
 func (l *TaskLifecycle) publishSubmission(ctx context.Context, stagingDir string, task Task, afterPublish func(Task)) (Task, error) {
+	newStorageFault := false
 	l.mu.Lock()
-	defer l.mu.Unlock()
+	defer func() {
+		l.mu.Unlock()
+		if newStorageFault {
+			l.signalDispatcher()
+			l.hub.closeSubscribers()
+		}
+	}()
+	if l.storageFault != nil {
+		return Task{}, ErrStorageUnavailable
+	}
 	if l.closed {
 		return Task{}, ErrLifecycleClosed
 	}
@@ -438,13 +460,15 @@ func (l *TaskLifecycle) publishSubmission(ctx context.Context, stagingDir string
 	task.CreatedAt = acceptedAt
 	task.UpdatedAt = acceptedAt
 	if err := l.store.WriteStagedTask(stagingDir, task); err != nil {
-		return Task{}, err
+		newStorageFault = l.pauseForStorageLocked()
+		return Task{}, ErrStorageUnavailable
 	}
 	if err := ctx.Err(); err != nil {
 		return Task{}, err
 	}
 	if err := l.store.Publish(stagingDir, task.ID); err != nil {
-		return Task{}, err
+		newStorageFault = l.pauseForStorageLocked()
+		return Task{}, ErrStorageUnavailable
 	}
 	if afterPublish != nil {
 		afterPublish(task)
@@ -463,7 +487,7 @@ func stageSubmission(ctx context.Context, stagingDir string, submission ReportSu
 	}
 	uploadsDir := filepath.Join(stagingDir, "uploads")
 	if err := os.MkdirAll(uploadsDir, 0o755); err != nil {
-		return nil, "", fmt.Errorf("create uploads dir failed: %w", err)
+		return nil, "", submissionStorageFailure(fmt.Errorf("create uploads dir failed: %w", err))
 	}
 
 	digest := newSubmissionDigest()
@@ -517,12 +541,15 @@ func (l *TaskLifecycle) Read(ctx context.Context, taskID string) (TaskSnapshot, 
 		return l.store.Load(taskID)
 	})
 	if err != nil {
+		if isTaskReadFailure(err) {
+			_ = l.pauseForStorage(err)
+		}
 		return TaskSnapshot{}, err
 	}
 	if err := ctx.Err(); err != nil {
 		return TaskSnapshot{}, err
 	}
-	return newTaskSnapshot(task, version), nil
+	return newTaskSnapshot(task, version, l.storageFaultSnapshot()), nil
 }
 
 func (l *TaskLifecycle) Download(ctx context.Context, taskID string) (path string, size int64, err error) {
@@ -550,6 +577,9 @@ func (l *TaskLifecycle) Watch(ctx context.Context, taskID string) (*TaskWatch, e
 		return l.store.Load(taskID)
 	})
 	if err != nil {
+		if isTaskReadFailure(err) {
+			_ = l.pauseForStorage(err)
+		}
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -557,7 +587,7 @@ func (l *TaskLifecycle) Watch(ctx context.Context, taskID string) (*TaskWatch, e
 		return nil, err
 	}
 	return &TaskWatch{
-		Snapshot: newTaskSnapshot(task, version),
+		Snapshot: newTaskSnapshot(task, version, l.storageFaultSnapshot()),
 		Logs:     logs,
 		Updates:  updates,
 		Overflow: overflow,
@@ -568,7 +598,7 @@ func (l *TaskLifecycle) Watch(ctx context.Context, taskID string) (*TaskWatch, e
 func (l *TaskLifecycle) workerLoop(pipeline *Pipeline) {
 	defer l.finishWorker()
 	for {
-		if l.stopping() {
+		if l.stopping() || l.hasStorageFault() {
 			return
 		}
 		task, found := l.nextQueuedTask()
@@ -598,7 +628,11 @@ func (l *TaskLifecycle) stopping() bool {
 
 func (l *TaskLifecycle) nextQueuedTask() (queuedTask, bool) {
 	task, found, err := l.store.FindNextQueued()
-	if err != nil || !found {
+	if err != nil {
+		_ = l.pauseForStorage(err)
+		return queuedTask{}, false
+	}
+	if !found {
 		return queuedTask{}, false
 	}
 	items, err := loadTaskInputs(l.store.taskDir(task.ID), task)
@@ -606,9 +640,9 @@ func (l *TaskLifecycle) nextQueuedTask() (queuedTask, bool) {
 		task.Status = TaskFailed
 		task.Error = fmt.Sprintf("queued task inputs unavailable: %v", err)
 		task.CurrentFile = ""
-		if _, updateErr := l.store.Update(task); updateErr == nil {
+		if _, updateErr := l.persistTask(task); updateErr == nil {
 			l.releaseAcceptedTask()
-			l.hub.emitError(task.ID, task.Error)
+			l.emitError(task.ID, task.Error)
 		}
 		return queuedTask{}, true
 	}
@@ -669,11 +703,14 @@ func (l *TaskLifecycle) startRetentionCleanup() {
 }
 
 func (l *TaskLifecycle) runTask(pipeline *Pipeline, queued queuedTask) {
-	if l.stopping() {
+	if l.stopping() || l.hasStorageFault() {
 		return
 	}
 	task, err := l.store.Load(queued.TaskID)
 	if err != nil {
+		if isTaskReadFailure(err) {
+			_ = l.pauseForStorage(err)
+		}
 		return
 	}
 	task.Status = TaskProcessing
@@ -698,11 +735,15 @@ func (l *TaskLifecycle) runTask(pipeline *Pipeline, queued queuedTask) {
 	}
 	task.Completed = countProcessed(task.Items)
 	task.CurrentFile = ""
-	_, _ = l.store.Update(task)
+	updated, err := l.persistTask(task)
+	if err != nil {
+		return
+	}
+	task = updated
 
 	taskDir := l.store.taskDir(task.ID)
 	for i, input := range queued.Items {
-		if l.stopping() {
+		if l.stopping() || l.hasStorageFault() {
 			return
 		}
 		// Resume: skip items already completed in a previous run.
@@ -713,9 +754,13 @@ func (l *TaskLifecycle) runTask(pipeline *Pipeline, queued queuedTask) {
 		}
 
 		task.CurrentFile = input.Name
-		_, _ = l.store.Update(task)
+		updated, err := l.persistTask(task)
+		if err != nil {
+			return
+		}
+		task = updated
 
-		l.hub.emitLog(task.ID, "info", fmt.Sprintf("开始处理 %s", input.Name))
+		l.emitLog(task.ID, "info", fmt.Sprintf("开始处理 %s", input.Name))
 		result := pipeline.runOne(taskDir, input, func(itemID string, ev LogEvent) {
 			level := "info"
 			if ev.Stream == LogStderr {
@@ -725,21 +770,26 @@ func (l *TaskLifecycle) runTask(pipeline *Pipeline, queued queuedTask) {
 			if input.Name != "" {
 				msg = fmt.Sprintf("[%s] %s", input.Name, msg)
 			}
-			l.hub.emitLog(task.ID, level, msg)
+			l.emitLog(task.ID, level, msg)
 		})
 		if i < len(task.Items) && task.Items[i].ID == result.ID {
 			task.Items[i].Status = string(result.Status)
 			task.Items[i].Error = result.Error
 			task.Items[i].ReportDocx = result.ReportDocx
 		}
-		if result.Status == ItemFailed {
-			l.hub.emitLog(task.ID, "error", fmt.Sprintf("[%s] 处理失败: %s", input.Name, result.Error))
-		}
 		task.Completed = countProcessed(task.Items)
-		_, _ = l.store.Update(task)
+		updated, err = l.persistTask(task)
+		if err != nil {
+			return
+		}
+		task = updated
 
-		l.hub.emitProgress(task.ID, task.Completed, task.Total, task.CurrentFile)
-		if l.stopping() {
+		if result.Status == ItemFailed {
+			l.emitLog(task.ID, "error", fmt.Sprintf("[%s] 处理失败: %s", input.Name, result.Error))
+		}
+
+		l.emitProgress(task.ID, task.Completed, task.Total, task.CurrentFile)
+		if l.stopping() || l.hasStorageFault() {
 			return
 		}
 	}
@@ -761,9 +811,9 @@ func (l *TaskLifecycle) runTask(pipeline *Pipeline, queued queuedTask) {
 		task.Status = TaskFailed
 		task.Error = fmt.Sprintf("completed report artifacts unavailable: %v", err)
 		task.CurrentFile = ""
-		if _, updateErr := l.store.Update(task); updateErr == nil {
+		if _, updateErr := l.persistTask(task); updateErr == nil {
 			l.releaseAcceptedTask()
-			l.hub.emitError(task.ID, task.Error)
+			l.emitError(task.ID, task.Error)
 		}
 		return
 	}
@@ -773,21 +823,49 @@ func (l *TaskLifecycle) runTask(pipeline *Pipeline, queued queuedTask) {
 		task.Status = TaskFailed
 		task.Error = err.Error()
 		task.CurrentFile = ""
-		if _, updateErr := l.store.Update(task); updateErr != nil {
+		if _, updateErr := l.persistTask(task); updateErr != nil {
 			return
 		}
 		l.releaseAcceptedTask()
-		l.hub.emitError(task.ID, err.Error())
+		l.emitError(task.ID, err.Error())
 		return
 	}
 
 	task.Status = TaskDone
 	task.CurrentFile = ""
-	if _, err := l.store.Update(task); err != nil {
+	if _, err := l.persistTask(task); err != nil {
 		return
 	}
 	l.releaseAcceptedTask()
-	l.hub.emitDone(task.ID, fmt.Sprintf("/api/reports/download/%s", task.ID))
+	l.emitDone(task.ID, fmt.Sprintf("/api/reports/download/%s", task.ID))
+}
+
+func (l *TaskLifecycle) emitLog(taskID string, level string, message string) {
+	if l.hasStorageFault() {
+		return
+	}
+	l.hub.emitLog(taskID, level, message)
+}
+
+func (l *TaskLifecycle) emitProgress(taskID string, completed int, total int, currentFile string) {
+	if l.hasStorageFault() {
+		return
+	}
+	l.hub.emitProgress(taskID, completed, total, currentFile)
+}
+
+func (l *TaskLifecycle) emitDone(taskID string, downloadURL string) {
+	if l.hasStorageFault() {
+		return
+	}
+	l.hub.emitDone(taskID, downloadURL)
+}
+
+func (l *TaskLifecycle) emitError(taskID string, message string) {
+	if l.hasStorageFault() {
+		return
+	}
+	l.hub.emitError(taskID, message)
 }
 
 func (l *TaskLifecycle) finishWorker() {
@@ -854,7 +932,7 @@ func saveSubmissionFile(ctx context.Context, dir string, kind string, itemID str
 	dstPath := filepath.Join(dir, dstName)
 	dst, err := os.OpenFile(dstPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
 	if err != nil {
-		return "", "", nil, invalidSubmission(fmt.Errorf("save upload failed: %w", err))
+		return "", "", nil, submissionStorageFailure(fmt.Errorf("save upload failed: %w", err))
 	}
 	contentHash := sha256.New()
 	if err := copySubmissionFile(ctx, io.MultiWriter(dst, contentHash), src); err != nil {
@@ -862,10 +940,13 @@ func saveSubmissionFile(ctx context.Context, dir string, kind string, itemID str
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return "", "", nil, ctxErr
 		}
+		if isSubmissionStorageError(err) {
+			return "", "", nil, err
+		}
 		return "", "", nil, invalidSubmission(fmt.Errorf("save upload failed: %w", err))
 	}
 	if err := dst.Close(); err != nil {
-		return "", "", nil, invalidSubmission(fmt.Errorf("save upload failed: %w", err))
+		return "", "", nil, submissionStorageFailure(fmt.Errorf("save upload failed: %w", err))
 	}
 	return dstPath, name, contentHash.Sum(nil), nil
 }
@@ -882,7 +963,7 @@ func copySubmissionFile(ctx context.Context, dst io.Writer, src io.Reader) error
 				return err
 			}
 			if _, err := dst.Write(buf[:n]); err != nil {
-				return err
+				return submissionStorageFailure(err)
 			}
 		}
 		if readErr == io.EOF {
@@ -896,6 +977,27 @@ func copySubmissionFile(ctx context.Context, dst io.Writer, src io.Reader) error
 
 type invalidSubmissionError struct {
 	err error
+}
+
+type submissionStorageError struct {
+	err error
+}
+
+func (e submissionStorageError) Error() string {
+	return e.err.Error()
+}
+
+func (e submissionStorageError) Unwrap() error {
+	return e.err
+}
+
+func submissionStorageFailure(err error) error {
+	return submissionStorageError{err: err}
+}
+
+func isSubmissionStorageError(err error) bool {
+	var storageErr submissionStorageError
+	return errors.As(err, &storageErr)
 }
 
 func (e invalidSubmissionError) Error() string {
