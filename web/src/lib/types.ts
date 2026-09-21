@@ -76,6 +76,11 @@ export interface ReportTaskItemSnapshot {
   report_docx?: string;
 }
 
+export interface StorageFault {
+  code: "storage_unavailable";
+  message: string;
+}
+
 export interface ReportTaskSnapshot {
   task_id: string;
   status: string;
@@ -86,6 +91,7 @@ export interface ReportTaskSnapshot {
   error?: string;
   items?: ReportTaskItemSnapshot[];
   download_url?: string;
+  storage_fault?: StorageFault;
   [field: string]: unknown;
 }
 

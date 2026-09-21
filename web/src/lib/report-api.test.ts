@@ -50,6 +50,32 @@ describe("generateReportTask", () => {
     });
   });
 
+  it("keeps a storage fault distinct from a capacity response", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("", { status: 404 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: "storage_unavailable",
+            error: "report task storage is unavailable",
+          }),
+          {
+            status: 503,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      generateReportTask("token", "mysql", [zipFile], {}),
+    ).rejects.toMatchObject<Partial<ReportAPIError>>({
+      code: "storage_unavailable",
+      status: 503,
+    });
+  });
+
   it("sends the retained submission key on a retry", async () => {
     const fetchMock = vi
       .fn()
@@ -88,6 +114,10 @@ describe("generateReportTask", () => {
           completed: 0,
           current_file: "collector.zip",
           version: 4,
+          storage_fault: {
+            code: "storage_unavailable",
+            message: "report task storage is unavailable",
+          },
           future_field: "kept",
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
@@ -100,6 +130,9 @@ describe("generateReportTask", () => {
     expect(snapshot).toMatchObject({
       task_id: "task-1",
       version: 4,
+      storage_fault: {
+        code: "storage_unavailable",
+      },
       future_field: "kept",
     });
     expect(fetchMock.mock.calls[0]?.[0]).toContain("task%2F1");

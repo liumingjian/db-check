@@ -8,6 +8,15 @@ import type {
 
 const BACKEND_PROBE_TASK_ID = "frontend-probe";
 
+export const REPORT_API_ERROR_CODES = {
+  capacityExhausted: "capacity_exhausted",
+  idempotencyKeyConflict: "idempotency_key_conflict",
+  storageUnavailable: "storage_unavailable",
+} as const;
+
+export type ReportAPIErrorCode =
+  (typeof REPORT_API_ERROR_CODES)[keyof typeof REPORT_API_ERROR_CODES];
+
 export class ReportAPIError extends Error {
   readonly status: number;
   readonly code?: string;
@@ -43,6 +52,13 @@ type ErrorDetails = {
   message: string;
   code?: string;
 };
+
+export function isReportAPIErrorCode<Code extends ReportAPIErrorCode>(
+  error: unknown,
+  code: Code,
+): error is ReportAPIError & { code: Code } {
+  return error instanceof ReportAPIError && error.code === code;
+}
 
 async function readErrorDetails(resp: Response): Promise<ErrorDetails> {
   const text = await resp.text().catch(() => "");

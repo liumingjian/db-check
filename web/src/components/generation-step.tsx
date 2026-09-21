@@ -8,16 +8,16 @@ import {
   downloadReportBlob,
   generateReportTask,
   getReportTaskStatus,
-  ReportAPIError,
+  REPORT_API_ERROR_CODES,
+  isReportAPIErrorCode,
 } from "@/lib/report-api";
 import { API_BASE_HINT, DEFAULT_API_TOKEN } from "@/lib/web-defaults";
-import type { ReportTaskSnapshot, WsMessage } from "@/lib/types";
+import type { ReportTaskSnapshot, StorageFault, WsMessage } from "@/lib/types";
 
 const TOKEN_STORAGE_KEY = "dbcheck_api_token";
 const TASK_STORAGE_KEY = "dbcheck_task_id";
 const RECONNECT_DELAY_MS = 1_000;
 const STATUS_POLL_INTERVAL_MS = 15_000;
-
 function generateLogId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -62,6 +62,7 @@ export function GenerationStep() {
   const snapshotTaskIDRef = useRef<string | null>(null);
   const statusWarningShownRef = useRef(false);
   const terminalErrorRef = useRef<string | null>(null);
+  const storageFaultRef = useRef<StorageFault | null>(null);
 
   const [apiBaseInput, setApiBaseInput] = useState("");
   const [tokenInput, setTokenInput] = useState(DEFAULT_API_TOKEN);
@@ -71,6 +72,7 @@ export function GenerationStep() {
   const [storageHydrated, setStorageHydrated] = useState(false);
   const [isLiveDisconnected, setLiveDisconnected] = useState(false);
   const [taskSnapshot, setTaskSnapshot] = useState<ReportTaskSnapshot | null>(null);
+  const [storageFault, setStorageFault] = useState<StorageFault | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -105,6 +107,12 @@ export function GenerationStep() {
 
   const applySnapshot = useCallback(
     (snapshot: ReportTaskSnapshot): boolean => {
+      const incomingStorageFault = snapshot.storage_fault ?? null;
+      if (incomingStorageFault) {
+        storageFaultRef.current = incomingStorageFault;
+        setStorageFault(incomingStorageFault);
+        setBusyMessage(null);
+      }
       if (snapshotTaskIDRef.current !== snapshot.task_id) {
         snapshotTaskIDRef.current = snapshot.task_id;
         taskVersionRef.current = -1;
@@ -113,6 +121,8 @@ export function GenerationStep() {
         return isCompleteRef.current;
       }
       taskVersionRef.current = snapshot.version;
+      storageFaultRef.current = incomingStorageFault;
+      setStorageFault(incomingStorageFault);
       setTaskSnapshot(snapshot);
       setTaskId(snapshot.task_id);
       if (typeof window !== "undefined") {
@@ -130,7 +140,7 @@ export function GenerationStep() {
       hasErrorRef.current = failed;
       setComplete(terminal);
       setHasError(failed);
-      setGenerating(!terminal);
+      setGenerating(!terminal && !incomingStorageFault);
 
       if (snapshot.download_url) {
         setDownloadUrl(snapshot.download_url);
@@ -247,7 +257,7 @@ export function GenerationStep() {
               });
               break;
             case "progress":
-              if (message.seq <= taskVersionRef.current) return;
+              if (storageFaultRef.current || message.seq <= taskVersionRef.current) return;
               taskVersionRef.current = message.seq;
               setProgress({
                 completed: message.completed,
@@ -258,7 +268,9 @@ export function GenerationStep() {
             case "done":
             case "error":
               // Notifications are advisory. Re-read durable state before showing a terminal outcome.
-              void refreshTask();
+              if (!storageFaultRef.current) {
+                void refreshTask();
+              }
               break;
           }
         } catch (e) {
@@ -302,6 +314,8 @@ export function GenerationStep() {
 
     const total = zipFiles.length;
     setBusyMessage(null);
+    storageFaultRef.current = null;
+    setStorageFault(null);
     setTaskSnapshot(null);
     setLiveDisconnected(false);
     taskVersionRef.current = -1;
@@ -327,8 +341,18 @@ export function GenerationStep() {
         }
       } catch (e) {
         if (cancelled) return;
-        if (e instanceof ReportAPIError && e.code === "capacity_exhausted") {
+        if (isReportAPIErrorCode(e, REPORT_API_ERROR_CODES.capacityExhausted)) {
           setBusyMessage("服务当前任务已满。已保留所选文件，请在稍后手动重试。");
+          setGenerating(false);
+          return;
+        }
+        if (isReportAPIErrorCode(e, REPORT_API_ERROR_CODES.storageUnavailable)) {
+          const fault: StorageFault = {
+            code: REPORT_API_ERROR_CODES.storageUnavailable,
+            message: "任务存储暂时不可用。",
+          };
+          storageFaultRef.current = fault;
+          setStorageFault(fault);
           setGenerating(false);
           return;
         }
@@ -372,6 +396,8 @@ export function GenerationStep() {
     isCompleteRef.current = false;
     hasErrorRef.current = false;
     setBusyMessage(null);
+    storageFaultRef.current = null;
+    setStorageFault(null);
     setHasError(false);
     setComplete(false);
     setRetryAttempt((attempt) => attempt + 1);
@@ -480,6 +506,7 @@ export function GenerationStep() {
       onReset={onReset}
       taskItems={taskSnapshot?.items}
       isLiveDisconnected={isLiveDisconnected}
+      storageFault={storageFault}
     />
   );
 }

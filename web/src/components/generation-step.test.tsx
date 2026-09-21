@@ -140,6 +140,102 @@ describe("GenerationStep", () => {
     expect(useReportStore.getState().zipFiles).toHaveLength(1);
   });
 
+  it("pauses after a storage fault without discarding selected files or retrying", async () => {
+    reportAPIMocks.generateReportTask.mockRejectedValueOnce(
+      new ReportAPIError("report task storage is unavailable", 503, "storage_unavailable"),
+    );
+
+    render(<GenerationStep />);
+
+    expect(await screen.findByRole("alert", { name: "任务存储故障" })).toBeInTheDocument();
+    expect(screen.getByText("报告任务已暂停")).toBeInTheDocument();
+    expect(screen.getByText("请由运维人员修复存储后重启服务，再查看任务状态。")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "手动重试" })).not.toBeInTheDocument();
+    expect(useReportStore.getState().zipFiles).toHaveLength(1);
+    expect(reportAPIMocks.generateReportTask).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps persisted progress and terminal state stable while a storage-fault snapshot is active", async () => {
+    setInitialState("task-1");
+    reportAPIMocks.getReportTaskStatus.mockResolvedValue(
+      snapshot({
+        total: 2,
+        completed: 1,
+        current_file: "saved.zip",
+        storage_fault: {
+          code: "storage_unavailable",
+          message: "report task storage is unavailable",
+        },
+      }),
+    );
+
+    render(<GenerationStep />);
+
+    await screen.findByRole("alert", { name: "任务存储故障" });
+    expect(screen.getByText("1/2 完成")).toBeInTheDocument();
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    act(() => {
+      MockWebSocket.instances[0].message({
+        type: "progress",
+        seq: 2,
+        completed: 2,
+        total: 2,
+        current_file: "unsaved.zip",
+      });
+    });
+
+    expect(screen.getByText("1/2 完成")).toBeInTheDocument();
+    expect(screen.queryByText("2/2 完成")).not.toBeInTheDocument();
+
+    const statusCallsBeforeDone = reportAPIMocks.getReportTaskStatus.mock.calls.length;
+    act(() => {
+      MockWebSocket.instances[0].message({
+        type: "done",
+        seq: 3,
+        download_url: "/api/reports/download/task-1",
+      });
+    });
+
+    expect(reportAPIMocks.getReportTaskStatus).toHaveBeenCalledTimes(statusCallsBeforeDone);
+    expect(screen.queryByRole("button", { name: "下载报告" })).not.toBeInTheDocument();
+  });
+
+  it("reconciles a storage fault after the watcher closes", async () => {
+    vi.useFakeTimers();
+    setInitialState("task-1");
+    reportAPIMocks.getReportTaskStatus
+      .mockResolvedValueOnce(snapshot())
+      .mockResolvedValueOnce(
+        snapshot({
+          storage_fault: {
+            code: "storage_unavailable",
+            message: "report task storage is unavailable",
+          },
+        }),
+      );
+
+    render(<GenerationStep />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    act(() => {
+      MockWebSocket.instances[0].close();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(15_000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("alert", { name: "任务存储故障" })).toBeInTheDocument();
+    expect(reportAPIMocks.generateReportTask).not.toHaveBeenCalled();
+  });
+
   it("restores a stored task and its download without submitting selected files", async () => {
     sessionStorage.setItem("dbcheck_task_id", "task-1");
     reportAPIMocks.getReportTaskStatus.mockResolvedValue(

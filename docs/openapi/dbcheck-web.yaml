@@ -81,11 +81,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/IdempotencyConflictResponse"
         "503":
-          description: Accepted task capacity is full. The client keeps its selected files and retries manually. The response has no retry estimate.
+          description: |-
+            Either accepted task capacity is full, or task storage is unavailable. A capacity
+            response lets the client keep selected files and retry manually. A storage-fault
+            response pauses submissions until an operator repairs storage and restarts the service.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BusyResponse"
+                oneOf:
+                  - $ref: "#/components/schemas/BusyResponse"
+                  - $ref: "#/components/schemas/StorageUnavailableResponse"
 
   /api/reports/status/{task_id}:
     get:
@@ -104,7 +109,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/StatusResponse"
+                $ref: "#/components/schemas/TaskSnapshot"
         "401":
           description: Missing or invalid token.
           content:
@@ -164,6 +169,7 @@ paths:
         - `WsProgressMessage`
         - `WsDoneMessage`
         - `WsErrorMessage`
+        - `WsSnapshotMessage`
       parameters:
         - name: task_id
           in: path
@@ -210,7 +216,7 @@ components:
           type: string
           description: Relative WS path, e.g. `/api/reports/ws/<task_id>`.
 
-    StatusResponse:
+    TaskSnapshot:
       type: object
       required:
         - task_id
@@ -218,6 +224,7 @@ components:
         - total
         - completed
         - current_file
+        - version
       properties:
         task_id:
           type: string
@@ -230,11 +237,51 @@ components:
           type: integer
         current_file:
           type: string
+        version:
+          type: integer
+          format: int64
+          description: Monotonically increasing durable task-state version.
+        items:
+          type: array
+          description: Ordered item outcomes and current item state from durable task metadata.
+          items:
+            $ref: "#/components/schemas/ReportTaskItemSnapshot"
         download_url:
           type: string
           description: Present when status is `done`.
         error:
           type: string
+        storage_fault:
+          $ref: "#/components/schemas/StorageFault"
+
+    ReportTaskItemSnapshot:
+      type: object
+      required: [id, name, status]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: ["queued", "processing", "done", "failed"]
+        error:
+          type: string
+          description: Present when the item failed.
+        report_docx:
+          type: string
+          description: Relative report artifact path when the item completed.
+
+    StorageFault:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: ["storage_unavailable"]
+        message:
+          type: string
+          description: Operator-safe storage fault detail. The task status remains readable.
 
     ErrorResponse:
       type: object
@@ -250,6 +297,16 @@ components:
         code:
           type: string
           enum: ["capacity_exhausted"]
+        error:
+          type: string
+
+    StorageUnavailableResponse:
+      type: object
+      required: [code, error]
+      properties:
+        code:
+          type: string
+          enum: ["storage_unavailable"]
         error:
           type: string
 
@@ -325,9 +382,20 @@ components:
         message:
           type: string
 
+    WsSnapshotMessage:
+      allOf:
+        - $ref: "#/components/schemas/TaskSnapshot"
+        - type: object
+          required: [type]
+          properties:
+            type:
+              type: string
+              enum: ["snapshot"]
+
     WsMessage:
       oneOf:
         - $ref: "#/components/schemas/WsLogMessage"
         - $ref: "#/components/schemas/WsProgressMessage"
         - $ref: "#/components/schemas/WsDoneMessage"
         - $ref: "#/components/schemas/WsErrorMessage"
+        - $ref: "#/components/schemas/WsSnapshotMessage"

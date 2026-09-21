@@ -4,7 +4,12 @@ import { Download, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { LogTerminal } from "@/components/log-terminal";
-import type { LogEntry, ProgressState, ReportTaskSnapshot } from "@/lib/types";
+import type {
+  LogEntry,
+  ProgressState,
+  ReportTaskSnapshot,
+  StorageFault,
+} from "@/lib/types";
 
 interface GenerationProgressProps {
   progress: ProgressState;
@@ -19,6 +24,7 @@ interface GenerationProgressProps {
   onReset: () => void;
   taskItems?: ReportTaskSnapshot["items"];
   isLiveDisconnected?: boolean;
+  storageFault?: StorageFault | null;
 }
 
 const itemStatusLabel: Record<string, string> = {
@@ -41,6 +47,7 @@ export function GenerationProgress({
   onReset,
   taskItems,
   isLiveDisconnected = false,
+  storageFault = null,
 }: GenerationProgressProps) {
   const pct =
     progress.total > 0
@@ -52,7 +59,9 @@ export function GenerationProgress({
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">
-          {busyMessage
+          {storageFault
+            ? "报告任务已暂停"
+            : busyMessage
             ? "服务当前任务已满"
             : isComplete
             ? hasError
@@ -75,13 +84,27 @@ export function GenerationProgress({
         )}
       />
 
+      {storageFault && (
+        <section
+          className="border-l-4 border-destructive bg-muted px-4 py-3 text-sm"
+          role="alert"
+          aria-label="任务存储故障"
+        >
+          <p className="font-medium">任务存储暂时不可用，报告处理已暂停。</p>
+          <p className="mt-1 text-muted-foreground">
+            请由运维人员修复存储后重启服务，再查看任务状态。
+          </p>
+          <p className="mt-1 text-muted-foreground">{storageFault.message}</p>
+        </section>
+      )}
+
       {/* Log terminal */}
       <LogTerminal logs={logs} className="h-72 sm:h-80" />
       <p className="text-xs text-muted-foreground" role="note">
         实时日志仅供参考，断线期间可能不完整，请以任务状态为准。
       </p>
 
-      {isLiveDisconnected && !isComplete && (
+      {isLiveDisconnected && !isComplete && !storageFault && (
         <p className="text-sm text-muted-foreground" role="status">
           实时连接已断开，正在查询任务状态。
         </p>
