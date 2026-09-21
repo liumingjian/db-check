@@ -7,6 +7,12 @@ import type {
 } from "@/lib/types";
 
 const MAX_LOG_LINES = 1000;
+const SUBMISSION_KEY_STORAGE_KEY = "dbcheck_submission_key";
+
+type SubmissionKeyState = {
+  key: string;
+  fingerprint: string;
+};
 
 interface ReportStore {
   token: string | null;
@@ -26,6 +32,8 @@ interface ReportStore {
   /* Step 3 */
   currentStep: 1 | 2 | 3;
   taskId: string | null;
+  submissionKey: string | null;
+  submissionFingerprint: string | null;
   progress: ProgressState;
   logs: LogEntry[];
   downloadUrl: string | null;
@@ -39,6 +47,9 @@ interface ReportStore {
 
   /* Generation */
   setTaskId: (id: string) => void;
+  restoreTask: (id: string) => void;
+  ensureSubmissionKey: () => string;
+  clearSubmissionKey: () => void;
   setProgress: (p: Partial<ProgressState>) => void;
   addLog: (entry: LogEntry) => void;
   setDownloadUrl: (url: string) => void;
@@ -61,6 +72,8 @@ const INITIAL_STATE = {
   awrFiles: {},
   currentStep: 1 as const,
   taskId: null,
+  submissionKey: null,
+  submissionFingerprint: null,
   progress: { completed: 0, total: 0, currentFile: "" },
   logs: [],
   downloadUrl: null,
@@ -69,14 +82,18 @@ const INITIAL_STATE = {
   hasError: false,
 };
 
-export const useReportStore = create<ReportStore>((set) => ({
+export const useReportStore = create<ReportStore>((set, get) => ({
   ...INITIAL_STATE,
 
   setToken: (token) => set({ token }),
 
-  setDbType: (type) => set({ dbType: type }),
+  setDbType: (type) => {
+    clearSubmissionKeyFromSession();
+    set({ dbType: type, submissionKey: null, submissionFingerprint: null });
+  },
 
-  addZipFiles: (files) =>
+  addZipFiles: (files) => {
+    clearSubmissionKeyFromSession();
     set((state) => ({
       zipFiles: [
         ...state.zipFiles,
@@ -87,27 +104,40 @@ export const useReportStore = create<ReportStore>((set) => ({
           size: file.size,
         })),
       ],
-    })),
+      submissionKey: null,
+      submissionFingerprint: null,
+    }));
+  },
 
-  removeZipFile: (id) =>
+  removeZipFile: (id) => {
+    clearSubmissionKeyFromSession();
     set((state) => {
       const remainingAwrs = { ...state.awrFiles };
       delete remainingAwrs[id];
       return {
         zipFiles: state.zipFiles.filter((z) => z.id !== id),
         awrFiles: remainingAwrs,
+        submissionKey: null,
+        submissionFingerprint: null,
       };
-    }),
+    });
+  },
 
-  setAwrFile: (zipId, files) =>
+  setAwrFile: (zipId, files) => {
+    clearSubmissionKeyFromSession();
     set((state) => {
       if (files === null || files.length === 0) {
         const rest = { ...state.awrFiles };
         delete rest[zipId];
-        return { awrFiles: rest };
+        return { awrFiles: rest, submissionKey: null, submissionFingerprint: null };
       }
-      return { awrFiles: { ...state.awrFiles, [zipId]: files } };
-    }),
+      return {
+        awrFiles: { ...state.awrFiles, [zipId]: files },
+        submissionKey: null,
+        submissionFingerprint: null,
+      };
+    });
+  },
 
   nextStep: () =>
     set((state) => ({
@@ -119,7 +149,34 @@ export const useReportStore = create<ReportStore>((set) => ({
       currentStep: Math.max(state.currentStep - 1, 1) as 1 | 2 | 3,
     })),
 
-  setTaskId: (id) => set({ taskId: id }),
+  setTaskId: (id) => {
+    clearSubmissionKeyFromSession();
+    set({ taskId: id, submissionKey: null, submissionFingerprint: null });
+  },
+
+  restoreTask: (id) => set({ currentStep: 3, taskId: id }),
+
+  ensureSubmissionKey: () => {
+    const state = get();
+    const fingerprint = submissionFingerprint(state);
+    if (state.submissionKey && state.submissionFingerprint === fingerprint) {
+      return state.submissionKey;
+    }
+    const stored = readSubmissionKeyFromSession();
+    if (stored?.fingerprint === fingerprint) {
+      set({ submissionKey: stored.key, submissionFingerprint: fingerprint });
+      return stored.key;
+    }
+    const key = createSubmissionKey();
+    writeSubmissionKeyToSession({ key, fingerprint });
+    set({ submissionKey: key, submissionFingerprint: fingerprint });
+    return key;
+  },
+
+  clearSubmissionKey: () => {
+    clearSubmissionKeyFromSession();
+    set({ submissionKey: null, submissionFingerprint: null });
+  },
 
   setProgress: (p) =>
     set((state) => ({
@@ -140,5 +197,73 @@ export const useReportStore = create<ReportStore>((set) => ({
   setComplete: (v) => set({ isComplete: v }),
   setHasError: (v) => set({ hasError: v }),
 
-  reset: () => set((state) => ({ ...INITIAL_STATE, token: state.token })),
+  reset: () => {
+    clearSubmissionKeyFromSession();
+    set((state) => ({ ...INITIAL_STATE, token: state.token }));
+  },
 }));
+
+function submissionFingerprint(state: Pick<ReportStore, "dbType" | "zipFiles" | "awrFiles">): string {
+  return JSON.stringify({
+    version: 1,
+    dbType: state.dbType,
+    items: state.zipFiles.map((zip) => ({
+      zip: fileFingerprint(zip.file, zip.name),
+      optional: (state.awrFiles[zip.id] ?? []).map((file) => fileFingerprint(file, file.name)),
+    })),
+  });
+}
+
+function fileFingerprint(file: File, name: string) {
+  return {
+    name,
+    size: file.size,
+    lastModified: file.lastModified,
+    type: file.type,
+  };
+}
+
+function createSubmissionKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 14)}`;
+}
+
+function readSubmissionKeyFromSession(): SubmissionKeyState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(SUBMISSION_KEY_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      typeof (parsed as SubmissionKeyState).key !== "string" ||
+      typeof (parsed as SubmissionKeyState).fingerprint !== "string"
+    ) {
+      return null;
+    }
+    return parsed as SubmissionKeyState;
+  } catch {
+    return null;
+  }
+}
+
+function writeSubmissionKeyToSession(value: SubmissionKeyState): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(SUBMISSION_KEY_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // Session storage is optional; the in-memory store still supports retries.
+  }
+}
+
+function clearSubmissionKeyFromSession(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(SUBMISSION_KEY_STORAGE_KEY);
+  } catch {
+    // Session storage failures must not block a reset or input mutation.
+  }
+}

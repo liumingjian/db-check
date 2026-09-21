@@ -68,6 +68,27 @@ export interface GenerateResponse {
   ws_url: string;
 }
 
+export interface ReportTaskItemSnapshot {
+  id: string;
+  name: string;
+  status: string;
+  error?: string;
+  report_docx?: string;
+}
+
+export interface ReportTaskSnapshot {
+  task_id: string;
+  status: string;
+  total: number;
+  completed: number;
+  current_file: string;
+  version: number;
+  error?: string;
+  items?: ReportTaskItemSnapshot[];
+  download_url?: string;
+  [field: string]: unknown;
+}
+
 export interface WsLogMessage {
   type: "log";
   seq: number;
@@ -96,11 +117,16 @@ export interface WsErrorMessage {
   message: string;
 }
 
+export interface WsSnapshotMessage extends ReportTaskSnapshot {
+  type: "snapshot";
+}
+
 export type WsMessage =
   | WsLogMessage
   | WsProgressMessage
   | WsDoneMessage
-  | WsErrorMessage;
+  | WsErrorMessage
+  | WsSnapshotMessage;
 
 /* ─── Progress state ─── */
 export interface ProgressState {

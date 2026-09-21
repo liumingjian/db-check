@@ -1,5 +1,10 @@
 import { apiUrl, getApiBase } from "@/lib/api";
-import type { DbType, GenerateResponse, ZipFileEntry } from "@/lib/types";
+import type {
+  DbType,
+  GenerateResponse,
+  ReportTaskSnapshot,
+  ZipFileEntry,
+} from "@/lib/types";
 
 const BACKEND_PROBE_TASK_ID = "frontend-probe";
 
@@ -108,6 +113,7 @@ export async function generateReportTask(
   dbType: DbType,
   zipFiles: ZipFileEntry[],
   awrFiles: Record<string, File[]>,
+  submissionKey?: string,
 ): Promise<GenerateResponse> {
   await probeReportBackend(token);
 
@@ -126,9 +132,13 @@ export async function generateReportTask(
 
   let resp: Response;
   try {
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    if (submissionKey?.trim()) {
+      headers["Idempotency-Key"] = submissionKey.trim();
+    }
     resp = await fetch(apiUrl("/api/reports/generate"), {
       method: "POST",
-      headers: authHeaders(token),
+      headers,
       body: form,
     });
   } catch (e) {
@@ -138,6 +148,24 @@ export async function generateReportTask(
     throw await responseError("生成接口失败", resp);
   }
   return (await resp.json()) as GenerateResponse;
+}
+
+export async function getReportTaskStatus(
+  token: string,
+  taskId: string,
+): Promise<ReportTaskSnapshot> {
+  let resp: Response;
+  try {
+    resp = await fetch(apiUrl(`/api/reports/status/${encodeURIComponent(taskId)}`), {
+      headers: authHeaders(token),
+    });
+  } catch (e) {
+    throw new Error(networkErrorMessage("查询任务状态失败", e));
+  }
+  if (!resp.ok) {
+    throw await responseError("查询任务状态失败", resp);
+  }
+  return (await resp.json()) as ReportTaskSnapshot;
 }
 
 export async function downloadReportBlob(token: string, downloadUrl: string): Promise<Blob> {
