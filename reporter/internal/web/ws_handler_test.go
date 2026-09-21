@@ -22,7 +22,7 @@ func TestWebSocketAuthViaSubprotocol(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
-	if _, err := h.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
+	if _, err := h.lifecycle.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
 		t.Fatalf("Create task failed: %v", err)
 	}
 
@@ -56,10 +56,10 @@ func TestWebSocketReplayAndProgressSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
-	if _, err := h.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
+	if _, err := h.lifecycle.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
 		t.Fatalf("Create task failed: %v", err)
 	}
-	h.hub.emitLog("t1", "info", "hello")
+	h.lifecycle.hub.emitLog("t1", "info", "hello")
 
 	srv := httptest.NewServer(h.handler())
 	defer srv.Close()
@@ -115,7 +115,7 @@ func TestWebSocketAllowsWildcardOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
-	if _, err := h.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
+	if _, err := h.lifecycle.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
 		t.Fatalf("Create task failed: %v", err)
 	}
 
@@ -162,7 +162,7 @@ func TestWebSocketAllowsHostOnlyOriginEntry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
-	if _, err := h.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
+	if _, err := h.lifecycle.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
 		t.Fatalf("Create task failed: %v", err)
 	}
 
@@ -197,7 +197,7 @@ func TestWebSocketAllowsLocalhostAlias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
-	if _, err := h.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
+	if _, err := h.lifecycle.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
 		t.Fatalf("Create task failed: %v", err)
 	}
 

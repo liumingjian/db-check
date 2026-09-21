@@ -259,7 +259,7 @@ func TestGenerateAcceptsMultipleIndexedWDRUploads(t *testing.T) {
 	}
 
 	select {
-	case queued := <-h.queue:
+	case queued := <-h.lifecycle.queue:
 		if len(queued.Items) != 1 || len(queued.Items[0].WDRPaths) != 2 {
 			t.Fatalf("expected two WDRPaths to be queued: %#v", queued.Items)
 		}

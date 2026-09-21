@@ -26,7 +26,7 @@ func (h *apiHandler) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	task, err := h.store.Load(taskID)
+	watch, err := h.lifecycle.Watch(r.Context(), taskID)
 	if err != nil {
 		if errors.Is(err, ErrTaskNotFound) {
 			http.NotFound(w, r)
@@ -35,6 +35,7 @@ func (h *apiHandler) handleWS(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	defer watch.Close()
 
 	originAllow := newOriginAllowlist(h.cfg.AllowedOrigins)
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
@@ -49,8 +50,7 @@ func (h *apiHandler) handleWS(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	lastSeq, logs := h.hub.snapshot(taskID)
-	for _, b := range logs {
+	for _, b := range watch.Logs {
 		if err := conn.Write(ctx, websocket.MessageText, b); err != nil {
 			return
 		}
@@ -59,35 +59,32 @@ func (h *apiHandler) handleWS(w http.ResponseWriter, r *http.Request) {
 	// Send a progress snapshot so a reconnecting client can recover state.
 	progress := wsProgressMessage{
 		Type:        "progress",
-		Completed:   task.Completed,
-		Total:       task.Total,
-		CurrentFile: task.CurrentFile,
+		Completed:   watch.Task.Completed,
+		Total:       watch.Task.Total,
+		CurrentFile: watch.Task.CurrentFile,
 	}
-	if b, err := json.Marshal(withSeq(&progress, lastSeq)); err == nil {
+	if b, err := json.Marshal(withSeq(&progress, watch.LastSequence)); err == nil {
 		if err := conn.Write(ctx, websocket.MessageText, b); err != nil {
 			return
 		}
 	}
 
-	if task.Status == TaskDone {
-		done := wsDoneMessage{Type: "done", DownloadURL: "/api/reports/download/" + task.ID}
-		if b, err := json.Marshal(withSeq(&done, lastSeq)); err == nil {
+	if watch.Task.Status == TaskDone {
+		done := wsDoneMessage{Type: "done", DownloadURL: "/api/reports/download/" + watch.Task.ID}
+		if b, err := json.Marshal(withSeq(&done, watch.LastSequence)); err == nil {
 			_ = conn.Write(ctx, websocket.MessageText, b)
 		}
 	}
-	if task.Status == TaskFailed && task.Error != "" {
-		errMsg := wsErrorMessage{Type: "error", Message: task.Error}
-		if b, err := json.Marshal(withSeq(&errMsg, lastSeq)); err == nil {
+	if watch.Task.Status == TaskFailed && watch.Task.Error != "" {
+		errMsg := wsErrorMessage{Type: "error", Message: watch.Task.Error}
+		if b, err := json.Marshal(withSeq(&errMsg, watch.LastSequence)); err == nil {
 			_ = conn.Write(ctx, websocket.MessageText, b)
 		}
 	}
-
-	ch, cancel := h.hub.subscribe(taskID)
-	defer cancel()
 
 	for {
 		select {
-		case b, ok := <-ch:
+		case b, ok := <-watch.Updates:
 			if !ok {
 				return
 			}

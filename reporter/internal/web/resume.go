@@ -9,30 +9,30 @@ import (
 	"strings"
 )
 
-func (h *apiHandler) resumeTasks() {
-	ids, err := h.store.ListIDs()
+func (l *TaskLifecycle) resumeTasks() {
+	ids, err := l.store.ListIDs()
 	if err != nil {
 		return
 	}
 	for _, id := range ids {
-		task, err := h.store.Load(id)
+		task, err := l.store.Load(id)
 		if err != nil {
 			continue
 		}
 		if task.Status != TaskQueued && task.Status != TaskProcessing {
 			continue
 		}
-		items, err := loadTaskInputs(h.store.taskDir(task.ID), task)
+		items, err := loadTaskInputs(l.store.taskDir(task.ID), task)
 		if err != nil {
 			task.Status = TaskFailed
 			task.Error = fmt.Sprintf("resume failed: %v", err)
 			task.CurrentFile = ""
-			_, _ = h.store.Update(task)
-			h.hub.emitError(task.ID, task.Error)
+			_, _ = l.store.Update(task)
+			l.hub.emitError(task.ID, task.Error)
 			continue
 		}
-		h.enqueue(queuedTask{TaskID: task.ID, Items: items})
-		h.hub.emitLog(task.ID, "info", "服务重启，任务已恢复到队列")
+		l.enqueue(queuedTask{TaskID: task.ID, Items: items})
+		l.hub.emitLog(task.ID, "info", "服务重启，任务已恢复到队列")
 	}
 }
 

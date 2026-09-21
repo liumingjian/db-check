@@ -1,34 +1,20 @@
 package web
 
 import (
-	"crypto/rand"
-	"encoding/hex"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
-	"sync"
-	"time"
 )
 
 type apiHandler struct {
-	cfg Config
-
-	store *TaskStore
-	hub   *taskHub
-
-	queue chan queuedTask
-	once  sync.Once
-}
-
-type queuedTask struct {
-	TaskID string
-	Items  []ItemInput
+	cfg       Config
+	lifecycle *TaskLifecycle
 }
 
 func NewHandler(cfg Config) (http.Handler, error) {
@@ -39,23 +25,22 @@ func NewHandler(cfg Config) (http.Handler, error) {
 	return h.handler(), nil
 }
 
-func newAPIHandler(cfg Config, startWorker bool) (*apiHandler, error) {
-	store, err := NewTaskStore(cfg.DataDir)
+func newAPIHandler(cfg Config, startLifecycle bool) (*apiHandler, error) {
+	lifecycle, err := NewTaskLifecycle(cfg)
 	if err != nil {
 		return nil, err
 	}
-
-	h := &apiHandler{
-		cfg:   cfg,
-		store: store,
-		hub:   newTaskHub(cfg.LogReplayLines),
-		queue: make(chan queuedTask, 32),
+	if startLifecycle {
+		if err := lifecycle.Start(context.Background()); err != nil {
+			_ = lifecycle.Close(context.Background())
+			return nil, err
+		}
 	}
-	if startWorker {
-		h.startWorker()
-	}
+	return newAPIHandlerWithLifecycle(cfg, lifecycle), nil
+}
 
-	return h, nil
+func newAPIHandlerWithLifecycle(cfg Config, lifecycle *TaskLifecycle) *apiHandler {
+	return &apiHandler{cfg: cfg, lifecycle: lifecycle}
 }
 
 func (h *apiHandler) handler() http.Handler {
@@ -116,123 +101,99 @@ func (h *apiHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	zips := filesForKey(r.MultipartForm, "zips")
-	if len(zips) == 0 {
-		zips = filesForKey(r.MultipartForm, "zip")
-	}
-	if len(zips) == 0 {
-		writeError(w, http.StatusBadRequest, "missing zip files (field: zips)")
-		return
-	}
-	awrs := filesForKey(r.MultipartForm, "awrs")
-	wdrs := filesForKey(r.MultipartForm, "wdrs")
-	if len(awrs) != 0 && len(awrs) != len(zips) {
-		writeError(w, http.StatusBadRequest, "invalid awrs: use awr_<index> fields or provide awrs with the same count as zips")
-		return
-	}
-	if len(wdrs) != 0 && len(wdrs) != len(zips) {
-		writeError(w, http.StatusBadRequest, "invalid wdrs: use wdr_<index> fields or provide wdrs with the same count as zips")
-		return
-	}
-
-	taskID, err := newTaskID()
+	submission, err := reportSubmissionFromMultipart(r.MultipartForm)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to allocate task id")
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
-	task, err := h.store.Create(Task{
-		ID:        taskID,
-		Status:    TaskProcessing,
-		Total:     len(zips),
-		Completed: 0,
-	})
+	task, err := h.lifecycle.Submit(r.Context(), submission)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	taskDir := h.store.taskDir(task.ID)
-	uploadsDir := filepath.Join(taskDir, "uploads")
-	if err := os.MkdirAll(uploadsDir, 0o755); err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("create uploads dir failed: %v", err))
-		return
-	}
-
-	items := make([]ItemInput, 0, len(zips))
-	for i, zipHeader := range zips {
-		itemID := fmt.Sprintf("%d", i+1)
-		zipPath, name, err := saveUpload(uploadsDir, "zip", itemID, zipHeader)
-		if err != nil {
+		switch {
+		case errors.Is(err, ErrInvalidSubmission):
 			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-
-		var awrPath string
-		wdrPaths := make([]string, 0, 2)
-		switch {
-		case len(awrs) == len(zips) && awrs[i] != nil:
-			path, _, err := saveUpload(uploadsDir, "awr", itemID, awrs[i])
-			if err != nil {
-				writeError(w, http.StatusBadRequest, err.Error())
-				return
-			}
-			awrPath = path
+		case errors.Is(err, ErrLifecycleClosed):
+			writeError(w, http.StatusServiceUnavailable, "service shutting down")
 		default:
-			indexedAWRs := filesForKey(r.MultipartForm, "awr_"+itemID)
-			if len(indexedAWRs) > 1 {
-				writeError(w, http.StatusBadRequest, "Oracle AWR only supports one HTML file per zip")
-				return
-			}
-			if len(indexedAWRs) == 1 {
-				hdr := indexedAWRs[0]
-				path, _, err := saveUpload(uploadsDir, "awr", itemID, hdr)
-				if err != nil {
-					writeError(w, http.StatusBadRequest, err.Error())
-					return
-				}
-				awrPath = path
-			}
+			writeError(w, http.StatusInternalServerError, err.Error())
 		}
-		switch {
-		case len(wdrs) == len(zips) && wdrs[i] != nil:
-			path, _, err := saveUpload(uploadsDir, "wdr", wdrUploadID(itemID, len(wdrPaths)), wdrs[i])
-			if err != nil {
-				writeError(w, http.StatusBadRequest, err.Error())
-				return
-			}
-			wdrPaths = append(wdrPaths, path)
-		default:
-			for _, hdr := range filesForKey(r.MultipartForm, "wdr_"+itemID) {
-				path, _, err := saveUpload(uploadsDir, "wdr", wdrUploadID(itemID, len(wdrPaths)), hdr)
-				if err != nil {
-					writeError(w, http.StatusBadRequest, err.Error())
-					return
-				}
-				wdrPaths = append(wdrPaths, path)
-			}
-		}
-		items = append(items, ItemInput{
-			ID:       itemID,
-			Name:     name,
-			ZipPath:  zipPath,
-			AWRPath:  awrPath,
-			WDRPaths: wdrPaths,
-		})
+		return
 	}
-
-	h.enqueue(queuedTask{TaskID: task.ID, Items: items})
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"task_id": task.ID,
-		"status":  "processing",
+		"status":  string(task.Status),
 		"total":   task.Total,
 		"ws_url":  fmt.Sprintf("/api/reports/ws/%s", task.ID),
 	})
 }
 
-func wdrUploadID(itemID string, existing int) string {
-	return fmt.Sprintf("%s-%d", itemID, existing+1)
+func reportSubmissionFromMultipart(form *multipart.Form) (ReportSubmission, error) {
+	zips := filesForKey(form, "zips")
+	if len(zips) == 0 {
+		zips = filesForKey(form, "zip")
+	}
+	if len(zips) == 0 {
+		return ReportSubmission{}, errors.New("missing zip files (field: zips)")
+	}
+	awrs := filesForKey(form, "awrs")
+	wdrs := filesForKey(form, "wdrs")
+	if len(awrs) != 0 && len(awrs) != len(zips) {
+		return ReportSubmission{}, errors.New("invalid awrs: use awr_<index> fields or provide awrs with the same count as zips")
+	}
+	if len(wdrs) != 0 && len(wdrs) != len(zips) {
+		return ReportSubmission{}, errors.New("invalid wdrs: use wdr_<index> fields or provide wdrs with the same count as zips")
+	}
+
+	submission := ReportSubmission{Items: make([]ReportItemSubmission, 0, len(zips))}
+	for i, zipHeader := range zips {
+		itemID := fmt.Sprintf("%d", i+1)
+		item := ReportItemSubmission{Zip: submissionFileFromHeader(zipHeader)}
+
+		switch {
+		case len(awrs) == len(zips) && awrs[i] != nil:
+			awr := submissionFileFromHeader(awrs[i])
+			item.AWR = &awr
+		default:
+			indexedAWRs := filesForKey(form, "awr_"+itemID)
+			if len(indexedAWRs) > 1 {
+				return ReportSubmission{}, errors.New("Oracle AWR only supports one HTML file per zip")
+			}
+			if len(indexedAWRs) == 1 {
+				awr := submissionFileFromHeader(indexedAWRs[0])
+				item.AWR = &awr
+			}
+		}
+
+		switch {
+		case len(wdrs) == len(zips) && wdrs[i] != nil:
+			item.WDRs = append(item.WDRs, submissionFileFromHeader(wdrs[i]))
+		default:
+			for _, header := range filesForKey(form, "wdr_"+itemID) {
+				item.WDRs = append(item.WDRs, submissionFileFromHeader(header))
+			}
+		}
+		submission.Items = append(submission.Items, item)
+	}
+	return submission, nil
+}
+
+func submissionFileFromHeader(header *multipart.FileHeader) SubmissionFile {
+	if header == nil {
+		return SubmissionFile{}
+	}
+	return SubmissionFile{
+		Name: header.Filename,
+		Open: func() (io.ReadCloser, error) {
+			return header.Open()
+		},
+	}
+}
+
+func filesForKey(form *multipart.Form, key string) []*multipart.FileHeader {
+	if form == nil || form.File == nil {
+		return nil
+	}
+	return form.File[key]
 }
 
 func (h *apiHandler) handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -249,7 +210,7 @@ func (h *apiHandler) handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	taskID = strings.TrimSpace(taskID)
-	task, err := h.store.Load(taskID)
+	task, err := h.lifecycle.Get(r.Context(), taskID)
 	if err != nil {
 		if errors.Is(err, ErrTaskNotFound) {
 			http.NotFound(w, r)
@@ -290,29 +251,21 @@ func (h *apiHandler) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	taskID = strings.TrimSpace(taskID)
-	task, err := h.store.Load(taskID)
+	zipPath, size, err := h.lifecycle.Download(r.Context(), taskID)
 	if err != nil {
-		if errors.Is(err, ErrTaskNotFound) {
+		switch {
+		case errors.Is(err, ErrTaskNotFound):
 			http.NotFound(w, r)
-			return
+		case errors.Is(err, ErrTaskNotFinished):
+			writeError(w, http.StatusConflict, "task not finished")
+		default:
+			writeError(w, http.StatusInternalServerError, err.Error())
 		}
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if task.Status != TaskDone {
-		writeError(w, http.StatusConflict, "task not finished")
-		return
-	}
-
-	zipPath := filepath.Join(h.store.taskDir(task.ID), fmt.Sprintf("reports-%s.zip", task.ID))
-	info, err := os.Stat(zipPath)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("result zip not found: %v", err))
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", info.Size()))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", size))
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(zipPath)))
 	http.ServeFile(w, r, zipPath)
 }
@@ -330,222 +283,6 @@ func (h *apiHandler) requireAuth(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 	return true
-}
-
-func (h *apiHandler) enqueue(task queuedTask) {
-	select {
-	case h.queue <- task:
-	default:
-		// Queue full: drop on the floor but keep the task record.
-		// This should be rare under single-worker design.
-	}
-}
-
-func (h *apiHandler) startWorker() {
-	h.once.Do(func() {
-		h.resumeTasks()
-		h.startRetentionCleanup()
-		go h.workerLoop()
-	})
-}
-
-func (h *apiHandler) workerLoop() {
-	exe, err := os.Executable()
-	if err != nil {
-		return
-	}
-	pipeline := NewPipeline(exe, h.cfg.PythonBin)
-
-	for task := range h.queue {
-		h.runTask(pipeline, task)
-	}
-}
-
-func (h *apiHandler) startRetentionCleanup() {
-	if h.cfg.RetentionTTL <= 0 {
-		return
-	}
-	interval := time.Hour
-	if h.cfg.RetentionTTL < interval {
-		interval = h.cfg.RetentionTTL / 2
-	}
-	if interval < time.Minute {
-		interval = time.Minute
-	}
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for range ticker.C {
-			_, _ = cleanupExpiredTasks(h.store, h.cfg.RetentionTTL, time.Now)
-		}
-	}()
-}
-
-func (h *apiHandler) runTask(p *Pipeline, queued queuedTask) {
-	task, err := h.store.Load(queued.TaskID)
-	if err != nil {
-		return
-	}
-	task.Status = TaskProcessing
-	task.Total = len(queued.Items)
-	task.Error = ""
-
-	// Rebuild Items in the input order, preserving previous status/error/report paths.
-	prev := make(map[string]TaskItem, len(task.Items))
-	for _, item := range task.Items {
-		prev[item.ID] = item
-	}
-	task.Items = make([]TaskItem, 0, len(queued.Items))
-	for _, input := range queued.Items {
-		item, ok := prev[input.ID]
-		if !ok {
-			item = TaskItem{ID: input.ID, Status: string(TaskQueued)}
-		}
-		if item.Name == "" {
-			item.Name = input.Name
-		}
-		task.Items = append(task.Items, item)
-	}
-	task.Completed = countProcessed(task.Items)
-	task.CurrentFile = ""
-	_, _ = h.store.Update(task)
-
-	taskDir := h.store.taskDir(task.ID)
-	for i, input := range queued.Items {
-		// Resume: skip items already completed in a previous run.
-		if i < len(task.Items) {
-			if task.Items[i].Status == string(ItemDone) || task.Items[i].Status == string(ItemFailed) {
-				continue
-			}
-		}
-
-		task.CurrentFile = input.Name
-		_, _ = h.store.Update(task)
-
-		h.hub.emitLog(task.ID, "info", fmt.Sprintf("开始处理 %s", input.Name))
-		result := p.runOne(taskDir, input, func(itemID string, ev LogEvent) {
-			level := "info"
-			if ev.Stream == LogStderr {
-				level = "error"
-			}
-			msg := ev.Line
-			if input.Name != "" {
-				msg = fmt.Sprintf("[%s] %s", input.Name, msg)
-			}
-			h.hub.emitLog(task.ID, level, msg)
-		})
-		if i < len(task.Items) && task.Items[i].ID == result.ID {
-			task.Items[i].Status = string(result.Status)
-			task.Items[i].Error = result.Error
-			task.Items[i].ReportDocx = result.ReportDocx
-		}
-		if result.Status == ItemFailed {
-			h.hub.emitLog(task.ID, "error", fmt.Sprintf("[%s] 处理失败: %s", input.Name, result.Error))
-		}
-		task.Completed = countProcessed(task.Items)
-		_, _ = h.store.Update(task)
-
-		h.hub.emitProgress(task.ID, task.Completed, task.Total, task.CurrentFile)
-	}
-
-	// Build download zip from all completed items (including previous runs).
-	results := make([]ItemResult, 0, len(task.Items))
-	for _, item := range task.Items {
-		switch item.Status {
-		case string(ItemDone):
-			results = append(results, ItemResult{ID: item.ID, Status: ItemDone, ReportDocx: item.ReportDocx})
-		case string(ItemFailed):
-			results = append(results, ItemResult{ID: item.ID, Status: ItemFailed, Error: item.Error})
-		}
-	}
-
-	zipPath := filepath.Join(taskDir, fmt.Sprintf("reports-%s.zip", task.ID))
-	if err := buildResultZip(zipPath, results, queued.Items); err != nil {
-		task.Status = TaskFailed
-		task.Error = err.Error()
-		task.CurrentFile = ""
-		_, _ = h.store.Update(task)
-		h.hub.emitError(task.ID, err.Error())
-		return
-	}
-
-	task.Status = TaskDone
-	task.CurrentFile = ""
-	_, _ = h.store.Update(task)
-	h.hub.emitDone(task.ID, fmt.Sprintf("/api/reports/download/%s", task.ID))
-}
-
-func countProcessed(items []TaskItem) int {
-	n := 0
-	for _, item := range items {
-		if item.Status == string(ItemDone) || item.Status == string(ItemFailed) {
-			n++
-		}
-	}
-	return n
-}
-
-func newTaskID() (string, error) {
-	var buf [16]byte
-	if _, err := rand.Read(buf[:]); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(buf[:]), nil
-}
-
-func filesForKey(form *multipart.Form, key string) []*multipart.FileHeader {
-	if form == nil {
-		return nil
-	}
-	if form.File == nil {
-		return nil
-	}
-	return form.File[key]
-}
-
-func firstFileForKey(form *multipart.Form, key string) *multipart.FileHeader {
-	files := filesForKey(form, key)
-	if len(files) == 0 {
-		return nil
-	}
-	return files[0]
-}
-
-func saveUpload(dir string, kind string, itemID string, header *multipart.FileHeader) (string, string, error) {
-	if header == nil {
-		return "", "", errors.New("missing file")
-	}
-	// Only keep the base name to avoid client-provided paths.
-	name := filepath.Base(header.Filename)
-	if strings.TrimSpace(name) == "" {
-		return "", "", errors.New("invalid filename")
-	}
-
-	src, err := header.Open()
-	if err != nil {
-		return "", "", fmt.Errorf("open upload failed: %w", err)
-	}
-	defer src.Close()
-
-	ext := strings.ToLower(filepath.Ext(name))
-	if kind == "zip" && ext != ".zip" {
-		return "", "", fmt.Errorf("invalid zip filename: %q", name)
-	}
-	if (kind == "awr" || kind == "wdr") && ext != ".html" && ext != ".htm" {
-		return "", "", fmt.Errorf("invalid %s filename: %q", kind, name)
-	}
-
-	dstName := fmt.Sprintf("%s-%s-%s", kind, itemID, name)
-	dstPath := filepath.Join(dir, dstName)
-	dst, err := os.OpenFile(dstPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
-	if err != nil {
-		return "", "", fmt.Errorf("save upload failed: %w", err)
-	}
-	defer dst.Close()
-	if _, err := io.Copy(dst, src); err != nil {
-		return "", "", fmt.Errorf("save upload failed: %w", err)
-	}
-	return dstPath, name, nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
