@@ -134,6 +134,18 @@ func (h *taskHub) emit(taskID string, storeLog bool, msg any) {
 	}
 }
 
+func (h *taskHub) closeSubscribers() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, state := range h.tasks {
+		for sub := range state.subs {
+			delete(state.subs, sub)
+			close(sub.overflow)
+			close(sub.ch)
+		}
+	}
+}
+
 func (h *taskHub) state(taskID string) *taskHubState {
 	state, ok := h.tasks[taskID]
 	if ok {

@@ -15,6 +15,7 @@ type TaskStore struct {
 	tasksDir  string
 	now       func() time.Time
 	writeJSON func(path string, value any) error
+	removeAll func(path string) error
 }
 
 func NewTaskStore(dataDir string) (*TaskStore, error) {
@@ -30,6 +31,7 @@ func NewTaskStore(dataDir string) (*TaskStore, error) {
 		tasksDir:  tasksDir,
 		now:       time.Now,
 		writeJSON: writeJSONFileAtomic,
+		removeAll: os.RemoveAll,
 	}, nil
 }
 
@@ -156,7 +158,7 @@ func (s *TaskStore) stagingDir() string {
 
 // RemoveStaging removes incomplete submissions that were never published.
 func (s *TaskStore) RemoveStaging() error {
-	if err := os.RemoveAll(s.stagingDir()); err != nil {
+	if err := s.removeAll(s.stagingDir()); err != nil {
 		return fmt.Errorf("remove task staging failed: %w", err)
 	}
 	return nil

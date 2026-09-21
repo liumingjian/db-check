@@ -121,6 +121,8 @@ func (h *apiHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		switch {
+		case errors.Is(err, ErrStorageUnavailable):
+			writeErrorCode(w, http.StatusServiceUnavailable, storageFaultCode, storageFaultMessage)
 		case errors.Is(err, ErrTaskCapacity):
 			writeErrorCode(w, http.StatusServiceUnavailable, "capacity_exhausted", err.Error())
 		case errors.Is(err, ErrIdempotencyConflict):
