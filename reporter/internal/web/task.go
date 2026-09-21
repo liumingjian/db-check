@@ -22,10 +22,12 @@ const (
 )
 
 type Task struct {
-	ID        string     `json:"id"`
-	Status    TaskStatus `json:"status"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	ID            string     `json:"id"`
+	Status        TaskStatus `json:"status"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+	AcceptedOrder uint64     `json:"accepted_order,omitempty"`
+	AcceptedAt    time.Time  `json:"accepted_at,omitempty"`
 
 	Total       int        `json:"total"`
 	Completed   int        `json:"completed"`

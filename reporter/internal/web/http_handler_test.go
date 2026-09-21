@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -223,7 +224,7 @@ func TestGenerateCreatesTaskRecord(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode response failed: %v", err)
 	}
-	if resp.TaskID == "" || resp.Status != "processing" || resp.Total != 1 || resp.WsURL == "" {
+	if resp.TaskID == "" || resp.Status != "queued" || resp.Total != 1 || resp.WsURL == "" {
 		t.Fatalf("unexpected resp: %#v", resp)
 	}
 
@@ -258,19 +259,26 @@ func TestGenerateAcceptsMultipleIndexedWDRUploads(t *testing.T) {
 		t.Fatalf("expected %d got %d body=%s", http.StatusOK, rec.Code, rec.Body.String())
 	}
 
-	select {
-	case queued := <-h.lifecycle.queue:
-		if len(queued.Items) != 1 || len(queued.Items[0].WDRPaths) != 2 {
-			t.Fatalf("expected two WDRPaths to be queued: %#v", queued.Items)
-		}
-		if queued.Items[0].WDRPaths[0] == queued.Items[0].WDRPaths[1] {
-			t.Fatalf("expected unique WDR upload paths: %#v", queued.Items[0].WDRPaths)
-		}
-		if queued.Items[0].AWRPath != "" {
-			t.Fatalf("did not expect AWRPath: %#v", queued.Items[0])
-		}
-	default:
-		t.Fatalf("expected queued task")
+	ids, err := h.lifecycle.store.ListIDs()
+	if err != nil || len(ids) != 1 {
+		t.Fatalf("expected one published task, ids=%#v err=%v", ids, err)
+	}
+	task, err := h.lifecycle.store.Load(ids[0])
+	if err != nil {
+		t.Fatalf("Load task failed: %v", err)
+	}
+	items, err := loadTaskInputs(h.lifecycle.store.taskDir(task.ID), task)
+	if err != nil {
+		t.Fatalf("load task inputs failed: %v", err)
+	}
+	if len(items) != 1 || len(items[0].WDRPaths) != 2 {
+		t.Fatalf("expected two WDRPaths to be staged: %#v", items)
+	}
+	if items[0].WDRPaths[0] == items[0].WDRPaths[1] {
+		t.Fatalf("expected unique WDR upload paths: %#v", items[0].WDRPaths)
+	}
+	if items[0].AWRPath != "" {
+		t.Fatalf("did not expect AWRPath: %#v", items[0])
 	}
 }
 
@@ -355,6 +363,65 @@ func TestGenerateEnforcesUploadLimit(t *testing.T) {
 	if rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("expected %d got %d body=%s", http.StatusRequestEntityTooLarge, rec.Code, rec.Body.String())
 	}
+}
+
+func TestGenerateRejectsFullCapacityBeforeReadingMultipartBody(t *testing.T) {
+	cfg := Config{
+		DataDir:          t.TempDir(),
+		AllowedOrigins:   []string{"http://example.com"},
+		APIToken:         defaultAPIToken,
+		MaxUploadBytes:   0,
+		MaxAcceptedTasks: 1,
+		PythonBin:        "python3",
+	}
+	h, err := newAPIHandler(cfg, false)
+	if err != nil {
+		t.Fatalf("newAPIHandler failed: %v", err)
+	}
+	handler := h.handler()
+
+	first := multipartRequest(t, map[string]string{"zips": "first.zip"})
+	firstRec := httptest.NewRecorder()
+	handler.ServeHTTP(firstRec, first)
+	if firstRec.Code != http.StatusOK {
+		t.Fatalf("first submission status=%d body=%s", firstRec.Code, firstRec.Body.String())
+	}
+
+	body := &unreadMultipartBody{}
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/reports/generate", body)
+	req.Header.Set("Authorization", "Bearer "+defaultAPIToken)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=never-read")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected %d got %d body=%s", http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+	}
+	if body.reads != 0 {
+		t.Fatalf("full-capacity request read multipart body %d times", body.reads)
+	}
+	var response struct {
+		Code  string `json:"code"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode busy response: %v", err)
+	}
+	if response.Code != "capacity_exhausted" || response.Error != ErrTaskCapacity.Error() {
+		t.Fatalf("unexpected busy response: %#v", response)
+	}
+}
+
+type unreadMultipartBody struct {
+	reads int
+}
+
+func (b *unreadMultipartBody) Read([]byte) (int, error) {
+	b.reads++
+	return 0, io.EOF
+}
+
+func (b *unreadMultipartBody) Close() error {
+	return nil
 }
 
 func multipartRequest(t *testing.T, files map[string]string) *http.Request {

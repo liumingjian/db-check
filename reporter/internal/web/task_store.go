@@ -51,6 +51,49 @@ func (s *TaskStore) Create(task Task) (Task, error) {
 	return task, nil
 }
 
+func (s *TaskStore) CreateStaging(id string) (string, error) {
+	if err := validateTaskID(id); err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(s.stagingDir(), 0o755); err != nil {
+		return "", fmt.Errorf("create staging dir failed: %w", err)
+	}
+	path := filepath.Join(s.stagingDir(), id)
+	if err := os.Mkdir(path, 0o755); err != nil {
+		return "", fmt.Errorf("create task staging dir failed: %w", err)
+	}
+	return path, nil
+}
+
+func (s *TaskStore) WriteStagedTask(stagingDir string, task Task) error {
+	if err := validateTaskID(task.ID); err != nil {
+		return err
+	}
+	if filepath.Dir(stagingDir) != s.stagingDir() {
+		return errors.New("staging directory is outside task staging root")
+	}
+	return writeJSONFileAtomic(filepath.Join(stagingDir, "task.json"), task)
+}
+
+// Publish atomically makes a complete staged task visible to task discovery.
+func (s *TaskStore) Publish(stagingDir, id string) error {
+	if err := validateTaskID(id); err != nil {
+		return err
+	}
+	if filepath.Dir(stagingDir) != s.stagingDir() {
+		return errors.New("staging directory is outside task staging root")
+	}
+	if _, err := os.Stat(s.taskDir(id)); err == nil {
+		return ErrTaskAlreadyExists
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("stat published task failed: %w", err)
+	}
+	if err := os.Rename(stagingDir, s.taskDir(id)); err != nil {
+		return fmt.Errorf("publish task failed: %w", err)
+	}
+	return nil
+}
+
 func (s *TaskStore) Load(id string) (Task, error) {
 	if err := validateTaskID(id); err != nil {
 		return Task{}, err
@@ -103,6 +146,10 @@ func (s *TaskStore) taskDir(id string) string {
 	return filepath.Join(s.tasksDir, id)
 }
 
+func (s *TaskStore) stagingDir() string {
+	return filepath.Join(s.tasksDir, ".staging")
+}
+
 func (s *TaskStore) ListIDs() ([]string, error) {
 	entries, err := os.ReadDir(s.tasksDir)
 	if err != nil {
@@ -121,6 +168,48 @@ func (s *TaskStore) ListIDs() ([]string, error) {
 	}
 	sort.Strings(ids)
 	return ids, nil
+}
+
+func (s *TaskStore) ListTasks() ([]Task, error) {
+	ids, err := s.ListIDs()
+	if err != nil {
+		return nil, err
+	}
+	tasks := make([]Task, 0, len(ids))
+	for _, id := range ids {
+		task, err := s.Load(id)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, task)
+	}
+	return tasks, nil
+}
+
+func (s *TaskStore) FindNextQueued() (Task, bool, error) {
+	tasks, err := s.ListTasks()
+	if err != nil {
+		return Task{}, false, err
+	}
+	queued := make([]Task, 0, len(tasks))
+	for _, task := range tasks {
+		if task.Status == TaskQueued {
+			queued = append(queued, task)
+		}
+	}
+	if len(queued) == 0 {
+		return Task{}, false, nil
+	}
+	sort.Slice(queued, func(i, j int) bool {
+		if queued[i].AcceptedOrder != queued[j].AcceptedOrder {
+			return queued[i].AcceptedOrder < queued[j].AcceptedOrder
+		}
+		if !queued[i].AcceptedAt.Equal(queued[j].AcceptedAt) {
+			return queued[i].AcceptedAt.Before(queued[j].AcceptedAt)
+		}
+		return queued[i].ID < queued[j].ID
+	})
+	return queued[0], true, nil
 }
 
 func writeJSONFileAtomic(path string, value any) error {

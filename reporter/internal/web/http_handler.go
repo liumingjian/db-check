@@ -17,6 +17,8 @@ type apiHandler struct {
 	lifecycle *TaskLifecycle
 }
 
+var errUploadTooLarge = errors.New("upload too large")
+
 func NewHandler(cfg Config) (http.Handler, error) {
 	h, err := newAPIHandler(cfg, true)
 	if err != nil {
@@ -89,26 +91,39 @@ func (h *apiHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.cfg.MaxUploadBytes > 0 {
-		r.Body = http.MaxBytesReader(w, r.Body, h.cfg.MaxUploadBytes)
-	}
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		if errors.Is(err, http.ErrBodyReadAfterClose) || strings.Contains(err.Error(), "http: request body too large") {
-			writeError(w, http.StatusRequestEntityTooLarge, "upload too large")
-			return
+	defer func() {
+		if r.MultipartForm != nil {
+			_ = r.MultipartForm.RemoveAll()
 		}
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid multipart form: %v", err))
-		return
-	}
+	}()
 
-	submission, err := reportSubmissionFromMultipart(r.MultipartForm)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	task, err := h.lifecycle.Submit(r.Context(), submission)
+	task, err := h.lifecycle.Submit(r.Context(), SubmissionRequest{
+		Materialize: func(ctx context.Context) (ReportSubmission, error) {
+			if err := ctx.Err(); err != nil {
+				return ReportSubmission{}, err
+			}
+			if h.cfg.MaxUploadBytes > 0 {
+				r.Body = http.MaxBytesReader(w, r.Body, h.cfg.MaxUploadBytes)
+			}
+			if err := r.ParseMultipartForm(32 << 20); err != nil {
+				if errors.Is(err, http.ErrBodyReadAfterClose) || strings.Contains(err.Error(), "http: request body too large") {
+					return ReportSubmission{}, errUploadTooLarge
+				}
+				return ReportSubmission{}, invalidSubmission(fmt.Errorf("invalid multipart form: %w", err))
+			}
+			submission, err := reportSubmissionFromMultipart(r.MultipartForm)
+			if err != nil {
+				return ReportSubmission{}, invalidSubmission(err)
+			}
+			return submission, nil
+		},
+	})
 	if err != nil {
 		switch {
+		case errors.Is(err, ErrTaskCapacity):
+			writeErrorCode(w, http.StatusServiceUnavailable, "capacity_exhausted", err.Error())
+		case errors.Is(err, errUploadTooLarge):
+			writeError(w, http.StatusRequestEntityTooLarge, err.Error())
 		case errors.Is(err, ErrInvalidSubmission):
 			writeError(w, http.StatusBadRequest, err.Error())
 		case errors.Is(err, ErrLifecycleClosed):
@@ -293,4 +308,8 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]any{"error": message})
+}
+
+func writeErrorCode(w http.ResponseWriter, status int, code, message string) {
+	writeJSON(w, status, map[string]any{"code": code, "error": message})
 }

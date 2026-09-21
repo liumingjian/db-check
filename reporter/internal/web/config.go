@@ -20,12 +20,13 @@ const (
 )
 
 const (
-	defaultAddr           = ":8080"
-	defaultAPIToken       = "ATI"
-	defaultMaxUploadBytes = int64(1_073_741_824) // 1 GiB
-	defaultRetentionTTL   = 24 * time.Hour
-	defaultLogReplayLines = 1000
-	defaultPythonBin      = "python3"
+	defaultAddr             = ":8080"
+	defaultAPIToken         = "ATI"
+	defaultMaxUploadBytes   = int64(1_073_741_824) // 1 GiB
+	defaultMaxAcceptedTasks = 33
+	defaultRetentionTTL     = 24 * time.Hour
+	defaultLogReplayLines   = 1000
+	defaultPythonBin        = "python3"
 )
 
 type Config struct {
@@ -34,10 +35,11 @@ type Config struct {
 	AllowedOrigins []string
 	APIToken       string
 
-	MaxUploadBytes int64
-	RetentionTTL   time.Duration
-	LogReplayLines int
-	PythonBin      string
+	MaxUploadBytes   int64
+	MaxAcceptedTasks int
+	RetentionTTL     time.Duration
+	LogReplayLines   int
+	PythonBin        string
 }
 
 func ParseConfig(args []string, getenv func(string) string) (Config, error) {
@@ -50,6 +52,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	var allowedOrigins string
 	fs.StringVar(&allowedOrigins, "allowed-origins", "", "required; comma-separated origin whitelist (or env ALLOWED_ORIGINS)")
 	fs.Int64Var(&cfg.MaxUploadBytes, "max-upload-bytes", defaultMaxUploadBytes, "max upload size in bytes; 0 disables the limit")
+	fs.IntVar(&cfg.MaxAcceptedTasks, "max-accepted-tasks", defaultMaxAcceptedTasks, "maximum accepted unfinished report tasks")
 	retentionTTL := fs.Duration("retention-ttl", defaultRetentionTTL, "task retention TTL; 0 disables auto cleanup")
 	fs.IntVar(&cfg.LogReplayLines, "log-replay-lines", defaultLogReplayLines, "log replay lines on WS/status; 0 disables truncation")
 	fs.StringVar(&cfg.PythonBin, "python-bin", defaultPythonBin, "python executable (default python3)")
@@ -82,6 +85,9 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	}
 	if cfg.MaxUploadBytes < 0 {
 		return Config{}, errors.New("--max-upload-bytes 不能为负数")
+	}
+	if cfg.MaxAcceptedTasks < 1 {
+		return Config{}, errors.New("--max-accepted-tasks 必须大于 0")
 	}
 	if cfg.RetentionTTL < 0 {
 		return Config{}, errors.New("--retention-ttl 不能为负数")
