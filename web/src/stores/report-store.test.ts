@@ -44,4 +44,25 @@ describe("report submission keys", () => {
     expect(useReportStore.getState()).toMatchObject({ currentStep: 3, taskId: "task-1" });
     expect(useReportStore.getState().zipFiles).toEqual(selected);
   });
+
+  it("starts a deliberate retry with no accepted task or retained submission key", () => {
+    useReportStore.getState().addZipFiles([collectorFile("first.zip")]);
+    const originalKey = useReportStore.getState().ensureSubmissionKey();
+    useReportStore.getState().setTaskId("task-1");
+
+    useReportStore.getState().beginNewTask();
+
+    expect(useReportStore.getState()).toMatchObject({
+      currentStep: 2,
+      dbType: "mysql",
+      taskId: null,
+      submissionKey: null,
+      submissionFingerprint: null,
+      zipFiles: [],
+      awrFiles: {},
+    });
+
+    useReportStore.getState().addZipFiles([collectorFile("retry.zip")]);
+    expect(useReportStore.getState().ensureSubmissionKey()).not.toBe(originalKey);
+  });
 });

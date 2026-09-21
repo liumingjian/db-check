@@ -60,6 +60,8 @@ function snapshot(
     status: "processing",
     total: 1,
     completed: 0,
+    succeeded_count: 0,
+    failed_count: 0,
     current_file: "input.zip",
     version: 1,
     items: [
@@ -138,6 +140,94 @@ describe("GenerationStep", () => {
       expect(reportAPIMocks.generateReportTask).toHaveBeenCalledTimes(2);
     });
     expect(useReportStore.getState().zipFiles).toHaveLength(1);
+  });
+
+  it("labels a mixed completed task as partial success with failed item detail", async () => {
+    setInitialState("task-1");
+    reportAPIMocks.getReportTaskStatus.mockResolvedValue(
+      snapshot({
+        status: "done",
+        total: 2,
+        completed: 2,
+        succeeded_count: 1,
+        failed_count: 1,
+        current_file: "",
+        download_url: "/api/reports/download/task-1",
+        items: [
+          { id: "1", name: "saved.zip", status: "done", report_docx: "report.docx" },
+          { id: "2", name: "failed.zip", status: "failed", error: "input is invalid" },
+        ],
+      }),
+    );
+
+    render(<GenerationStep />);
+
+    expect(await screen.findByText("报告生成完成（部分成功）")).toBeInTheDocument();
+    expect(screen.getByText("成功 1")).toBeInTheDocument();
+    expect(screen.getByText("失败 1")).toBeInTheDocument();
+    expect(screen.getByText("input is invalid")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "下载报告" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "重新提交失败文件" })).toBeInTheDocument();
+  });
+
+  it("shows terminal task errors and no download when every item fails", async () => {
+    setInitialState("task-1");
+    reportAPIMocks.getReportTaskStatus.mockResolvedValue(
+      snapshot({
+        status: "failed",
+        total: 2,
+        completed: 2,
+        succeeded_count: 0,
+        failed_count: 2,
+        current_file: "",
+        error: "all report items failed",
+        items: [
+          { id: "1", name: "first.zip", status: "failed", error: "first failed" },
+          { id: "2", name: "second.zip", status: "failed", error: "second failed" },
+        ],
+      }),
+    );
+
+    render(<GenerationStep />);
+
+    expect(await screen.findByText("报告生成失败")).toBeInTheDocument();
+    expect(screen.getByText("成功 0")).toBeInTheDocument();
+    expect(screen.getByText("失败 2")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("all report items failed");
+    expect(screen.getByText("first failed")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "下载报告" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "重新提交失败文件" })).toBeInTheDocument();
+  });
+
+  it("returns a failed task to the upload step before any new submission", async () => {
+    setInitialState("task-1");
+    sessionStorage.setItem("dbcheck_task_id", "task-1");
+    reportAPIMocks.getReportTaskStatus.mockResolvedValue(
+      snapshot({
+        status: "failed",
+        completed: 1,
+        succeeded_count: 0,
+        failed_count: 1,
+        error: "input failed",
+        items: [{ id: "1", name: "input.zip", status: "failed", error: "input failed" }],
+      }),
+    );
+
+    render(<Home />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "重新提交失败文件" }));
+
+    await waitFor(() => {
+      expect(useReportStore.getState()).toMatchObject({
+        currentStep: 2,
+        taskId: null,
+        submissionKey: null,
+        zipFiles: [],
+      });
+    });
+    expect(sessionStorage.getItem("dbcheck_task_id")).toBeNull();
+    expect(screen.getByText("已选：MySQL 5.6 / 5.7 / 8.0")).toBeInTheDocument();
+    expect(reportAPIMocks.generateReportTask).not.toHaveBeenCalled();
   });
 
   it("pauses after a storage fault without discarding selected files or retrying", async () => {

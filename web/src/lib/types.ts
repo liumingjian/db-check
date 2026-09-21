@@ -86,6 +86,8 @@ export interface ReportTaskSnapshot {
   status: string;
   total: number;
   completed: number;
+  succeeded_count: number;
+  failed_count: number;
   current_file: string;
   version: number;
   error?: string;

@@ -50,7 +50,7 @@ export function GenerationStep() {
   const setComplete = useReportStore((s) => s.setComplete);
   const setHasError = useReportStore((s) => s.setHasError);
   const ensureSubmissionKey = useReportStore((s) => s.ensureSubmissionKey);
-  const clearSubmissionKey = useReportStore((s) => s.clearSubmissionKey);
+  const beginNewTask = useReportStore((s) => s.beginNewTask);
   const reset = useReportStore((s) => s.reset);
   const setToken = useReportStore((s) => s.setToken);
 
@@ -449,8 +449,14 @@ export function GenerationStep() {
     if (typeof window !== "undefined") {
       sessionStorage.removeItem(TASK_STORAGE_KEY);
     }
-    clearSubmissionKey();
     reset();
+  }
+
+  function onRetryFailed() {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(TASK_STORAGE_KEY);
+    }
+    beginNewTask();
   }
 
   if (!token) {
@@ -505,6 +511,10 @@ export function GenerationStep() {
       onRetry={busyMessage ? onRetry : null}
       onReset={onReset}
       taskItems={taskSnapshot?.items}
+      taskError={taskSnapshot?.error}
+      succeededCount={taskSnapshot?.succeeded_count}
+      failedCount={taskSnapshot?.failed_count}
+      onRetryFailed={taskSnapshot?.failed_count ? onRetryFailed : null}
       isLiveDisconnected={isLiveDisconnected}
       storageFault={storageFault}
     />

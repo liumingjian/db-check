@@ -223,6 +223,8 @@ components:
         - status
         - total
         - completed
+        - succeeded_count
+        - failed_count
         - current_file
         - version
       properties:
@@ -235,6 +237,14 @@ components:
           type: integer
         completed:
           type: integer
+        succeeded_count:
+          type: integer
+          minimum: 0
+          description: Number of Report items with a persisted successful outcome.
+        failed_count:
+          type: integer
+          minimum: 0
+          description: Number of Report items with a persisted failed outcome.
         current_file:
           type: string
         version:
@@ -248,9 +258,10 @@ components:
             $ref: "#/components/schemas/ReportTaskItemSnapshot"
         download_url:
           type: string
-          description: Present when status is `done`.
+          description: Present only when status is `done` and the validated result ZIP is published. A partial success remains `done` and includes only successful item reports in the ZIP.
         error:
           type: string
+          description: Persisted task-level failure detail, including all-item, final-ZIP, or missing-artifact failures.
         storage_fault:
           $ref: "#/components/schemas/StorageFault"
 

@@ -48,6 +48,7 @@ interface ReportStore {
   /* Generation */
   setTaskId: (id: string) => void;
   restoreTask: (id: string) => void;
+  beginNewTask: () => void;
   ensureSubmissionKey: () => string;
   clearSubmissionKey: () => void;
   setProgress: (p: Partial<ProgressState>) => void;
@@ -155,6 +156,16 @@ export const useReportStore = create<ReportStore>((set, get) => ({
   },
 
   restoreTask: (id) => set({ currentStep: 3, taskId: id }),
+
+  beginNewTask: () => {
+    clearSubmissionKeyFromSession();
+    set((state) => ({
+      ...INITIAL_STATE,
+      token: state.token,
+      dbType: state.dbType,
+      currentStep: state.dbType ? 2 : 1,
+    }));
+  },
 
   ensureSubmissionKey: () => {
     const state = get();

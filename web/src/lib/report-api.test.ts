@@ -112,6 +112,8 @@ describe("generateReportTask", () => {
           status: "processing",
           total: 1,
           completed: 0,
+          succeeded_count: 0,
+          failed_count: 0,
           current_file: "collector.zip",
           version: 4,
           storage_fault: {
@@ -130,6 +132,8 @@ describe("generateReportTask", () => {
     expect(snapshot).toMatchObject({
       task_id: "task-1",
       version: 4,
+      succeeded_count: 0,
+      failed_count: 0,
       storage_fault: {
         code: "storage_unavailable",
       },

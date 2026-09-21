@@ -23,6 +23,10 @@ interface GenerationProgressProps {
   onRetry: (() => void) | null;
   onReset: () => void;
   taskItems?: ReportTaskSnapshot["items"];
+  taskError?: string;
+  succeededCount?: number;
+  failedCount?: number;
+  onRetryFailed: (() => void) | null;
   isLiveDisconnected?: boolean;
   storageFault?: StorageFault | null;
 }
@@ -46,6 +50,10 @@ export function GenerationProgress({
   onRetry,
   onReset,
   taskItems,
+  taskError,
+  succeededCount,
+  failedCount,
+  onRetryFailed,
   isLiveDisconnected = false,
   storageFault = null,
 }: GenerationProgressProps) {
@@ -53,6 +61,15 @@ export function GenerationProgress({
     progress.total > 0
       ? Math.round((progress.completed / progress.total) * 100)
       : 0;
+  const hasOutcomeCounts =
+    succeededCount !== undefined && failedCount !== undefined;
+  const isPartialSuccess =
+    isComplete &&
+    !hasError &&
+    succeededCount !== undefined &&
+    failedCount !== undefined &&
+    succeededCount > 0 &&
+    failedCount > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -63,9 +80,11 @@ export function GenerationProgress({
             ? "报告任务已暂停"
             : busyMessage
             ? "服务当前任务已满"
+            : isPartialSuccess
+            ? "报告生成完成（部分成功）"
             : isComplete
             ? hasError
-              ? "生成完成（存在错误）"
+              ? "报告生成失败"
               : "报告生成完成"
             : "报告生成中..."}
         </h2>
@@ -107,6 +126,22 @@ export function GenerationProgress({
       {isLiveDisconnected && !isComplete && !storageFault && (
         <p className="text-sm text-muted-foreground" role="status">
           实时连接已断开，正在查询任务状态。
+        </p>
+      )}
+
+      {isComplete && hasOutcomeCounts && (
+        <p className="text-sm" aria-label="任务结果统计">
+          <span className="text-primary">成功 {succeededCount}</span>
+          <span className="text-muted-foreground">，</span>
+          <span className={failedCount > 0 ? "text-destructive" : "text-muted-foreground"}>
+            失败 {failedCount}
+          </span>
+        </p>
+      )}
+
+      {isComplete && taskError && (
+        <p className="text-sm text-destructive" role="status">
+          {taskError}
         </p>
       )}
 
@@ -165,6 +200,19 @@ export function GenerationProgress({
             >
               <Download className="h-4 w-4" />
               {isDownloading ? "下载中..." : "下载报告"}
+            </button>
+          )}
+          {failedCount !== undefined && failedCount > 0 && onRetryFailed && !storageFault && (
+            <button
+              type="button"
+              onClick={onRetryFailed}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-lg border border-border px-6 py-2.5",
+                "font-medium hover:bg-muted transition-colors duration-200 cursor-pointer",
+              )}
+            >
+              <RotateCcw className="h-4 w-4" />
+              重新提交失败文件
             </button>
           )}
           <button
