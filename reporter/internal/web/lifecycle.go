@@ -86,6 +86,9 @@ type TaskLifecycle struct {
 	startOnce          sync.Once
 	startErr           error
 	closeOnce          sync.Once
+	lockReleaseOnce    sync.Once
+	shutdownOnce       sync.Once
+	writerLock         writerLock
 
 	stop          chan struct{}
 	workerDone    chan struct{}
@@ -135,36 +138,70 @@ func newTaskLifecycle(cfg Config, newPipeline pipelineFactory) (*TaskLifecycle, 
 func (l *TaskLifecycle) Start(ctx context.Context) error {
 	l.startOnce.Do(func() {
 		if err := ctx.Err(); err != nil {
-			l.startErr = err
-			l.finishWorker()
-			l.finishRetention()
+			l.failStart(err)
 			return
 		}
 
 		l.mu.Lock()
 		if l.closed {
 			l.mu.Unlock()
-			l.startErr = ErrLifecycleClosed
-			l.finishWorker()
-			l.finishRetention()
+			l.failStart(ErrLifecycleClosed)
 			return
 		}
 		l.started = true
 		l.mu.Unlock()
 
-		pipeline, err := l.newPipeline()
+		lock, err := acquireWriterLock(l.store.dataDir)
 		if err != nil {
-			l.startErr = fmt.Errorf("create report pipeline: %w", err)
-			l.finishWorker()
-			l.finishRetention()
+			l.failStart(fmt.Errorf("acquire data directory writer lock: %w", err))
+			return
+		}
+		l.mu.Lock()
+		l.writerLock = lock
+		closed := l.closed
+		l.mu.Unlock()
+		if closed {
+			l.failStart(ErrLifecycleClosed)
+			return
+		}
+		if err := ctx.Err(); err != nil {
+			l.failStart(err)
 			return
 		}
 
-		l.resumeTasks()
+		if err := l.recoverTasks(); err != nil {
+			l.failStart(fmt.Errorf("recover persisted report tasks: %w", err))
+			return
+		}
+		if err := ctx.Err(); err != nil {
+			l.failStart(err)
+			return
+		}
+
+		pipeline, err := l.newPipeline()
+		if err != nil {
+			l.failStart(fmt.Errorf("create report pipeline: %w", err))
+			return
+		}
+		l.mu.Lock()
+		closed = l.closed
+		l.mu.Unlock()
+		if closed {
+			l.failStart(ErrLifecycleClosed)
+			return
+		}
+
 		l.startRetentionCleanup()
 		go l.workerLoop(pipeline)
 	})
 	return l.startErr
+}
+
+func (l *TaskLifecycle) failStart(err error) {
+	l.startErr = err
+	l.releaseWriterLock()
+	l.finishWorker()
+	l.finishRetention()
 }
 
 func (l *TaskLifecycle) Close(ctx context.Context) error {
@@ -179,12 +216,37 @@ func (l *TaskLifecycle) Close(ctx context.Context) error {
 			l.finishWorker()
 			l.finishRetention()
 		}
+		l.shutdownOnce.Do(func() {
+			go l.releaseWriterLockWhenStopped()
+		})
 	})
 
 	if err := waitForLifecycle(ctx, l.workerDone); err != nil {
 		return err
 	}
-	return waitForLifecycle(ctx, l.retentionDone)
+	if err := waitForLifecycle(ctx, l.retentionDone); err != nil {
+		return err
+	}
+	l.releaseWriterLock()
+	return nil
+}
+
+func (l *TaskLifecycle) releaseWriterLockWhenStopped() {
+	<-l.workerDone
+	<-l.retentionDone
+	l.releaseWriterLock()
+}
+
+func (l *TaskLifecycle) releaseWriterLock() {
+	l.lockReleaseOnce.Do(func() {
+		l.mu.Lock()
+		lock := l.writerLock
+		l.writerLock = nil
+		l.mu.Unlock()
+		if lock != nil {
+			_ = lock.Close()
+		}
+	})
 }
 
 func waitForLifecycle(ctx context.Context, done <-chan struct{}) error {
@@ -393,6 +455,9 @@ func (l *TaskLifecycle) Watch(ctx context.Context, taskID string) (*TaskWatch, e
 func (l *TaskLifecycle) workerLoop(pipeline *Pipeline) {
 	defer l.finishWorker()
 	for {
+		if l.stopping() {
+			return
+		}
 		task, found := l.nextQueuedTask()
 		if found {
 			if task.TaskID != "" {
@@ -406,6 +471,15 @@ func (l *TaskLifecycle) workerLoop(pipeline *Pipeline) {
 			return
 		case <-l.wake:
 		}
+	}
+}
+
+func (l *TaskLifecycle) stopping() bool {
+	select {
+	case <-l.stop:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -482,6 +556,9 @@ func (l *TaskLifecycle) startRetentionCleanup() {
 }
 
 func (l *TaskLifecycle) runTask(pipeline *Pipeline, queued queuedTask) {
+	if l.stopping() {
+		return
+	}
 	task, err := l.store.Load(queued.TaskID)
 	if err != nil {
 		return
@@ -512,6 +589,9 @@ func (l *TaskLifecycle) runTask(pipeline *Pipeline, queued queuedTask) {
 
 	taskDir := l.store.taskDir(task.ID)
 	for i, input := range queued.Items {
+		if l.stopping() {
+			return
+		}
 		// Resume: skip items already completed in a previous run.
 		if i < len(task.Items) {
 			if task.Items[i].Status == string(ItemDone) || task.Items[i].Status == string(ItemFailed) {
@@ -546,6 +626,9 @@ func (l *TaskLifecycle) runTask(pipeline *Pipeline, queued queuedTask) {
 		_, _ = l.store.Update(task)
 
 		l.hub.emitProgress(task.ID, task.Completed, task.Total, task.CurrentFile)
+		if l.stopping() {
+			return
+		}
 	}
 
 	// Build download zip from all completed items (including previous runs).
@@ -557,6 +640,19 @@ func (l *TaskLifecycle) runTask(pipeline *Pipeline, queued queuedTask) {
 		case string(ItemFailed):
 			results = append(results, ItemResult{ID: item.ID, Status: ItemFailed, Error: item.Error})
 		}
+	}
+	if l.stopping() {
+		return
+	}
+	if err := validateCompletedTaskArtifacts(taskDir, task); err != nil {
+		task.Status = TaskFailed
+		task.Error = fmt.Sprintf("completed report artifacts unavailable: %v", err)
+		task.CurrentFile = ""
+		if _, updateErr := l.store.Update(task); updateErr == nil {
+			l.releaseAcceptedTask()
+			l.hub.emitError(task.ID, task.Error)
+		}
+		return
 	}
 
 	zipPath := filepath.Join(taskDir, fmt.Sprintf("reports-%s.zip", task.ID))

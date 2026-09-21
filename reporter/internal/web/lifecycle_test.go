@@ -214,7 +214,34 @@ func (lifecycleTestRunner) Run(_ string, args []string, onLog func(LogEvent)) er
 		if err := os.MkdirAll(filepath.Dir(args[i+1]), 0o755); err != nil {
 			return err
 		}
-		return os.WriteFile(args[i+1], []byte("controlled report"), 0o644)
+		return writeTestReportDocx(args[i+1])
 	}
 	return fmt.Errorf("missing --out-docx argument: %#v", args)
+}
+
+func writeTestReportDocx(path string) error {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	writer := zip.NewWriter(file)
+	contentTypes, err := writer.Create("[Content_Types].xml")
+	if err == nil {
+		_, err = contentTypes.Write([]byte(`<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>`))
+	}
+	if err == nil {
+		document, createErr := writer.Create("word/document.xml")
+		if createErr != nil {
+			err = createErr
+		} else {
+			_, err = document.Write([]byte(`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"></w:document>`))
+		}
+	}
+	if closeErr := writer.Close(); err == nil {
+		err = closeErr
+	}
+	if closeErr := file.Close(); err == nil {
+		err = closeErr
+	}
+	return err
 }

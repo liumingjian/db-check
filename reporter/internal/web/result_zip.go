@@ -33,7 +33,9 @@ func buildResultZip(zipPath string, results []ItemResult, inputs []ItemInput) er
 			continue
 		}
 		if strings.TrimSpace(result.ReportDocx) == "" {
-			continue
+			_ = zw.Close()
+			_ = tmp.Close()
+			return fmt.Errorf("completed report artifact is missing for item %q", result.ID)
 		}
 		folder := sanitizeZipFolder(nameByID[result.ID])
 		if folder == "" {
