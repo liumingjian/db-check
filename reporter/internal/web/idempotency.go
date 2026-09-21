@@ -80,14 +80,8 @@ func (l *TaskLifecycle) submitKeyed(ctx context.Context, request SubmissionReque
 func (l *TaskLifecycle) beginKeyedSubmission(key string) (*retainedSubmission, *keyedSubmissionFlight, bool, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.storageFault != nil {
-		return nil, nil, false, ErrStorageUnavailable
-	}
-	if l.closed {
-		return nil, nil, false, ErrLifecycleClosed
-	}
-	if !l.ready {
-		return nil, nil, false, ErrLifecycleNotReady
+	if err := l.requireReadyLocked(); err != nil {
+		return nil, nil, false, err
 	}
 	if retained := l.keyIndex[key]; retained != nil {
 		retained.leases++
@@ -118,14 +112,8 @@ func (l *TaskLifecycle) finishKeyedSubmission(key string, flight *keyedSubmissio
 func (l *TaskLifecycle) acquireRetainedSubmission(key string) (*retainedSubmission, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.storageFault != nil {
-		return nil, ErrStorageUnavailable
-	}
-	if l.closed {
-		return nil, ErrLifecycleClosed
-	}
-	if !l.ready {
-		return nil, ErrLifecycleNotReady
+	if err := l.requireReadyLocked(); err != nil {
+		return nil, err
 	}
 	retained := l.keyIndex[key]
 	if retained != nil {
@@ -255,14 +243,8 @@ func (l *TaskLifecycle) cleanupExpiredRetainedTasks(now func() time.Time) (int, 
 			l.hub.closeSubscribers()
 		}
 	}()
-	if l.storageFault != nil {
-		return 0, ErrStorageUnavailable
-	}
-	if l.closed {
-		return 0, ErrLifecycleClosed
-	}
-	if !l.ready {
-		return 0, ErrLifecycleNotReady
+	if err := l.requireReadyLocked(); err != nil {
+		return 0, err
 	}
 	tasks, err := l.store.ListTasks()
 	if err != nil {

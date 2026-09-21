@@ -7,10 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"time"
 )
 
 type TaskStore struct {
+	mu        sync.Mutex
 	dataDir   string
 	tasksDir  string
 	now       func() time.Time
@@ -41,6 +43,7 @@ func (s *TaskStore) Create(task Task) (Task, error) {
 	}
 	task.CreatedAt = s.now()
 	task.UpdatedAt = task.CreatedAt
+	task.Version = 1
 
 	taskPath := s.taskPath(task.ID)
 	if _, err := os.Stat(taskPath); err == nil {
@@ -123,22 +126,27 @@ func (s *TaskStore) Update(task Task) (Task, error) {
 	if err := validateTaskID(task.ID); err != nil {
 		return Task{}, err
 	}
-	taskPath := s.taskPath(task.ID)
-	if _, err := os.Stat(taskPath); errors.Is(err, os.ErrNotExist) {
-		return Task{}, ErrTaskNotFound
-	} else if err != nil {
-		return Task{}, fmt.Errorf("stat task failed: %w", err)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	existing, err := s.Load(task.ID)
+	if err != nil {
+		return Task{}, err
 	}
 	// Preserve CreatedAt from disk if caller doesn't provide it.
 	if task.CreatedAt.IsZero() {
-		existing, err := s.Load(task.ID)
-		if err != nil {
-			return Task{}, err
-		}
 		task.CreatedAt = existing.CreatedAt
 	}
+	if existing.Version == 1<<63-1 {
+		return Task{}, errors.New("task version is exhausted")
+	}
+	if existing.Version < 1 {
+		task.Version = 1
+	} else {
+		task.Version = existing.Version + 1
+	}
 	task.UpdatedAt = s.now()
-	if err := s.writeJSON(taskPath, task); err != nil {
+	if err := s.writeJSON(s.taskPath(task.ID), task); err != nil {
 		return Task{}, err
 	}
 	return task, nil

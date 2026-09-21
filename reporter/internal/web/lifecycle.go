@@ -313,6 +313,10 @@ func (l *TaskLifecycle) Submit(ctx context.Context, request SubmissionRequest) (
 func (l *TaskLifecycle) requireReady() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	return l.requireReadyLocked()
+}
+
+func (l *TaskLifecycle) requireReadyLocked() error {
 	if l.storageFault != nil {
 		return ErrStorageUnavailable
 	}
@@ -407,14 +411,8 @@ func (l *TaskLifecycle) submitReserved(ctx context.Context, request SubmissionRe
 func (l *TaskLifecycle) reserveSubmission() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.storageFault != nil {
-		return ErrStorageUnavailable
-	}
-	if l.closed {
-		return ErrLifecycleClosed
-	}
-	if !l.ready {
-		return ErrLifecycleNotReady
+	if err := l.requireReadyLocked(); err != nil {
+		return err
 	}
 	if l.acceptedUnfinished+l.reservations >= l.cfg.MaxAcceptedTasks {
 		return ErrTaskCapacity
@@ -441,14 +439,8 @@ func (l *TaskLifecycle) publishSubmission(ctx context.Context, stagingDir string
 			l.hub.closeSubscribers()
 		}
 	}()
-	if l.storageFault != nil {
-		return Task{}, ErrStorageUnavailable
-	}
-	if l.closed {
-		return Task{}, ErrLifecycleClosed
-	}
-	if !l.ready {
-		return Task{}, ErrLifecycleNotReady
+	if err := l.requireReadyLocked(); err != nil {
+		return Task{}, err
 	}
 	if err := ctx.Err(); err != nil {
 		return Task{}, err
@@ -459,6 +451,7 @@ func (l *TaskLifecycle) publishSubmission(ctx context.Context, stagingDir string
 	task.AcceptedAt = acceptedAt
 	task.CreatedAt = acceptedAt
 	task.UpdatedAt = acceptedAt
+	task.Version = 1
 	if err := l.store.WriteStagedTask(stagingDir, task); err != nil {
 		newStorageFault = l.pauseForStorageLocked()
 		return Task{}, ErrStorageUnavailable
@@ -537,7 +530,7 @@ func (l *TaskLifecycle) Read(ctx context.Context, taskID string) (TaskSnapshot, 
 	if err := ctx.Err(); err != nil {
 		return TaskSnapshot{}, err
 	}
-	task, version, err := l.hub.read(taskID, func() (Task, error) {
+	task, _, err := l.hub.read(taskID, func() (Task, error) {
 		return l.store.Load(taskID)
 	})
 	if err != nil {
@@ -549,7 +542,7 @@ func (l *TaskLifecycle) Read(ctx context.Context, taskID string) (TaskSnapshot, 
 	if err := ctx.Err(); err != nil {
 		return TaskSnapshot{}, err
 	}
-	return newTaskSnapshot(task, version, l.storageFaultSnapshot()), nil
+	return newTaskSnapshot(task, l.store.taskDir(task.ID), l.storageFaultSnapshot()), nil
 }
 
 func (l *TaskLifecycle) Download(ctx context.Context, taskID string) (path string, size int64, err error) {
@@ -573,7 +566,7 @@ func (l *TaskLifecycle) Watch(ctx context.Context, taskID string) (*TaskWatch, e
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	task, version, logs, updates, overflow, cancel, err := l.hub.snapshotAndSubscribe(taskID, func() (Task, error) {
+	task, _, logs, updates, overflow, cancel, err := l.hub.snapshotAndSubscribe(taskID, func() (Task, error) {
 		return l.store.Load(taskID)
 	})
 	if err != nil {
@@ -587,7 +580,7 @@ func (l *TaskLifecycle) Watch(ctx context.Context, taskID string) (*TaskWatch, e
 		return nil, err
 	}
 	return &TaskWatch{
-		Snapshot: newTaskSnapshot(task, version, l.storageFaultSnapshot()),
+		Snapshot: newTaskSnapshot(task, l.store.taskDir(task.ID), l.storageFaultSnapshot()),
 		Logs:     logs,
 		Updates:  updates,
 		Overflow: overflow,

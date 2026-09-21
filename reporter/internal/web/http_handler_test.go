@@ -190,13 +190,14 @@ func TestStatusReturnsAuthoritativeTaskSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
+	reportDocx := filepath.Join(h.lifecycle.store.taskDir("t1"), "items", "1", "attempts", "run", "report.docx")
 	if _, err := h.lifecycle.store.Create(Task{
 		ID:        "t1",
 		Status:    TaskDone,
 		Total:     2,
 		Completed: 2,
 		Items: []TaskItem{
-			{ID: "1", Name: "first.zip", Status: string(ItemDone), ReportDocx: "first.docx"},
+			{ID: "1", Name: "first.zip", Status: string(ItemDone), ReportDocx: reportDocx},
 			{ID: "2", Name: "second.zip", Status: string(ItemFailed), Error: "invalid data"},
 		},
 	}); err != nil {
@@ -218,8 +219,18 @@ func TestStatusReturnsAuthoritativeTaskSnapshot(t *testing.T) {
 	if snapshot.TaskID != "t1" || snapshot.Status != TaskDone || snapshot.Completed != 2 || snapshot.SucceededCount != 1 || snapshot.FailedCount != 1 || snapshot.DownloadURL != "/api/reports/download/t1" {
 		t.Fatalf("unexpected status snapshot: %#v", snapshot)
 	}
-	if len(snapshot.Items) != 2 || snapshot.Items[0].ReportDocx != "first.docx" || snapshot.Items[1].Error != "invalid data" {
+	if len(snapshot.Items) != 2 || snapshot.Items[0].ReportDocx != "items/1/attempts/run/report.docx" || snapshot.Items[1].Error != "invalid data" {
 		t.Fatalf("item outcomes missing from snapshot: %#v", snapshot.Items)
+	}
+	if bytes.Contains(rec.Body.Bytes(), []byte(h.lifecycle.store.dataDir)) {
+		t.Fatalf("status response exposed task storage path: %s", rec.Body.String())
+	}
+	persisted, err := h.lifecycle.store.Load("t1")
+	if err != nil {
+		t.Fatalf("load persisted task: %v", err)
+	}
+	if persisted.Items[0].ReportDocx != reportDocx {
+		t.Fatalf("snapshot projection changed persisted artifact path: %q", persisted.Items[0].ReportDocx)
 	}
 }
 

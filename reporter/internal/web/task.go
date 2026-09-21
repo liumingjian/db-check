@@ -26,6 +26,7 @@ type Task struct {
 	Status         TaskStatus `json:"status"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
+	Version        int64      `json:"version"`
 	AcceptedOrder  uint64     `json:"accepted_order,omitempty"`
 	AcceptedAt     time.Time  `json:"accepted_at,omitempty"`
 	IdempotencyKey string     `json:"idempotency_key,omitempty"`

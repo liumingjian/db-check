@@ -83,18 +83,25 @@ const INITIAL_STATE = {
   hasError: false,
 };
 
+function submissionKeyInvalidationPatch(): Pick<
+  ReportStore,
+  "submissionKey" | "submissionFingerprint"
+> {
+  clearSubmissionKeyFromSession();
+  return { submissionKey: null, submissionFingerprint: null };
+}
+
 export const useReportStore = create<ReportStore>((set, get) => ({
   ...INITIAL_STATE,
 
   setToken: (token) => set({ token }),
 
   setDbType: (type) => {
-    clearSubmissionKeyFromSession();
-    set({ dbType: type, submissionKey: null, submissionFingerprint: null });
+    set({ dbType: type, ...submissionKeyInvalidationPatch() });
   },
 
   addZipFiles: (files) => {
-    clearSubmissionKeyFromSession();
+    const invalidation = submissionKeyInvalidationPatch();
     set((state) => ({
       zipFiles: [
         ...state.zipFiles,
@@ -105,37 +112,34 @@ export const useReportStore = create<ReportStore>((set, get) => ({
           size: file.size,
         })),
       ],
-      submissionKey: null,
-      submissionFingerprint: null,
+      ...invalidation,
     }));
   },
 
   removeZipFile: (id) => {
-    clearSubmissionKeyFromSession();
+    const invalidation = submissionKeyInvalidationPatch();
     set((state) => {
       const remainingAwrs = { ...state.awrFiles };
       delete remainingAwrs[id];
       return {
         zipFiles: state.zipFiles.filter((z) => z.id !== id),
         awrFiles: remainingAwrs,
-        submissionKey: null,
-        submissionFingerprint: null,
+        ...invalidation,
       };
     });
   },
 
   setAwrFile: (zipId, files) => {
-    clearSubmissionKeyFromSession();
+    const invalidation = submissionKeyInvalidationPatch();
     set((state) => {
       if (files === null || files.length === 0) {
         const rest = { ...state.awrFiles };
         delete rest[zipId];
-        return { awrFiles: rest, submissionKey: null, submissionFingerprint: null };
+        return { awrFiles: rest, ...invalidation };
       }
       return {
         awrFiles: { ...state.awrFiles, [zipId]: files },
-        submissionKey: null,
-        submissionFingerprint: null,
+        ...invalidation,
       };
     });
   },
@@ -151,16 +155,16 @@ export const useReportStore = create<ReportStore>((set, get) => ({
     })),
 
   setTaskId: (id) => {
-    clearSubmissionKeyFromSession();
-    set({ taskId: id, submissionKey: null, submissionFingerprint: null });
+    set({ taskId: id, ...submissionKeyInvalidationPatch() });
   },
 
   restoreTask: (id) => set({ currentStep: 3, taskId: id }),
 
   beginNewTask: () => {
-    clearSubmissionKeyFromSession();
+    const invalidation = submissionKeyInvalidationPatch();
     set((state) => ({
       ...INITIAL_STATE,
+      ...invalidation,
       token: state.token,
       dbType: state.dbType,
       currentStep: state.dbType ? 2 : 1,
@@ -185,8 +189,7 @@ export const useReportStore = create<ReportStore>((set, get) => ({
   },
 
   clearSubmissionKey: () => {
-    clearSubmissionKeyFromSession();
-    set({ submissionKey: null, submissionFingerprint: null });
+    set(submissionKeyInvalidationPatch());
   },
 
   setProgress: (p) =>
@@ -209,8 +212,8 @@ export const useReportStore = create<ReportStore>((set, get) => ({
   setHasError: (v) => set({ hasError: v }),
 
   reset: () => {
-    clearSubmissionKeyFromSession();
-    set((state) => ({ ...INITIAL_STATE, token: state.token }));
+    const invalidation = submissionKeyInvalidationPatch();
+    set((state) => ({ ...INITIAL_STATE, ...invalidation, token: state.token }));
   },
 }));
 

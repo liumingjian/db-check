@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -56,6 +57,7 @@ func TestWebSocketReplayAndAuthoritativeSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
+	reportDocx := filepath.Join(h.lifecycle.store.taskDir("t1"), "items", "1", "attempts", "run", "report.docx")
 	if _, err := h.lifecycle.store.Create(Task{
 		ID:        "t1",
 		Status:    TaskDone,
@@ -65,7 +67,7 @@ func TestWebSocketReplayAndAuthoritativeSnapshot(t *testing.T) {
 			ID:         "1",
 			Name:       "input.zip",
 			Status:     string(ItemDone),
-			ReportDocx: "report.docx",
+			ReportDocx: reportDocx,
 		}},
 	}); err != nil {
 		t.Fatalf("Create task failed: %v", err)
@@ -117,6 +119,13 @@ func TestWebSocketReplayAndAuthoritativeSnapshot(t *testing.T) {
 	items, ok := m2["items"].([]any)
 	if !ok || len(items) != 1 {
 		t.Fatalf("expected task item outcomes in snapshot got %#v", m2)
+	}
+	item, ok := items[0].(map[string]any)
+	if !ok || item["report_docx"] != "items/1/attempts/run/report.docx" {
+		t.Fatalf("expected task-relative report artifact path got %#v", items[0])
+	}
+	if strings.Contains(string(b2), h.lifecycle.store.dataDir) {
+		t.Fatalf("websocket snapshot exposed task storage path: %s", b2)
 	}
 }
 

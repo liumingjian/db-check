@@ -67,6 +67,37 @@ func TestTaskLifecycleReadAndWatchReturnSharedSnapshotAndUpdates(t *testing.T) {
 	}
 }
 
+func TestTaskSnapshotVersionSurvivesLifecycleRestart(t *testing.T) {
+	dataDir := t.TempDir()
+	first, err := NewTaskLifecycle(Config{DataDir: dataDir})
+	if err != nil {
+		t.Fatalf("NewTaskLifecycle failed: %v", err)
+	}
+	created, err := first.store.Create(Task{ID: "t1", Status: TaskQueued})
+	if err != nil {
+		t.Fatalf("Create task failed: %v", err)
+	}
+	if _, err := first.store.Update(Task{ID: created.ID, Status: TaskDone, CreatedAt: created.CreatedAt}); err != nil {
+		t.Fatalf("Update task failed: %v", err)
+	}
+
+	beforeRestart, err := first.Read(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("read before restart: %v", err)
+	}
+	restarted, err := NewTaskLifecycle(Config{DataDir: dataDir})
+	if err != nil {
+		t.Fatalf("restart lifecycle: %v", err)
+	}
+	afterRestart, err := restarted.Read(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("read after restart: %v", err)
+	}
+	if beforeRestart.Version != 2 || afterRestart.Version != beforeRestart.Version {
+		t.Fatalf("snapshot version did not survive restart: before=%d after=%d", beforeRestart.Version, afterRestart.Version)
+	}
+}
+
 func TestHTTPSubmissionRunsThroughLifecycleToDownload(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),

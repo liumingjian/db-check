@@ -434,4 +434,41 @@ describe("GenerationStep", () => {
     expect(screen.getByRole("button", { name: "下载报告" })).toBeInTheDocument();
     expect(reportAPIMocks.generateReportTask).not.toHaveBeenCalled();
   });
+
+  it("reconciles a terminal snapshot with a persisted version after a server restart", async () => {
+    vi.useFakeTimers();
+    setInitialState("task-1");
+    reportAPIMocks.getReportTaskStatus
+      .mockResolvedValueOnce(snapshot({ version: 10 }))
+      .mockResolvedValueOnce(
+        snapshot({
+          status: "done",
+          completed: 1,
+          current_file: "",
+          version: 11,
+          download_url: "/api/reports/download/task-1",
+        }),
+      );
+
+    render(<GenerationStep />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    act(() => {
+      MockWebSocket.instances[0].close();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(15_000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("button", { name: "下载报告" })).toBeInTheDocument();
+    expect(useReportStore.getState().isComplete).toBe(true);
+    expect(reportAPIMocks.generateReportTask).not.toHaveBeenCalled();
+  });
 });
