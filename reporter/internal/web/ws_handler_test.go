@@ -111,7 +111,7 @@ func TestWebSocketReplayAndAuthoritativeSnapshot(t *testing.T) {
 	if err := json.Unmarshal(b2, &m2); err != nil {
 		t.Fatalf("decode #2 failed: %v", err)
 	}
-	if m2["type"] != "snapshot" || m2["status"] != string(TaskDone) || m2["download_url"] != "/api/reports/download/t1" {
+	if m2["type"] != "snapshot" || m2["status"] != string(TaskDone) || m2["succeeded_count"] != float64(1) || m2["failed_count"] != float64(0) || m2["download_url"] != "/api/reports/download/t1" {
 		t.Fatalf("expected authoritative snapshot with download got %#v", m2)
 	}
 	items, ok := m2["items"].([]any)
