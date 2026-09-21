@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const wsSubscriberBuffer = 256
+
 type taskHub struct {
 	mu      sync.Mutex
 	maxLogs int
@@ -19,7 +21,8 @@ type taskHubState struct {
 }
 
 type wsSubscriber struct {
-	ch chan []byte
+	ch       chan []byte
+	overflow chan struct{}
 }
 
 func newTaskHub(maxLogs int) *taskHub {
@@ -29,9 +32,24 @@ func newTaskHub(maxLogs int) *taskHub {
 	}
 }
 
-func (h *taskHub) snapshot(taskID string) (lastSeq int64, logs [][]byte) {
+func (h *taskHub) read(taskID string, load func() (Task, error)) (Task, int64, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	task, err := load()
+	if err != nil {
+		return Task{}, 0, err
+	}
+	state := h.state(taskID)
+	return task, state.nextSeq, nil
+}
+
+func (h *taskHub) snapshotAndSubscribe(taskID string, load func() (Task, error)) (Task, int64, [][]byte, <-chan []byte, <-chan struct{}, func(), error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	task, err := load()
+	if err != nil {
+		return Task{}, 0, nil, nil, nil, nil, err
+	}
 	state := h.state(taskID)
 	out := make([][]byte, 0, len(state.logs))
 	for _, b := range state.logs {
@@ -39,16 +57,12 @@ func (h *taskHub) snapshot(taskID string) (lastSeq int64, logs [][]byte) {
 		copy(cp, b)
 		out = append(out, cp)
 	}
-	return state.nextSeq, out
-}
-
-func (h *taskHub) subscribe(taskID string) (ch <-chan []byte, cancel func()) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	state := h.state(taskID)
-	sub := &wsSubscriber{ch: make(chan []byte, 256)}
+	sub := &wsSubscriber{
+		ch:       make(chan []byte, wsSubscriberBuffer),
+		overflow: make(chan struct{}),
+	}
 	state.subs[sub] = struct{}{}
-	return sub.ch, func() {
+	cancel := func() {
 		h.mu.Lock()
 		defer h.mu.Unlock()
 		if _, ok := state.subs[sub]; ok {
@@ -56,6 +70,7 @@ func (h *taskHub) subscribe(taskID string) (ch <-chan []byte, cancel func()) {
 			close(sub.ch)
 		}
 	}
+	return task, state.nextSeq, out, sub.ch, sub.overflow, cancel, nil
 }
 
 func (h *taskHub) emitLog(taskID string, level string, message string) {
@@ -112,7 +127,21 @@ func (h *taskHub) emit(taskID string, storeLog bool, msg any) {
 		select {
 		case sub.ch <- b:
 		default:
-			// Slow client: drop message to avoid blocking the worker.
+			delete(state.subs, sub)
+			close(sub.overflow)
+			close(sub.ch)
+		}
+	}
+}
+
+func (h *taskHub) closeSubscribers() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, state := range h.tasks {
+		for sub := range state.subs {
+			delete(state.subs, sub)
+			close(sub.overflow)
+			close(sub.ch)
 		}
 	}
 }

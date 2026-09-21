@@ -76,11 +76,16 @@ func (p *Pipeline) runOne(taskDir string, item ItemInput, onLog func(itemID stri
 	}
 
 	itemDir := filepath.Join(taskDir, "items", item.ID)
-	extractDir := filepath.Join(itemDir, "extract")
-	if err := os.RemoveAll(extractDir); err != nil {
-		return ItemResult{ID: item.ID, Status: ItemFailed, Error: fmt.Errorf("cleanup extract dir failed: %w", err).Error()}
+	attemptsDir := filepath.Join(itemDir, "attempts")
+	if err := os.MkdirAll(attemptsDir, 0o755); err != nil {
+		return ItemResult{ID: item.ID, Status: ItemFailed, Error: fmt.Errorf("create attempts dir failed: %w", err).Error()}
 	}
-	if err := os.MkdirAll(extractDir, 0o755); err != nil {
+	attemptDir, err := os.MkdirTemp(attemptsDir, "attempt-")
+	if err != nil {
+		return ItemResult{ID: item.ID, Status: ItemFailed, Error: fmt.Errorf("create attempt dir failed: %w", err).Error()}
+	}
+	extractDir := filepath.Join(attemptDir, "extract")
+	if err := os.Mkdir(extractDir, 0o755); err != nil {
 		return ItemResult{ID: item.ID, Status: ItemFailed, Error: fmt.Errorf("create extract dir failed: %w", err).Error()}
 	}
 
@@ -99,7 +104,7 @@ func (p *Pipeline) runOne(taskDir string, item ItemInput, onLog func(itemID stri
 		return ItemResult{ID: item.ID, Status: ItemFailed, Error: err.Error()}
 	}
 
-	outDocx := filepath.Join(itemDir, "report.docx")
+	outDocx := filepath.Join(attemptDir, "report.docx")
 	cfg := launcher.Config{
 		RunDir:   runDir,
 		OutDocx:  outDocx,

@@ -1,7 +1,33 @@
 import { apiUrl, getApiBase } from "@/lib/api";
-import type { DbType, GenerateResponse, ZipFileEntry } from "@/lib/types";
+import type {
+  DbType,
+  GenerateResponse,
+  ReportTaskSnapshot,
+  ZipFileEntry,
+} from "@/lib/types";
 
 const BACKEND_PROBE_TASK_ID = "frontend-probe";
+
+export const REPORT_API_ERROR_CODES = {
+  capacityExhausted: "capacity_exhausted",
+  idempotencyKeyConflict: "idempotency_key_conflict",
+  storageUnavailable: "storage_unavailable",
+} as const;
+
+export type ReportAPIErrorCode =
+  (typeof REPORT_API_ERROR_CODES)[keyof typeof REPORT_API_ERROR_CODES];
+
+export class ReportAPIError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ReportAPIError";
+    this.status = status;
+    this.code = code;
+  }
+}
 
 function authHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}` };
@@ -22,14 +48,52 @@ function networkErrorMessage(action: string, cause: unknown): string {
   ].join(" ");
 }
 
-async function readErrorText(resp: Response): Promise<string> {
+type ErrorDetails = {
+  message: string;
+  code?: string;
+};
+
+export function isReportAPIErrorCode<Code extends ReportAPIErrorCode>(
+  error: unknown,
+  code: Code,
+): error is ReportAPIError & { code: Code } {
+  return error instanceof ReportAPIError && error.code === code;
+}
+
+async function readErrorDetails(resp: Response): Promise<ErrorDetails> {
   const text = await resp.text().catch(() => "");
-  return text.trim();
+  const message = text.trim();
+  if (!message) {
+    return { message };
+  }
+
+  try {
+    const payload: unknown = JSON.parse(message);
+    if (typeof payload !== "object" || payload === null) {
+      return { message };
+    }
+    const record = payload as Record<string, unknown>;
+    return {
+      message: typeof record.error === "string" ? record.error : message,
+      code: typeof record.code === "string" ? record.code : undefined,
+    };
+  } catch {
+    return { message };
+  }
 }
 
 function httpErrorMessage(action: string, resp: Response, text: string): string {
   const detail = text ? ` ${text}` : "";
   return `${action}: HTTP ${resp.status}${detail}`;
+}
+
+async function responseError(action: string, resp: Response): Promise<ReportAPIError> {
+  const details = await readErrorDetails(resp);
+  return new ReportAPIError(
+    httpErrorMessage(action, resp, details.message),
+    resp.status,
+    details.code,
+  );
 }
 
 export async function probeReportBackend(token: string): Promise<void> {
@@ -44,7 +108,7 @@ export async function probeReportBackend(token: string): Promise<void> {
 
   if (resp.ok || resp.status === 404) return;
 
-  const text = await readErrorText(resp);
+  const details = await readErrorDetails(resp);
   if (resp.status === 401) {
     throw new Error("API 探测失败: Token 无效，需与后端 DBCHECK_API_TOKEN 一致。");
   }
@@ -53,7 +117,11 @@ export async function probeReportBackend(token: string): Promise<void> {
       `API 探测失败: 当前页面 Origin 未被后端 ALLOWED_ORIGINS 放行。当前页面 Origin: ${currentOrigin()}`,
     );
   }
-  throw new Error(httpErrorMessage("API 探测失败", resp, text));
+  throw new ReportAPIError(
+    httpErrorMessage("API 探测失败", resp, details.message),
+    resp.status,
+    details.code,
+  );
 }
 
 export async function generateReportTask(
@@ -61,6 +129,7 @@ export async function generateReportTask(
   dbType: DbType,
   zipFiles: ZipFileEntry[],
   awrFiles: Record<string, File[]>,
+  submissionKey?: string,
 ): Promise<GenerateResponse> {
   await probeReportBackend(token);
 
@@ -79,19 +148,40 @@ export async function generateReportTask(
 
   let resp: Response;
   try {
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    if (submissionKey?.trim()) {
+      headers["Idempotency-Key"] = submissionKey.trim();
+    }
     resp = await fetch(apiUrl("/api/reports/generate"), {
       method: "POST",
-      headers: authHeaders(token),
+      headers,
       body: form,
     });
   } catch (e) {
     throw new Error(networkErrorMessage("生成接口请求失败", e));
   }
   if (!resp.ok) {
-    const text = await readErrorText(resp);
-    throw new Error(httpErrorMessage("生成接口失败", resp, text));
+    throw await responseError("生成接口失败", resp);
   }
   return (await resp.json()) as GenerateResponse;
+}
+
+export async function getReportTaskStatus(
+  token: string,
+  taskId: string,
+): Promise<ReportTaskSnapshot> {
+  let resp: Response;
+  try {
+    resp = await fetch(apiUrl(`/api/reports/status/${encodeURIComponent(taskId)}`), {
+      headers: authHeaders(token),
+    });
+  } catch (e) {
+    throw new Error(networkErrorMessage("查询任务状态失败", e));
+  }
+  if (!resp.ok) {
+    throw await responseError("查询任务状态失败", resp);
+  }
+  return (await resp.json()) as ReportTaskSnapshot;
 }
 
 export async function downloadReportBlob(token: string, downloadUrl: string): Promise<Blob> {
@@ -104,8 +194,7 @@ export async function downloadReportBlob(token: string, downloadUrl: string): Pr
     throw new Error(networkErrorMessage("下载请求失败", e));
   }
   if (!resp.ok) {
-    const text = await readErrorText(resp);
-    throw new Error(httpErrorMessage("下载失败", resp, text));
+    throw await responseError("下载失败", resp);
   }
   return resp.blob();
 }

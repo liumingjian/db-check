@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -22,7 +23,7 @@ func TestWebSocketAuthViaSubprotocol(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
-	if _, err := h.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
+	if _, err := h.lifecycle.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
 		t.Fatalf("Create task failed: %v", err)
 	}
 
@@ -45,7 +46,7 @@ func TestWebSocketAuthViaSubprotocol(t *testing.T) {
 	}
 }
 
-func TestWebSocketReplayAndProgressSnapshot(t *testing.T) {
+func TestWebSocketReplayAndAuthoritativeSnapshot(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://example.com"},
@@ -56,10 +57,22 @@ func TestWebSocketReplayAndProgressSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
-	if _, err := h.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
+	reportDocx := filepath.Join(h.lifecycle.store.taskDir("t1"), "items", "1", "attempts", "run", "report.docx")
+	if _, err := h.lifecycle.store.Create(Task{
+		ID:        "t1",
+		Status:    TaskDone,
+		Total:     1,
+		Completed: 1,
+		Items: []TaskItem{{
+			ID:         "1",
+			Name:       "input.zip",
+			Status:     string(ItemDone),
+			ReportDocx: reportDocx,
+		}},
+	}); err != nil {
 		t.Fatalf("Create task failed: %v", err)
 	}
-	h.hub.emitLog("t1", "info", "hello")
+	h.lifecycle.hub.emitLog("t1", "info", "hello")
 
 	srv := httptest.NewServer(h.handler())
 	defer srv.Close()
@@ -100,8 +113,19 @@ func TestWebSocketReplayAndProgressSnapshot(t *testing.T) {
 	if err := json.Unmarshal(b2, &m2); err != nil {
 		t.Fatalf("decode #2 failed: %v", err)
 	}
-	if m2["type"] != "progress" {
-		t.Fatalf("expected second message type=progress got %#v", m2)
+	if m2["type"] != "snapshot" || m2["status"] != string(TaskDone) || m2["succeeded_count"] != float64(1) || m2["failed_count"] != float64(0) || m2["download_url"] != "/api/reports/download/t1" {
+		t.Fatalf("expected authoritative snapshot with download got %#v", m2)
+	}
+	items, ok := m2["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected task item outcomes in snapshot got %#v", m2)
+	}
+	item, ok := items[0].(map[string]any)
+	if !ok || item["report_docx"] != "items/1/attempts/run/report.docx" {
+		t.Fatalf("expected task-relative report artifact path got %#v", items[0])
+	}
+	if strings.Contains(string(b2), h.lifecycle.store.dataDir) {
+		t.Fatalf("websocket snapshot exposed task storage path: %s", b2)
 	}
 }
 
@@ -115,7 +139,7 @@ func TestWebSocketAllowsWildcardOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
-	if _, err := h.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
+	if _, err := h.lifecycle.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
 		t.Fatalf("Create task failed: %v", err)
 	}
 
@@ -147,8 +171,8 @@ func TestWebSocketAllowsWildcardOrigin(t *testing.T) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		t.Fatalf("decode failed: %v", err)
 	}
-	if m["type"] != "progress" {
-		t.Fatalf("expected first message type=progress got %#v", m)
+	if m["type"] != "snapshot" {
+		t.Fatalf("expected first message type=snapshot got %#v", m)
 	}
 }
 
@@ -162,7 +186,7 @@ func TestWebSocketAllowsHostOnlyOriginEntry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
-	if _, err := h.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
+	if _, err := h.lifecycle.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
 		t.Fatalf("Create task failed: %v", err)
 	}
 
@@ -197,7 +221,7 @@ func TestWebSocketAllowsLocalhostAlias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
-	if _, err := h.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
+	if _, err := h.lifecycle.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
 		t.Fatalf("Create task failed: %v", err)
 	}
 

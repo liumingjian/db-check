@@ -14,6 +14,17 @@ paths:
       summary: Generate reports from uploaded ZIP packages
       security:
         - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: |
+            Client-generated key for an uncertain submission retry. The key is retained with a
+            terminal task for the configured retention lifetime. Reuse it only with the same
+            ordered files, original filenames, and optional-file pairing.
+          schema:
+            type: string
+            maxLength: 256
       requestBody:
         required: true
         content:
@@ -40,7 +51,7 @@ paths:
                     format: binary
       responses:
         "200":
-          description: Task created and processing started (queued on a single worker).
+          description: Task accepted and queued or processing.
           content:
             application/json:
               schema:
@@ -63,6 +74,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The Idempotency-Key was reused with a different payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdempotencyConflictResponse"
+        "503":
+          description: |-
+            Either accepted task capacity is full, or task storage is unavailable. A capacity
+            response lets the client keep selected files and retry manually. A storage-fault
+            response pauses submissions until an operator repairs storage and restarts the service.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/BusyResponse"
+                  - $ref: "#/components/schemas/StorageUnavailableResponse"
 
   /api/reports/status/{task_id}:
     get:
@@ -81,7 +109,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/StatusResponse"
+                $ref: "#/components/schemas/TaskSnapshot"
         "401":
           description: Missing or invalid token.
           content:
@@ -141,6 +169,7 @@ paths:
         - `WsProgressMessage`
         - `WsDoneMessage`
         - `WsErrorMessage`
+        - `WsSnapshotMessage`
       parameters:
         - name: task_id
           in: path
@@ -179,7 +208,7 @@ components:
           type: string
         status:
           type: string
-          enum: ["processing"]
+          enum: ["queued", "processing"]
         total:
           type: integer
           minimum: 1
@@ -187,14 +216,17 @@ components:
           type: string
           description: Relative WS path, e.g. `/api/reports/ws/<task_id>`.
 
-    StatusResponse:
+    TaskSnapshot:
       type: object
       required:
         - task_id
         - status
         - total
         - completed
+        - succeeded_count
+        - failed_count
         - current_file
+        - version
       properties:
         task_id:
           type: string
@@ -205,18 +237,97 @@ components:
           type: integer
         completed:
           type: integer
+        succeeded_count:
+          type: integer
+          minimum: 0
+          description: Number of Report items with a persisted successful outcome.
+        failed_count:
+          type: integer
+          minimum: 0
+          description: Number of Report items with a persisted failed outcome.
         current_file:
           type: string
+        version:
+          type: integer
+          format: int64
+          description: Monotonically increasing durable task-state version.
+        items:
+          type: array
+          description: Ordered item outcomes and current item state from durable task metadata.
+          items:
+            $ref: "#/components/schemas/ReportTaskItemSnapshot"
         download_url:
           type: string
-          description: Present when status is `done`.
+          description: Present only when status is `done` and the validated result ZIP is published. A partial success remains `done` and includes only successful item reports in the ZIP.
         error:
           type: string
+          description: Persisted task-level failure detail, including all-item, final-ZIP, or missing-artifact failures.
+        storage_fault:
+          $ref: "#/components/schemas/StorageFault"
+
+    ReportTaskItemSnapshot:
+      type: object
+      required: [id, name, status]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: ["queued", "processing", "done", "failed"]
+        error:
+          type: string
+          description: Present when the item failed.
+        report_docx:
+          type: string
+          description: Relative report artifact path when the item completed.
+
+    StorageFault:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: ["storage_unavailable"]
+        message:
+          type: string
+          description: Operator-safe storage fault detail. The task status remains readable.
 
     ErrorResponse:
       type: object
       required: [error]
       properties:
+        error:
+          type: string
+
+    BusyResponse:
+      type: object
+      required: [code, error]
+      properties:
+        code:
+          type: string
+          enum: ["capacity_exhausted"]
+        error:
+          type: string
+
+    StorageUnavailableResponse:
+      type: object
+      required: [code, error]
+      properties:
+        code:
+          type: string
+          enum: ["storage_unavailable"]
+        error:
+          type: string
+
+    IdempotencyConflictResponse:
+      type: object
+      required: [code, error]
+      properties:
+        code:
+          type: string
+          enum: ["idempotency_key_conflict"]
         error:
           type: string
 
@@ -282,9 +393,20 @@ components:
         message:
           type: string
 
+    WsSnapshotMessage:
+      allOf:
+        - $ref: "#/components/schemas/TaskSnapshot"
+        - type: object
+          required: [type]
+          properties:
+            type:
+              type: string
+              enum: ["snapshot"]
+
     WsMessage:
       oneOf:
         - $ref: "#/components/schemas/WsLogMessage"
         - $ref: "#/components/schemas/WsProgressMessage"
         - $ref: "#/components/schemas/WsDoneMessage"
         - $ref: "#/components/schemas/WsErrorMessage"
+        - $ref: "#/components/schemas/WsSnapshotMessage"

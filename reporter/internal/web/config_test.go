@@ -13,6 +13,19 @@ func TestParseConfigUsesDefaultAPIToken(t *testing.T) {
 	if cfg.APIToken != defaultAPIToken {
 		t.Fatalf("expected default token %q got %q", defaultAPIToken, cfg.APIToken)
 	}
+	if cfg.MaxAcceptedTasks != defaultMaxAcceptedTasks {
+		t.Fatalf("expected default accepted capacity %d got %d", defaultMaxAcceptedTasks, cfg.MaxAcceptedTasks)
+	}
+}
+
+func TestParseConfigRejectsNonPositiveAcceptedCapacity(t *testing.T) {
+	_, err := ParseConfig([]string{"--max-accepted-tasks=0"}, envGetter(map[string]string{
+		envDataDir:        t.TempDir(),
+		envAllowedOrigins: "http://example.com",
+	}))
+	if err == nil {
+		t.Fatal("expected invalid capacity to be rejected")
+	}
 }
 
 func TestParseConfigAllowsAPITokenOverride(t *testing.T) {

@@ -11,6 +11,20 @@ import (
 )
 
 func buildResultZip(zipPath string, results []ItemResult, inputs []ItemInput) error {
+	return buildResultZipWithDependencies(zipPath, results, inputs, resultZipDependencies{
+		openFile: func(path string) (io.ReadCloser, error) {
+			return os.Open(path)
+		},
+		validate: validateResultZip,
+	})
+}
+
+type resultZipDependencies struct {
+	openFile func(string) (io.ReadCloser, error)
+	validate func(string) error
+}
+
+func buildResultZipWithDependencies(zipPath string, results []ItemResult, inputs []ItemInput, dependencies resultZipDependencies) error {
 	nameByID := make(map[string]string, len(inputs))
 	for _, in := range inputs {
 		nameByID[in.ID] = in.Name
@@ -33,7 +47,9 @@ func buildResultZip(zipPath string, results []ItemResult, inputs []ItemInput) er
 			continue
 		}
 		if strings.TrimSpace(result.ReportDocx) == "" {
-			continue
+			_ = zw.Close()
+			_ = tmp.Close()
+			return fmt.Errorf("completed report artifact is missing for item %q", result.ID)
 		}
 		folder := sanitizeZipFolder(nameByID[result.ID])
 		if folder == "" {
@@ -44,7 +60,7 @@ func buildResultZip(zipPath string, results []ItemResult, inputs []ItemInput) er
 			continue
 		}
 
-		if err := addFileToZip(zw, entryPath, result.ReportDocx); err != nil {
+		if err := addFileToZip(zw, entryPath, result.ReportDocx, dependencies.openFile); err != nil {
 			_ = zw.Close()
 			_ = tmp.Close()
 			return err
@@ -61,6 +77,9 @@ func buildResultZip(zipPath string, results []ItemResult, inputs []ItemInput) er
 	}
 	if success == 0 {
 		return noSuccessfulReportsError(results, nameByID)
+	}
+	if err := dependencies.validate(tmpPath); err != nil {
+		return fmt.Errorf("validate result zip failed: %w", err)
 	}
 	if err := os.Rename(tmpPath, zipPath); err != nil {
 		return fmt.Errorf("finalize zip failed: %w", err)
@@ -101,7 +120,7 @@ func sanitizeZipFolder(name string) string {
 	return base
 }
 
-func addFileToZip(zw *zip.Writer, entryPath string, srcPath string) error {
+func addFileToZip(zw *zip.Writer, entryPath string, srcPath string, openFile func(string) (io.ReadCloser, error)) error {
 	info, err := os.Stat(srcPath)
 	if err != nil {
 		return fmt.Errorf("stat report failed: %w", err)
@@ -109,7 +128,7 @@ func addFileToZip(zw *zip.Writer, entryPath string, srcPath string) error {
 	if info.IsDir() {
 		return fmt.Errorf("report path is a dir: %s", srcPath)
 	}
-	src, err := os.Open(srcPath)
+	src, err := openFile(srcPath)
 	if err != nil {
 		return fmt.Errorf("open report failed: %w", err)
 	}
@@ -128,6 +147,32 @@ func addFileToZip(zw *zip.Writer, entryPath string, srcPath string) error {
 	}
 	if _, err := io.Copy(dst, src); err != nil {
 		return fmt.Errorf("zip write entry failed: %w", err)
+	}
+	return nil
+}
+
+func validateResultZip(path string) error {
+	reader, err := zip.OpenReader(path)
+	if err != nil {
+		return fmt.Errorf("open zip: %w", err)
+	}
+	defer reader.Close()
+	if len(reader.File) == 0 {
+		return errors.New("zip has no entries")
+	}
+	for _, file := range reader.File {
+		entry, err := file.Open()
+		if err != nil {
+			return fmt.Errorf("open zip entry %q: %w", file.Name, err)
+		}
+		_, copyErr := io.Copy(io.Discard, entry)
+		closeErr := entry.Close()
+		if copyErr != nil {
+			return fmt.Errorf("read zip entry %q: %w", file.Name, copyErr)
+		}
+		if closeErr != nil {
+			return fmt.Errorf("close zip entry %q: %w", file.Name, closeErr)
+		}
 	}
 	return nil
 }

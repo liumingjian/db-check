@@ -1,6 +1,7 @@
 package web
 
 import (
+	"archive/zip"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,31 +10,155 @@ import (
 	"strings"
 )
 
-func (h *apiHandler) resumeTasks() {
-	ids, err := h.store.ListIDs()
+func (l *TaskLifecycle) recoverTasks() error {
+	if err := l.store.RemoveStaging(); err != nil {
+		return err
+	}
+	tasks, err := l.store.ListTasks()
 	if err != nil {
-		return
+		return fmt.Errorf("load published tasks: %w", err)
 	}
-	for _, id := range ids {
-		task, err := h.store.Load(id)
-		if err != nil {
-			continue
+
+	acceptedUnfinished := 0
+	var maxAcceptedOrder uint64
+	for _, task := range tasks {
+		if err := validateRecoveredTask(task); err != nil {
+			return fmt.Errorf("invalid task metadata for %q: %w", task.ID, err)
 		}
-		if task.Status != TaskQueued && task.Status != TaskProcessing {
-			continue
+		if task.AcceptedOrder > maxAcceptedOrder {
+			maxAcceptedOrder = task.AcceptedOrder
 		}
-		items, err := loadTaskInputs(h.store.taskDir(task.ID), task)
-		if err != nil {
-			task.Status = TaskFailed
-			task.Error = fmt.Sprintf("resume failed: %v", err)
-			task.CurrentFile = ""
-			_, _ = h.store.Update(task)
-			h.hub.emitError(task.ID, task.Error)
-			continue
+
+		switch task.Status {
+		case TaskQueued, TaskProcessing:
+			if err := validateCompletedItemArtifacts(l.store.taskDir(task.ID), task); err != nil {
+				if err := l.failRecoveredTask(&task, err); err != nil {
+					return err
+				}
+				continue
+			}
+			if _, err := loadTaskInputs(l.store.taskDir(task.ID), task); err != nil {
+				if err := l.failRecoveredTask(&task, err); err != nil {
+					return err
+				}
+				continue
+			}
+			if task.Status == TaskProcessing {
+				task.Status = TaskQueued
+				task.CurrentFile = ""
+				updated, err := l.store.Update(task)
+				if err != nil {
+					return fmt.Errorf("persist queued recovery state for task %q: %w", task.ID, err)
+				}
+				task = updated
+			}
+			acceptedUnfinished++
+			l.hub.emitLog(task.ID, "info", "服务重启，任务已恢复到队列")
+		case TaskDone:
+			if err := validateCompletedTaskArtifacts(l.store.taskDir(task.ID), task); err != nil {
+				if err := l.failRecoveredTask(&task, err); err != nil {
+					return err
+				}
+			}
+		case TaskFailed:
+			// A persisted task failure is terminal and must not be retried during recovery.
 		}
-		h.enqueue(queuedTask{TaskID: task.ID, Items: items})
-		h.hub.emitLog(task.ID, "info", "服务重启，任务已恢复到队列")
 	}
+	if maxAcceptedOrder == ^uint64(0) {
+		return fmt.Errorf("accepted order is exhausted")
+	}
+
+	l.mu.Lock()
+	l.acceptedUnfinished = acceptedUnfinished
+	l.nextAcceptedOrder = maxAcceptedOrder + 1
+	l.mu.Unlock()
+	return nil
+}
+
+// resumeTasks remains a narrow test seam for recovering persisted task records.
+func (l *TaskLifecycle) resumeTasks() error {
+	return l.recoverTasks()
+}
+
+func validateRecoveredTask(task Task) error {
+	if err := validateTaskID(task.ID); err != nil {
+		return err
+	}
+	switch task.Status {
+	case TaskQueued, TaskProcessing, TaskDone, TaskFailed:
+		return nil
+	default:
+		return fmt.Errorf("unknown task status %q", task.Status)
+	}
+}
+
+func (l *TaskLifecycle) failRecoveredTask(task *Task, reason error) error {
+	task.Status = TaskFailed
+	task.Error = fmt.Sprintf("recovery failed: %v", reason)
+	task.CurrentFile = ""
+	updated, err := l.store.Update(*task)
+	if err != nil {
+		return fmt.Errorf("persist recovery failure for task %q: %w", task.ID, err)
+	}
+	*task = updated
+	l.hub.emitError(task.ID, task.Error)
+	return nil
+}
+
+func validateCompletedTaskArtifacts(taskDir string, task Task) error {
+	if err := validateCompletedItemArtifacts(taskDir, task); err != nil {
+		return err
+	}
+	if task.Status != TaskDone {
+		return nil
+	}
+	return validateZipArtifact(taskDir, filepath.Join(taskDir, fmt.Sprintf("reports-%s.zip", task.ID)))
+}
+
+func validateCompletedItemArtifacts(taskDir string, task Task) error {
+	for _, item := range task.Items {
+		if item.Status != string(ItemDone) {
+			continue
+		}
+		if err := validateZipArtifact(taskDir, item.ReportDocx); err != nil {
+			return fmt.Errorf("completed report for item %q is unavailable: %w", item.ID, err)
+		}
+	}
+	return nil
+}
+
+func validateZipArtifact(taskDir, artifactPath string) error {
+	if strings.TrimSpace(artifactPath) == "" {
+		return fmt.Errorf("missing file")
+	}
+	root, err := filepath.EvalSymlinks(taskDir)
+	if err != nil {
+		return fmt.Errorf("resolve task directory: %w", err)
+	}
+	artifact, err := filepath.EvalSymlinks(artifactPath)
+	if err != nil {
+		return fmt.Errorf("resolve file: %w", err)
+	}
+	rel, err := filepath.Rel(root, artifact)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("file is outside the task directory")
+	}
+	info, err := os.Stat(artifact)
+	if err != nil {
+		return fmt.Errorf("stat file: %w", err)
+	}
+	if !info.Mode().IsRegular() || info.Size() == 0 {
+		return fmt.Errorf("file is not a non-empty regular file")
+	}
+	reader, err := zip.OpenReader(artifact)
+	if err != nil {
+		return fmt.Errorf("open zip: %w", err)
+	}
+	defer reader.Close()
+	if len(reader.File) == 0 {
+		return fmt.Errorf("zip has no entries")
+	}
+	return nil
 }
 
 func loadTaskInputs(taskDir string, task Task) ([]ItemInput, error) {

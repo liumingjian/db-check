@@ -2,13 +2,16 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestCORSPreflightAllowsConfiguredOrigin(t *testing.T) {
@@ -177,6 +180,60 @@ func TestAuthIsRequired(t *testing.T) {
 	}
 }
 
+func TestStatusReturnsAuthoritativeTaskSnapshot(t *testing.T) {
+	cfg := Config{
+		DataDir:        t.TempDir(),
+		AllowedOrigins: []string{"http://example.com"},
+		APIToken:       defaultAPIToken,
+	}
+	h, err := newAPIHandler(cfg, false)
+	if err != nil {
+		t.Fatalf("newAPIHandler failed: %v", err)
+	}
+	reportDocx := filepath.Join(h.lifecycle.store.taskDir("t1"), "items", "1", "attempts", "run", "report.docx")
+	if _, err := h.lifecycle.store.Create(Task{
+		ID:        "t1",
+		Status:    TaskDone,
+		Total:     2,
+		Completed: 2,
+		Items: []TaskItem{
+			{ID: "1", Name: "first.zip", Status: string(ItemDone), ReportDocx: reportDocx},
+			{ID: "2", Name: "second.zip", Status: string(ItemFailed), Error: "invalid data"},
+		},
+	}); err != nil {
+		t.Fatalf("Create task failed: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/reports/status/t1", nil)
+	req.Header.Set("Authorization", "Bearer "+cfg.APIToken)
+	rec := httptest.NewRecorder()
+	h.handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var snapshot TaskSnapshot
+	if err := json.Unmarshal(rec.Body.Bytes(), &snapshot); err != nil {
+		t.Fatalf("decode status failed: %v", err)
+	}
+	if snapshot.TaskID != "t1" || snapshot.Status != TaskDone || snapshot.Completed != 2 || snapshot.SucceededCount != 1 || snapshot.FailedCount != 1 || snapshot.DownloadURL != "/api/reports/download/t1" {
+		t.Fatalf("unexpected status snapshot: %#v", snapshot)
+	}
+	if len(snapshot.Items) != 2 || snapshot.Items[0].ReportDocx != "items/1/attempts/run/report.docx" || snapshot.Items[1].Error != "invalid data" {
+		t.Fatalf("item outcomes missing from snapshot: %#v", snapshot.Items)
+	}
+	if bytes.Contains(rec.Body.Bytes(), []byte(h.lifecycle.store.dataDir)) {
+		t.Fatalf("status response exposed task storage path: %s", rec.Body.String())
+	}
+	persisted, err := h.lifecycle.store.Load("t1")
+	if err != nil {
+		t.Fatalf("load persisted task: %v", err)
+	}
+	if persisted.Items[0].ReportDocx != reportDocx {
+		t.Fatalf("snapshot projection changed persisted artifact path: %q", persisted.Items[0].ReportDocx)
+	}
+}
+
 func TestGenerateCreatesTaskRecord(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := Config{
@@ -186,10 +243,7 @@ func TestGenerateCreatesTaskRecord(t *testing.T) {
 		MaxUploadBytes: 0,
 		PythonBin:      "python3",
 	}
-	h, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
+	h := newStartedTestAPIHandler(t, cfg, nil)
 	handler := h.handler()
 
 	var body bytes.Buffer
@@ -223,7 +277,7 @@ func TestGenerateCreatesTaskRecord(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode response failed: %v", err)
 	}
-	if resp.TaskID == "" || resp.Status != "processing" || resp.Total != 1 || resp.WsURL == "" {
+	if resp.TaskID == "" || resp.Status != "queued" || resp.Total != 1 || resp.WsURL == "" {
 		t.Fatalf("unexpected resp: %#v", resp)
 	}
 
@@ -242,10 +296,7 @@ func TestGenerateAcceptsMultipleIndexedWDRUploads(t *testing.T) {
 		MaxUploadBytes: 0,
 		PythonBin:      "python3",
 	}
-	h, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
+	h := newStartedTestAPIHandler(t, cfg, nil)
 
 	req := multipartRequestPairs(t, []filePart{
 		{field: "zips", name: "demo.zip"},
@@ -258,19 +309,26 @@ func TestGenerateAcceptsMultipleIndexedWDRUploads(t *testing.T) {
 		t.Fatalf("expected %d got %d body=%s", http.StatusOK, rec.Code, rec.Body.String())
 	}
 
-	select {
-	case queued := <-h.queue:
-		if len(queued.Items) != 1 || len(queued.Items[0].WDRPaths) != 2 {
-			t.Fatalf("expected two WDRPaths to be queued: %#v", queued.Items)
-		}
-		if queued.Items[0].WDRPaths[0] == queued.Items[0].WDRPaths[1] {
-			t.Fatalf("expected unique WDR upload paths: %#v", queued.Items[0].WDRPaths)
-		}
-		if queued.Items[0].AWRPath != "" {
-			t.Fatalf("did not expect AWRPath: %#v", queued.Items[0])
-		}
-	default:
-		t.Fatalf("expected queued task")
+	ids, err := h.lifecycle.store.ListIDs()
+	if err != nil || len(ids) != 1 {
+		t.Fatalf("expected one published task, ids=%#v err=%v", ids, err)
+	}
+	task, err := h.lifecycle.store.Load(ids[0])
+	if err != nil {
+		t.Fatalf("Load task failed: %v", err)
+	}
+	items, err := loadTaskInputs(h.lifecycle.store.taskDir(task.ID), task)
+	if err != nil {
+		t.Fatalf("load task inputs failed: %v", err)
+	}
+	if len(items) != 1 || len(items[0].WDRPaths) != 2 {
+		t.Fatalf("expected two WDRPaths to be staged: %#v", items)
+	}
+	if items[0].WDRPaths[0] == items[0].WDRPaths[1] {
+		t.Fatalf("expected unique WDR upload paths: %#v", items[0].WDRPaths)
+	}
+	if items[0].AWRPath != "" {
+		t.Fatalf("did not expect AWRPath: %#v", items[0])
 	}
 }
 
@@ -282,10 +340,7 @@ func TestGenerateAcceptsBulkWDRUpload(t *testing.T) {
 		MaxUploadBytes: 0,
 		PythonBin:      "python3",
 	}
-	h, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
+	h := newStartedTestAPIHandler(t, cfg, nil)
 
 	req := multipartRequest(t, map[string]string{
 		"zips": "demo.zip",
@@ -306,10 +361,7 @@ func TestGenerateRejectsMultipleIndexedAWRUploads(t *testing.T) {
 		MaxUploadBytes: 0,
 		PythonBin:      "python3",
 	}
-	h, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
+	h := newStartedTestAPIHandler(t, cfg, nil)
 
 	req := multipartRequestPairs(t, []filePart{
 		{field: "zips", name: "demo.zip"},
@@ -330,10 +382,7 @@ func TestGenerateEnforcesUploadLimit(t *testing.T) {
 		APIToken:       defaultAPIToken,
 		MaxUploadBytes: 64, // tiny
 	}
-	h, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
+	h := newStartedTestAPIHandler(t, cfg, nil)
 	handler := h.handler()
 
 	var body bytes.Buffer
@@ -355,6 +404,93 @@ func TestGenerateEnforcesUploadLimit(t *testing.T) {
 	if rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("expected %d got %d body=%s", http.StatusRequestEntityTooLarge, rec.Code, rec.Body.String())
 	}
+}
+
+func TestGenerateRejectsFullCapacityBeforeReadingMultipartBody(t *testing.T) {
+	cfg := Config{
+		DataDir:          t.TempDir(),
+		AllowedOrigins:   []string{"http://example.com"},
+		APIToken:         defaultAPIToken,
+		MaxUploadBytes:   0,
+		MaxAcceptedTasks: 1,
+		PythonBin:        "python3",
+	}
+	blocked := make(chan struct{})
+	h := newStartedTestAPIHandler(t, cfg, func() (*Pipeline, error) {
+		pipeline := controlledLifecyclePipeline()
+		pipeline.ExtractZip = func(string, string) error {
+			<-blocked
+			return nil
+		}
+		return pipeline, nil
+	})
+	t.Cleanup(func() { close(blocked) })
+	handler := h.handler()
+
+	first := multipartRequest(t, map[string]string{"zips": "first.zip"})
+	firstRec := httptest.NewRecorder()
+	handler.ServeHTTP(firstRec, first)
+	if firstRec.Code != http.StatusOK {
+		t.Fatalf("first submission status=%d body=%s", firstRec.Code, firstRec.Body.String())
+	}
+
+	body := &unreadMultipartBody{}
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/reports/generate", body)
+	req.Header.Set("Authorization", "Bearer "+defaultAPIToken)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=never-read")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected %d got %d body=%s", http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+	}
+	if body.reads != 0 {
+		t.Fatalf("full-capacity request read multipart body %d times", body.reads)
+	}
+	var response struct {
+		Code  string `json:"code"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode busy response: %v", err)
+	}
+	if response.Code != "capacity_exhausted" || response.Error != ErrTaskCapacity.Error() {
+		t.Fatalf("unexpected busy response: %#v", response)
+	}
+}
+
+type unreadMultipartBody struct {
+	reads int
+}
+
+func newStartedTestAPIHandler(t *testing.T, cfg Config, factory pipelineFactory) *apiHandler {
+	t.Helper()
+	if factory == nil {
+		factory = controlledRecoveryPipeline
+	}
+	lifecycle, err := newTaskLifecycle(cfg, factory)
+	if err != nil {
+		t.Fatalf("newTaskLifecycle failed: %v", err)
+	}
+	if err := lifecycle.Start(context.Background()); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := lifecycle.Close(ctx); err != nil {
+			t.Errorf("Close failed: %v", err)
+		}
+	})
+	return newAPIHandlerWithLifecycle(cfg, lifecycle)
+}
+
+func (b *unreadMultipartBody) Read([]byte) (int, error) {
+	b.reads++
+	return 0, io.EOF
+}
+
+func (b *unreadMultipartBody) Close() error {
+	return nil
 }
 
 func multipartRequest(t *testing.T, files map[string]string) *http.Request {

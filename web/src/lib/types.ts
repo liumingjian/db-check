@@ -63,9 +63,38 @@ export interface LogEntry {
 /* ─── API contracts ─── */
 export interface GenerateResponse {
   task_id: string;
-  status: "processing";
+  status: "queued" | "processing";
   total: number;
   ws_url: string;
+}
+
+export interface ReportTaskItemSnapshot {
+  id: string;
+  name: string;
+  status: string;
+  error?: string;
+  report_docx?: string;
+}
+
+export interface StorageFault {
+  code: "storage_unavailable";
+  message: string;
+}
+
+export interface ReportTaskSnapshot {
+  task_id: string;
+  status: string;
+  total: number;
+  completed: number;
+  succeeded_count: number;
+  failed_count: number;
+  current_file: string;
+  version: number;
+  error?: string;
+  items?: ReportTaskItemSnapshot[];
+  download_url?: string;
+  storage_fault?: StorageFault;
+  [field: string]: unknown;
 }
 
 export interface WsLogMessage {
@@ -96,11 +125,16 @@ export interface WsErrorMessage {
   message: string;
 }
 
+export interface WsSnapshotMessage extends ReportTaskSnapshot {
+  type: "snapshot";
+}
+
 export type WsMessage =
   | WsLogMessage
   | WsProgressMessage
   | WsDoneMessage
-  | WsErrorMessage;
+  | WsErrorMessage
+  | WsSnapshotMessage;
 
 /* ─── Progress state ─── */
 export interface ProgressState {
