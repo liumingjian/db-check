@@ -51,10 +51,10 @@ type SubmissionRequest struct {
 }
 
 type TaskWatch struct {
-	Task         Task
-	LastSequence int64
-	Logs         [][]byte
-	Updates      <-chan []byte
+	Snapshot TaskSnapshot
+	Logs     [][]byte
+	Updates  <-chan []byte
+	Overflow <-chan struct{}
 
 	closeOnce sync.Once
 	cancel    func()
@@ -408,6 +408,23 @@ func (l *TaskLifecycle) Get(ctx context.Context, taskID string) (Task, error) {
 	return l.store.Load(taskID)
 }
 
+// Read returns the shared client snapshot used by HTTP and WebSocket watches.
+func (l *TaskLifecycle) Read(ctx context.Context, taskID string) (TaskSnapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return TaskSnapshot{}, err
+	}
+	task, version, err := l.hub.read(taskID, func() (Task, error) {
+		return l.store.Load(taskID)
+	})
+	if err != nil {
+		return TaskSnapshot{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return TaskSnapshot{}, err
+	}
+	return newTaskSnapshot(task, version), nil
+}
+
 func (l *TaskLifecycle) Download(ctx context.Context, taskID string) (path string, size int64, err error) {
 	task, err := l.Get(ctx, taskID)
 	if err != nil {
@@ -426,23 +443,25 @@ func (l *TaskLifecycle) Download(ctx context.Context, taskID string) (path strin
 }
 
 func (l *TaskLifecycle) Watch(ctx context.Context, taskID string) (*TaskWatch, error) {
-	task, err := l.Get(ctx, taskID)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	task, version, logs, updates, overflow, cancel, err := l.hub.snapshotAndSubscribe(taskID, func() (Task, error) {
+		return l.store.Load(taskID)
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	lastSequence, logs := l.hub.snapshot(taskID)
-	updates, cancel := l.hub.subscribe(taskID)
 	if err := ctx.Err(); err != nil {
 		cancel()
 		return nil, err
 	}
 	return &TaskWatch{
-		Task:         task,
-		LastSequence: lastSequence,
-		Logs:         logs,
-		Updates:      updates,
-		cancel:       cancel,
+		Snapshot: newTaskSnapshot(task, version),
+		Logs:     logs,
+		Updates:  updates,
+		Overflow: overflow,
+		cancel:   cancel,
 	}, nil
 }
 

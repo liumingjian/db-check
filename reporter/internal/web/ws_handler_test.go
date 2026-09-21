@@ -45,7 +45,7 @@ func TestWebSocketAuthViaSubprotocol(t *testing.T) {
 	}
 }
 
-func TestWebSocketReplayAndProgressSnapshot(t *testing.T) {
+func TestWebSocketReplayAndAuthoritativeSnapshot(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://example.com"},
@@ -56,7 +56,18 @@ func TestWebSocketReplayAndProgressSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
-	if _, err := h.lifecycle.store.Create(Task{ID: "t1", Status: TaskProcessing, Total: 1}); err != nil {
+	if _, err := h.lifecycle.store.Create(Task{
+		ID:        "t1",
+		Status:    TaskDone,
+		Total:     1,
+		Completed: 1,
+		Items: []TaskItem{{
+			ID:         "1",
+			Name:       "input.zip",
+			Status:     string(ItemDone),
+			ReportDocx: "report.docx",
+		}},
+	}); err != nil {
 		t.Fatalf("Create task failed: %v", err)
 	}
 	h.lifecycle.hub.emitLog("t1", "info", "hello")
@@ -100,8 +111,12 @@ func TestWebSocketReplayAndProgressSnapshot(t *testing.T) {
 	if err := json.Unmarshal(b2, &m2); err != nil {
 		t.Fatalf("decode #2 failed: %v", err)
 	}
-	if m2["type"] != "progress" {
-		t.Fatalf("expected second message type=progress got %#v", m2)
+	if m2["type"] != "snapshot" || m2["status"] != string(TaskDone) || m2["download_url"] != "/api/reports/download/t1" {
+		t.Fatalf("expected authoritative snapshot with download got %#v", m2)
+	}
+	items, ok := m2["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected task item outcomes in snapshot got %#v", m2)
 	}
 }
 
@@ -147,8 +162,8 @@ func TestWebSocketAllowsWildcardOrigin(t *testing.T) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		t.Fatalf("decode failed: %v", err)
 	}
-	if m["type"] != "progress" {
-		t.Fatalf("expected first message type=progress got %#v", m)
+	if m["type"] != "snapshot" {
+		t.Fatalf("expected first message type=snapshot got %#v", m)
 	}
 }
 

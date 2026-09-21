@@ -228,7 +228,7 @@ func (h *apiHandler) handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	taskID = strings.TrimSpace(taskID)
-	task, err := h.lifecycle.Get(r.Context(), taskID)
+	snapshot, err := h.lifecycle.Read(r.Context(), taskID)
 	if err != nil {
 		if errors.Is(err, ErrTaskNotFound) {
 			http.NotFound(w, r)
@@ -238,21 +238,7 @@ func (h *apiHandler) handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := map[string]any{
-		"task_id":      task.ID,
-		"status":       string(task.Status),
-		"total":        task.Total,
-		"completed":    task.Completed,
-		"current_file": task.CurrentFile,
-	}
-	if task.Status == TaskDone {
-		resp["download_url"] = fmt.Sprintf("/api/reports/download/%s", task.ID)
-	}
-	if task.Error != "" {
-		resp["error"] = task.Error
-	}
-
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, snapshot)
 }
 
 func (h *apiHandler) handleDownload(w http.ResponseWriter, r *http.Request) {

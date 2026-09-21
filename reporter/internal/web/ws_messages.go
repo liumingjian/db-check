@@ -1,5 +1,10 @@
 package web
 
+type wsSnapshotMessage struct {
+	Type string `json:"type"`
+	TaskSnapshot
+}
+
 type wsLogMessage struct {
 	Type      string `json:"type"`
 	Timestamp string `json:"timestamp"`

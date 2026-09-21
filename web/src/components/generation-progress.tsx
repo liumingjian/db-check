@@ -4,7 +4,7 @@ import { Download, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { LogTerminal } from "@/components/log-terminal";
-import type { LogEntry, ProgressState } from "@/lib/types";
+import type { LogEntry, ProgressState, ReportTaskSnapshot } from "@/lib/types";
 
 interface GenerationProgressProps {
   progress: ProgressState;
@@ -17,7 +17,16 @@ interface GenerationProgressProps {
   busyMessage: string | null;
   onRetry: (() => void) | null;
   onReset: () => void;
+  taskItems?: ReportTaskSnapshot["items"];
+  isLiveDisconnected?: boolean;
 }
+
+const itemStatusLabel: Record<string, string> = {
+  queued: "等待处理",
+  processing: "处理中",
+  done: "已完成",
+  failed: "失败",
+};
 
 export function GenerationProgress({
   progress,
@@ -30,6 +39,8 @@ export function GenerationProgress({
   busyMessage,
   onRetry,
   onReset,
+  taskItems,
+  isLiveDisconnected = false,
 }: GenerationProgressProps) {
   const pct =
     progress.total > 0
@@ -66,6 +77,34 @@ export function GenerationProgress({
 
       {/* Log terminal */}
       <LogTerminal logs={logs} className="h-72 sm:h-80" />
+      <p className="text-xs text-muted-foreground" role="note">
+        实时日志仅供参考，断线期间可能不完整，请以任务状态为准。
+      </p>
+
+      {isLiveDisconnected && !isComplete && (
+        <p className="text-sm text-muted-foreground" role="status">
+          实时连接已断开，正在查询任务状态。
+        </p>
+      )}
+
+      {taskItems && taskItems.length > 0 && (
+        <section className="space-y-2" aria-label="任务文件状态">
+          <h3 className="text-sm font-medium">任务文件状态</h3>
+          <ul className="divide-y divide-border border-y border-border text-sm">
+            {taskItems.map((item) => (
+              <li key={item.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+                <span className="min-w-0 flex-1 break-all">{item.name}</span>
+                <span className="text-muted-foreground">
+                  {itemStatusLabel[item.status] ?? item.status}
+                </span>
+                {item.error && (
+                  <span className="basis-full text-xs text-destructive">{item.error}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {busyMessage && (
         <div className="flex flex-col items-center gap-3 text-center" role="status">

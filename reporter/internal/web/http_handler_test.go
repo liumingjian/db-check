@@ -178,6 +178,49 @@ func TestAuthIsRequired(t *testing.T) {
 	}
 }
 
+func TestStatusReturnsAuthoritativeTaskSnapshot(t *testing.T) {
+	cfg := Config{
+		DataDir:        t.TempDir(),
+		AllowedOrigins: []string{"http://example.com"},
+		APIToken:       defaultAPIToken,
+	}
+	h, err := newAPIHandler(cfg, false)
+	if err != nil {
+		t.Fatalf("newAPIHandler failed: %v", err)
+	}
+	if _, err := h.lifecycle.store.Create(Task{
+		ID:        "t1",
+		Status:    TaskDone,
+		Total:     2,
+		Completed: 2,
+		Items: []TaskItem{
+			{ID: "1", Name: "first.zip", Status: string(ItemDone), ReportDocx: "first.docx"},
+			{ID: "2", Name: "second.zip", Status: string(ItemFailed), Error: "invalid data"},
+		},
+	}); err != nil {
+		t.Fatalf("Create task failed: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/reports/status/t1", nil)
+	req.Header.Set("Authorization", "Bearer "+cfg.APIToken)
+	rec := httptest.NewRecorder()
+	h.handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var snapshot TaskSnapshot
+	if err := json.Unmarshal(rec.Body.Bytes(), &snapshot); err != nil {
+		t.Fatalf("decode status failed: %v", err)
+	}
+	if snapshot.TaskID != "t1" || snapshot.Status != TaskDone || snapshot.Completed != 2 || snapshot.DownloadURL != "/api/reports/download/t1" {
+		t.Fatalf("unexpected status snapshot: %#v", snapshot)
+	}
+	if len(snapshot.Items) != 2 || snapshot.Items[0].ReportDocx != "first.docx" || snapshot.Items[1].Error != "invalid data" {
+		t.Fatalf("item outcomes missing from snapshot: %#v", snapshot.Items)
+	}
+}
+
 func TestGenerateCreatesTaskRecord(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := Config{

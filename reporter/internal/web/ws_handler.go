@@ -56,34 +56,24 @@ func (h *apiHandler) handleWS(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Send a progress snapshot so a reconnecting client can recover state.
-	progress := wsProgressMessage{
-		Type:        "progress",
-		Completed:   watch.Task.Completed,
-		Total:       watch.Task.Total,
-		CurrentFile: watch.Task.CurrentFile,
-	}
-	if b, err := json.Marshal(withSeq(&progress, watch.LastSequence)); err == nil {
+	snapshot := wsSnapshotMessage{Type: "snapshot", TaskSnapshot: watch.Snapshot}
+	if b, err := json.Marshal(snapshot); err == nil {
 		if err := conn.Write(ctx, websocket.MessageText, b); err != nil {
 			return
 		}
 	}
 
-	if watch.Task.Status == TaskDone {
-		done := wsDoneMessage{Type: "done", DownloadURL: "/api/reports/download/" + watch.Task.ID}
-		if b, err := json.Marshal(withSeq(&done, watch.LastSequence)); err == nil {
-			_ = conn.Write(ctx, websocket.MessageText, b)
-		}
-	}
-	if watch.Task.Status == TaskFailed && watch.Task.Error != "" {
-		errMsg := wsErrorMessage{Type: "error", Message: watch.Task.Error}
-		if b, err := json.Marshal(withSeq(&errMsg, watch.LastSequence)); err == nil {
-			_ = conn.Write(ctx, websocket.MessageText, b)
-		}
-	}
-
 	for {
 		select {
+		case <-watch.Overflow:
+			_ = conn.Close(websocket.StatusPolicyViolation, "live updates overflow; reconnect for a task snapshot")
+			return
+		default:
+		}
+		select {
+		case <-watch.Overflow:
+			_ = conn.Close(websocket.StatusPolicyViolation, "live updates overflow; reconnect for a task snapshot")
+			return
 		case b, ok := <-watch.Updates:
 			if !ok {
 				return

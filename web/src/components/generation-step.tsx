@@ -1,28 +1,40 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useReportStore } from "@/stores/report-store";
 import { GenerationProgress } from "@/components/generation-progress";
 import { wsUrl, getApiBase, setApiBase } from "@/lib/api";
 import {
   downloadReportBlob,
   generateReportTask,
+  getReportTaskStatus,
   ReportAPIError,
 } from "@/lib/report-api";
 import { API_BASE_HINT, DEFAULT_API_TOKEN } from "@/lib/web-defaults";
-import type { WsMessage } from "@/lib/types";
+import type { ReportTaskSnapshot, WsMessage } from "@/lib/types";
+
+const TOKEN_STORAGE_KEY = "dbcheck_api_token";
+const TASK_STORAGE_KEY = "dbcheck_task_id";
+const RECONNECT_DELAY_MS = 1_000;
+const STATUS_POLL_INTERVAL_MS = 15_000;
 
 function generateLogId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-const TOKEN_STORAGE_KEY = "dbcheck_api_token";
-const TASK_STORAGE_KEY = "dbcheck_task_id";
+function isTerminalStatus(status: ReportTaskSnapshot["status"]): boolean {
+  return status === "done" || status === "failed";
+}
+
+function taskWebSocketPath(taskID: string): string {
+  return `/api/reports/ws/${taskID}`;
+}
 
 export function GenerationStep() {
   const zipFiles = useReportStore((s) => s.zipFiles);
   const awrFiles = useReportStore((s) => s.awrFiles);
   const dbType = useReportStore((s) => s.dbType);
+  const taskId = useReportStore((s) => s.taskId);
   const progress = useReportStore((s) => s.progress);
   const logs = useReportStore((s) => s.logs);
   const isComplete = useReportStore((s) => s.isComplete);
@@ -37,24 +49,30 @@ export function GenerationStep() {
   const setDownloadUrl = useReportStore((s) => s.setDownloadUrl);
   const setComplete = useReportStore((s) => s.setComplete);
   const setHasError = useReportStore((s) => s.setHasError);
+  const ensureSubmissionKey = useReportStore((s) => s.ensureSubmissionKey);
+  const clearSubmissionKey = useReportStore((s) => s.clearSubmissionKey);
   const reset = useReportStore((s) => s.reset);
   const setToken = useReportStore((s) => s.setToken);
 
   const startedRef = useRef(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  const lastLogSeqRef = useRef<number>(0);
-  const reconnectTimerRef = useRef<number | null>(null);
-  const isCompleteRef = useRef<boolean>(isComplete);
-  const hasErrorRef = useRef<boolean>(hasError);
+  const isCompleteRef = useRef(false);
+  const hasErrorRef = useRef(false);
+  const lastLogSeqRef = useRef(0);
+  const taskVersionRef = useRef(-1);
+  const snapshotTaskIDRef = useRef<string | null>(null);
+  const statusWarningShownRef = useRef(false);
+  const terminalErrorRef = useRef<string | null>(null);
 
   const [apiBaseInput, setApiBaseInput] = useState("");
   const [tokenInput, setTokenInput] = useState(DEFAULT_API_TOKEN);
   const [isDownloading, setDownloading] = useState(false);
   const [busyMessage, setBusyMessage] = useState<string | null>(null);
   const [retryAttempt, setRetryAttempt] = useState(0);
+  const [storageHydrated, setStorageHydrated] = useState(false);
+  const [isLiveDisconnected, setLiveDisconnected] = useState(false);
+  const [taskSnapshot, setTaskSnapshot] = useState<ReportTaskSnapshot | null>(null);
 
   useEffect(() => {
-    // Hydrate token/taskId from sessionStorage for reconnect/recovery.
     if (typeof window === "undefined") return;
     if (!token) {
       const saved = sessionStorage.getItem(TOKEN_STORAGE_KEY);
@@ -63,14 +81,18 @@ export function GenerationStep() {
         setToken(saved);
       }
     }
-  }, [setToken, token]);
+    if (!taskId) {
+      const savedTaskID = sessionStorage.getItem(TASK_STORAGE_KEY);
+      if (savedTaskID) {
+        setTaskId(savedTaskID);
+      }
+    }
+    setStorageHydrated(true);
+  }, [setTaskId, setToken, taskId, token]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!apiBaseInput) {
-      // Prefill from inferred/env/stored base so the user can see where requests will go.
-      setApiBaseInput(getApiBase());
-    }
+    if (typeof window === "undefined" || apiBaseInput) return;
+    setApiBaseInput(getApiBase());
   }, [apiBaseInput]);
 
   useEffect(() => {
@@ -81,125 +103,274 @@ export function GenerationStep() {
     hasErrorRef.current = hasError;
   }, [hasError]);
 
+  const applySnapshot = useCallback(
+    (snapshot: ReportTaskSnapshot): boolean => {
+      if (snapshotTaskIDRef.current !== snapshot.task_id) {
+        snapshotTaskIDRef.current = snapshot.task_id;
+        taskVersionRef.current = -1;
+      }
+      if (snapshot.version < taskVersionRef.current) {
+        return isCompleteRef.current;
+      }
+      taskVersionRef.current = snapshot.version;
+      setTaskSnapshot(snapshot);
+      setTaskId(snapshot.task_id);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(TASK_STORAGE_KEY, snapshot.task_id);
+      }
+      setProgress({
+        completed: snapshot.completed,
+        total: snapshot.total,
+        currentFile: snapshot.current_file,
+      });
+
+      const terminal = isTerminalStatus(snapshot.status);
+      const failed = snapshot.status === "failed";
+      isCompleteRef.current = terminal;
+      hasErrorRef.current = failed;
+      setComplete(terminal);
+      setHasError(failed);
+      setGenerating(!terminal);
+
+      if (snapshot.download_url) {
+        setDownloadUrl(snapshot.download_url);
+      }
+      if (failed && snapshot.error) {
+        const errorKey = `${snapshot.task_id}:${snapshot.version}:${snapshot.error}`;
+        if (terminalErrorRef.current !== errorKey) {
+          terminalErrorRef.current = errorKey;
+          addLog({
+            id: generateLogId(),
+            timestamp: new Date().toISOString(),
+            level: "error",
+            message: snapshot.error,
+          });
+        }
+      }
+      return terminal;
+    },
+    [addLog, setComplete, setDownloadUrl, setGenerating, setHasError, setProgress, setTaskId],
+  );
+
   useEffect(() => {
-    if (!token) return;
-    if (startedRef.current) return;
+    if (!storageHydrated || !token || !taskId) return;
+    const activeToken = token;
+    const activeTaskID = taskId;
+
+    let cancelled = false;
+    let socket: WebSocket | null = null;
+    let reconnectTimer: number | null = null;
+    let pollTimer: number | null = null;
+
+    function stopPolling() {
+      if (pollTimer !== null) {
+        window.clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    }
+
+    async function refreshTask(): Promise<boolean> {
+      try {
+        const snapshot = await getReportTaskStatus(activeToken, activeTaskID);
+        if (cancelled) return false;
+        statusWarningShownRef.current = false;
+        const terminal = applySnapshot(snapshot);
+        if (terminal) {
+          stopPolling();
+          setLiveDisconnected(false);
+        }
+        return terminal;
+      } catch (e) {
+        if (!cancelled && !statusWarningShownRef.current) {
+          statusWarningShownRef.current = true;
+          const message = e instanceof Error ? e.message : String(e);
+          addLog({
+            id: generateLogId(),
+            timestamp: new Date().toISOString(),
+            level: "warn",
+            message: `无法获取任务最新状态，正在等待连接恢复: ${message}`,
+          });
+        }
+        return false;
+      }
+    }
+
+    function startPolling() {
+      if (pollTimer !== null) return;
+      pollTimer = window.setInterval(() => {
+        void refreshTask();
+      }, STATUS_POLL_INTERVAL_MS);
+    }
+
+    function scheduleReconnect() {
+      if (reconnectTimer !== null) return;
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, RECONNECT_DELAY_MS);
+    }
+
+    function connect() {
+      if (cancelled || isCompleteRef.current || hasErrorRef.current) return;
+      const ws = new WebSocket(wsUrl(taskWebSocketPath(activeTaskID)), [activeToken]);
+      socket = ws;
+
+      ws.onopen = () => {
+        if (cancelled || socket !== ws) return;
+        setLiveDisconnected(false);
+        stopPolling();
+        void refreshTask().then((terminal) => {
+          if (terminal && socket === ws) {
+            ws.close();
+          }
+        });
+      };
+
+      ws.onmessage = (event) => {
+        if (cancelled || socket !== ws) return;
+        try {
+          const message = JSON.parse(String(event.data)) as WsMessage;
+          switch (message.type) {
+            case "snapshot":
+              if (applySnapshot(message) && socket === ws) {
+                ws.close();
+              }
+              break;
+            case "log":
+              if (message.seq <= lastLogSeqRef.current) return;
+              lastLogSeqRef.current = message.seq;
+              addLog({
+                id: generateLogId(),
+                timestamp: message.timestamp,
+                level: message.level,
+                message: message.message,
+              });
+              break;
+            case "progress":
+              if (message.seq <= taskVersionRef.current) return;
+              taskVersionRef.current = message.seq;
+              setProgress({
+                completed: message.completed,
+                total: message.total,
+                currentFile: message.current_file,
+              });
+              break;
+            case "done":
+            case "error":
+              // Notifications are advisory. Re-read durable state before showing a terminal outcome.
+              void refreshTask();
+              break;
+          }
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          addLog({
+            id: generateLogId(),
+            timestamp: new Date().toISOString(),
+            level: "warn",
+            message: `收到无法识别的实时消息: ${message}`,
+          });
+        }
+      };
+
+      ws.onclose = () => {
+        if (cancelled || socket !== ws) return;
+        socket = null;
+        if (isCompleteRef.current || hasErrorRef.current) return;
+        setLiveDisconnected(true);
+        startPolling();
+        scheduleReconnect();
+      };
+    }
+
+    void refreshTask().then((terminal) => {
+      if (!cancelled && !terminal) {
+        connect();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+      stopPolling();
+      socket?.close();
+    };
+  }, [addLog, applySnapshot, setProgress, storageHydrated, taskId, token]);
+
+  useEffect(() => {
+    if (!storageHydrated || !token || taskId || startedRef.current) return;
     startedRef.current = true;
 
     const total = zipFiles.length;
-
     setBusyMessage(null);
+    setTaskSnapshot(null);
+    setLiveDisconnected(false);
+    taskVersionRef.current = -1;
+    snapshotTaskIDRef.current = null;
+    isCompleteRef.current = false;
+    hasErrorRef.current = false;
     setGenerating(true);
     setProgress({ completed: 0, total, currentFile: "" });
 
     let cancelled = false;
-
-    (async () => {
+    void (async () => {
       try {
         if (!dbType) {
           throw new Error("未选择数据库类型");
         }
-        const resp = await generateReportTask(token, dbType, zipFiles, awrFiles);
+        const key = ensureSubmissionKey();
+        const response = await generateReportTask(token, dbType, zipFiles, awrFiles, key);
         if (cancelled) return;
 
-        setTaskId(resp.task_id);
+        setTaskId(response.task_id);
         if (typeof window !== "undefined") {
-          sessionStorage.setItem(TASK_STORAGE_KEY, resp.task_id);
+          sessionStorage.setItem(TASK_STORAGE_KEY, response.task_id);
         }
-
-        connectWS(token, resp.ws_url);
       } catch (e) {
+        if (cancelled) return;
         if (e instanceof ReportAPIError && e.code === "capacity_exhausted") {
           setBusyMessage("服务当前任务已满。已保留所选文件，请在稍后手动重试。");
           setGenerating(false);
           return;
         }
-        const msg = e instanceof Error ? e.message : String(e);
+        const message = e instanceof Error ? e.message : String(e);
         addLog({
           id: generateLogId(),
           timestamp: new Date().toISOString(),
           level: "error",
-          message: `生成任务失败: ${msg}`,
+          message: `生成任务失败: ${message}`,
         });
+        isCompleteRef.current = true;
+        hasErrorRef.current = true;
         setGenerating(false);
         setHasError(true);
         setComplete(true);
       }
     })();
 
-    function connectWS(tokenValue: string, wsPath: string) {
-      if (wsRef.current) wsRef.current.close();
-      const ws = new WebSocket(wsUrl(wsPath), [tokenValue]);
-      wsRef.current = ws;
-
-      ws.onmessage = (ev) => {
-        const msg = JSON.parse(String(ev.data)) as WsMessage;
-        handleMessage(msg);
-      };
-
-      ws.onclose = () => {
-        if (cancelled) return;
-        if (isCompleteRef.current || hasErrorRef.current) return;
-        // Simple reconnect with a small delay.
-        if (reconnectTimerRef.current) {
-          window.clearTimeout(reconnectTimerRef.current);
-        }
-        reconnectTimerRef.current = window.setTimeout(() => {
-          connectWS(tokenValue, wsPath);
-        }, 1000);
-      };
-    }
-
-    function handleMessage(msg: WsMessage) {
-      switch (msg.type) {
-        case "log":
-          // Dedup logs using seq on reconnect (progress snapshot may reuse seq).
-          if (msg.seq <= lastLogSeqRef.current) return;
-          lastLogSeqRef.current = msg.seq;
-          addLog({
-            id: generateLogId(),
-            timestamp: msg.timestamp,
-            level: msg.level,
-            message: msg.message,
-          });
-          break;
-        case "progress":
-          setProgress({
-            completed: msg.completed,
-            total: msg.total,
-            currentFile: msg.current_file,
-          });
-          break;
-        case "done":
-          setDownloadUrl(msg.download_url);
-          setGenerating(false);
-          setComplete(true);
-          break;
-        case "error":
-          addLog({
-            id: generateLogId(),
-            timestamp: new Date().toISOString(),
-            level: "error",
-            message: msg.message,
-          });
-          setGenerating(false);
-          setHasError(true);
-          setComplete(true);
-          break;
-      }
-    }
-
     return () => {
       cancelled = true;
-      if (reconnectTimerRef.current) {
-        window.clearTimeout(reconnectTimerRef.current);
-      }
-      wsRef.current?.close();
     };
-  }, [addLog, awrFiles, dbType, retryAttempt, setComplete, setDownloadUrl, setGenerating, setHasError, setProgress, setTaskId, token, zipFiles]);
+  }, [
+    addLog,
+    awrFiles,
+    dbType,
+    ensureSubmissionKey,
+    retryAttempt,
+    setComplete,
+    setGenerating,
+    setHasError,
+    setProgress,
+    setTaskId,
+    storageHydrated,
+    taskId,
+    token,
+    zipFiles,
+  ]);
 
   function onRetry() {
     startedRef.current = false;
+    isCompleteRef.current = false;
+    hasErrorRef.current = false;
     setBusyMessage(null);
     setHasError(false);
     setComplete(false);
@@ -221,14 +392,14 @@ export function GenerationStep() {
         return;
       }
     }
-    const v = tokenInput.trim();
-    if (!v) return;
+    const value = tokenInput.trim();
+    if (!value) return;
     if (apiBase && apiBase !== getApiBase()) {
       setApiBase(apiBase);
     }
-    setToken(v);
+    setToken(value);
     if (typeof window !== "undefined") {
-      sessionStorage.setItem(TOKEN_STORAGE_KEY, v);
+      sessionStorage.setItem(TOKEN_STORAGE_KEY, value);
     }
   }
 
@@ -238,14 +409,22 @@ export function GenerationStep() {
     try {
       const blob = await downloadReportBlob(token, downloadUrl);
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "reports.zip";
-      a.click();
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "reports.zip";
+      link.click();
       URL.revokeObjectURL(url);
     } finally {
       setDownloading(false);
     }
+  }
+
+  function onReset() {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(TASK_STORAGE_KEY);
+    }
+    clearSubmissionKey();
+    reset();
   }
 
   if (!token) {
@@ -260,7 +439,7 @@ export function GenerationStep() {
           <input
             type="text"
             value={apiBaseInput}
-            onChange={(e) => setApiBaseInput(e.target.value)}
+            onChange={(event) => setApiBaseInput(event.target.value)}
             placeholder={API_BASE_HINT}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
           />
@@ -272,7 +451,7 @@ export function GenerationStep() {
         <input
           type="password"
           value={tokenInput}
-          onChange={(e) => setTokenInput(e.target.value)}
+          onChange={(event) => setTokenInput(event.target.value)}
           placeholder="Bearer token（不含 Bearer 前缀）"
           className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
         />
@@ -298,7 +477,9 @@ export function GenerationStep() {
       onDownload={downloadUrl ? onDownload : null}
       busyMessage={busyMessage}
       onRetry={busyMessage ? onRetry : null}
-      onReset={reset}
+      onReset={onReset}
+      taskItems={taskSnapshot?.items}
+      isLiveDisconnected={isLiveDisconnected}
     />
   );
 }

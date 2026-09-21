@@ -10,13 +10,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
 	"dbcheck/reporter/internal/launcher"
 )
 
-func TestTaskLifecycleGetAndWatchReturnsSnapshotAndUpdates(t *testing.T) {
+func TestTaskLifecycleReadAndWatchReturnSharedSnapshotAndUpdates(t *testing.T) {
 	lifecycle, err := NewTaskLifecycle(Config{DataDir: t.TempDir(), LogReplayLines: 10})
 	if err != nil {
 		t.Fatalf("NewTaskLifecycle failed: %v", err)
@@ -34,12 +35,12 @@ func TestTaskLifecycleGetAndWatchReturnsSnapshotAndUpdates(t *testing.T) {
 	}
 	lifecycle.hub.emitLog("t1", "info", "first item finished")
 
-	task, err := lifecycle.Get(context.Background(), "t1")
+	snapshot, err := lifecycle.Read(context.Background(), "t1")
 	if err != nil {
-		t.Fatalf("Get failed: %v", err)
+		t.Fatalf("Read failed: %v", err)
 	}
-	if task.Completed != 1 || task.CurrentFile != "second.zip" {
-		t.Fatalf("unexpected task snapshot: %#v", task)
+	if snapshot.TaskID != "t1" || snapshot.Completed != 1 || snapshot.CurrentFile != "second.zip" || snapshot.Version != 1 {
+		t.Fatalf("unexpected task snapshot: %#v", snapshot)
 	}
 
 	watch, err := lifecycle.Watch(context.Background(), "t1")
@@ -47,7 +48,7 @@ func TestTaskLifecycleGetAndWatchReturnsSnapshotAndUpdates(t *testing.T) {
 		t.Fatalf("Watch failed: %v", err)
 	}
 	defer watch.Close()
-	if watch.Task.ID != "t1" || watch.LastSequence != 1 || len(watch.Logs) != 1 {
+	if !reflect.DeepEqual(watch.Snapshot, snapshot) || len(watch.Logs) != 1 {
 		t.Fatalf("unexpected watch snapshot: %#v", watch)
 	}
 
