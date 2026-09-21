@@ -14,6 +14,8 @@ interface GenerationProgressProps {
   downloadUrl: string | null;
   isDownloading: boolean;
   onDownload: (() => void) | null;
+  busyMessage: string | null;
+  onRetry: (() => void) | null;
   onReset: () => void;
 }
 
@@ -25,6 +27,8 @@ export function GenerationProgress({
   downloadUrl,
   isDownloading,
   onDownload,
+  busyMessage,
+  onRetry,
   onReset,
 }: GenerationProgressProps) {
   const pct =
@@ -37,7 +41,9 @@ export function GenerationProgress({
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">
-          {isComplete
+          {busyMessage
+            ? "服务当前任务已满"
+            : isComplete
             ? hasError
               ? "生成完成（存在错误）"
               : "报告生成完成"
@@ -60,6 +66,25 @@ export function GenerationProgress({
 
       {/* Log terminal */}
       <LogTerminal logs={logs} className="h-72 sm:h-80" />
+
+      {busyMessage && (
+        <div className="flex flex-col items-center gap-3 text-center" role="status">
+          <p className="text-sm text-muted-foreground">{busyMessage}</p>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-lg border border-border px-6 py-2.5",
+                "font-medium hover:bg-muted transition-colors duration-200 cursor-pointer",
+              )}
+            >
+              <RotateCcw className="h-4 w-4" />
+              手动重试
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Actions */}
       {isComplete && (

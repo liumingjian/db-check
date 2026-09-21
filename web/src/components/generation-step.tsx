@@ -4,7 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { useReportStore } from "@/stores/report-store";
 import { GenerationProgress } from "@/components/generation-progress";
 import { wsUrl, getApiBase, setApiBase } from "@/lib/api";
-import { downloadReportBlob, generateReportTask } from "@/lib/report-api";
+import {
+  downloadReportBlob,
+  generateReportTask,
+  ReportAPIError,
+} from "@/lib/report-api";
 import { API_BASE_HINT, DEFAULT_API_TOKEN } from "@/lib/web-defaults";
 import type { WsMessage } from "@/lib/types";
 
@@ -46,6 +50,8 @@ export function GenerationStep() {
   const [apiBaseInput, setApiBaseInput] = useState("");
   const [tokenInput, setTokenInput] = useState(DEFAULT_API_TOKEN);
   const [isDownloading, setDownloading] = useState(false);
+  const [busyMessage, setBusyMessage] = useState<string | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   useEffect(() => {
     // Hydrate token/taskId from sessionStorage for reconnect/recovery.
@@ -82,6 +88,7 @@ export function GenerationStep() {
 
     const total = zipFiles.length;
 
+    setBusyMessage(null);
     setGenerating(true);
     setProgress({ completed: 0, total, currentFile: "" });
 
@@ -102,6 +109,11 @@ export function GenerationStep() {
 
         connectWS(token, resp.ws_url);
       } catch (e) {
+        if (e instanceof ReportAPIError && e.code === "capacity_exhausted") {
+          setBusyMessage("服务当前任务已满。已保留所选文件，请在稍后手动重试。");
+          setGenerating(false);
+          return;
+        }
         const msg = e instanceof Error ? e.message : String(e);
         addLog({
           id: generateLogId(),
@@ -184,7 +196,15 @@ export function GenerationStep() {
       }
       wsRef.current?.close();
     };
-  }, [addLog, awrFiles, dbType, setComplete, setDownloadUrl, setGenerating, setHasError, setProgress, setTaskId, token, zipFiles]);
+  }, [addLog, awrFiles, dbType, retryAttempt, setComplete, setDownloadUrl, setGenerating, setHasError, setProgress, setTaskId, token, zipFiles]);
+
+  function onRetry() {
+    startedRef.current = false;
+    setBusyMessage(null);
+    setHasError(false);
+    setComplete(false);
+    setRetryAttempt((attempt) => attempt + 1);
+  }
 
   async function onConfirmToken() {
     const apiBase = apiBaseInput.trim();
@@ -276,6 +296,8 @@ export function GenerationStep() {
       downloadUrl={downloadUrl}
       isDownloading={isDownloading}
       onDownload={downloadUrl ? onDownload : null}
+      busyMessage={busyMessage}
+      onRetry={busyMessage ? onRetry : null}
       onReset={reset}
     />
   );

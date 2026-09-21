@@ -40,7 +40,7 @@ paths:
                     format: binary
       responses:
         "200":
-          description: Task created and processing started (queued on a single worker).
+          description: Task accepted and queued or processing.
           content:
             application/json:
               schema:
@@ -63,6 +63,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Accepted task capacity is full. The client keeps its selected files and retries manually. The response has no retry estimate.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusyResponse"
 
   /api/reports/status/{task_id}:
     get:
@@ -179,7 +185,7 @@ components:
           type: string
         status:
           type: string
-          enum: ["processing"]
+          enum: ["queued", "processing"]
         total:
           type: integer
           minimum: 1
@@ -217,6 +223,16 @@ components:
       type: object
       required: [error]
       properties:
+        error:
+          type: string
+
+    BusyResponse:
+      type: object
+      required: [code, error]
+      properties:
+        code:
+          type: string
+          enum: ["capacity_exhausted"]
         error:
           type: string
 

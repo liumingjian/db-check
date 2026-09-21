@@ -63,7 +63,7 @@ export interface LogEntry {
 /* ─── API contracts ─── */
 export interface GenerateResponse {
   task_id: string;
-  status: "processing";
+  status: "queued" | "processing";
   total: number;
   ws_url: string;
 }
