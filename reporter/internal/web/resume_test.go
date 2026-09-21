@@ -31,7 +31,9 @@ func TestTaskLifecycleResumeTasksEnqueuesQueuedOrProcessing(t *testing.T) {
 		t.Fatalf("write zip failed: %v", err)
 	}
 
-	lifecycle.resumeTasks()
+	if err := lifecycle.resumeTasks(); err != nil {
+		t.Fatalf("resume tasks failed: %v", err)
+	}
 
 	job, found := lifecycle.nextQueuedTask()
 	if !found {

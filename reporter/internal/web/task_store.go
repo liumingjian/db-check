@@ -11,8 +11,10 @@ import (
 )
 
 type TaskStore struct {
-	tasksDir string
-	now      func() time.Time
+	dataDir   string
+	tasksDir  string
+	now       func() time.Time
+	writeJSON func(path string, value any) error
 }
 
 func NewTaskStore(dataDir string) (*TaskStore, error) {
@@ -24,8 +26,10 @@ func NewTaskStore(dataDir string) (*TaskStore, error) {
 		return nil, fmt.Errorf("create tasks dir failed: %w", err)
 	}
 	return &TaskStore{
-		tasksDir: tasksDir,
-		now:      time.Now,
+		dataDir:   dataDir,
+		tasksDir:  tasksDir,
+		now:       time.Now,
+		writeJSON: writeJSONFileAtomic,
 	}, nil
 }
 
@@ -45,7 +49,7 @@ func (s *TaskStore) Create(task Task) (Task, error) {
 	if err := os.MkdirAll(filepath.Dir(taskPath), 0o755); err != nil {
 		return Task{}, fmt.Errorf("create task dir failed: %w", err)
 	}
-	if err := writeJSONFileAtomic(taskPath, task); err != nil {
+	if err := s.writeJSON(taskPath, task); err != nil {
 		return Task{}, err
 	}
 	return task, nil
@@ -72,7 +76,7 @@ func (s *TaskStore) WriteStagedTask(stagingDir string, task Task) error {
 	if filepath.Dir(stagingDir) != s.stagingDir() {
 		return errors.New("staging directory is outside task staging root")
 	}
-	return writeJSONFileAtomic(filepath.Join(stagingDir, "task.json"), task)
+	return s.writeJSON(filepath.Join(stagingDir, "task.json"), task)
 }
 
 // Publish atomically makes a complete staged task visible to task discovery.
@@ -132,7 +136,7 @@ func (s *TaskStore) Update(task Task) (Task, error) {
 		task.CreatedAt = existing.CreatedAt
 	}
 	task.UpdatedAt = s.now()
-	if err := writeJSONFileAtomic(taskPath, task); err != nil {
+	if err := s.writeJSON(taskPath, task); err != nil {
 		return Task{}, err
 	}
 	return task, nil
@@ -148,6 +152,14 @@ func (s *TaskStore) taskDir(id string) string {
 
 func (s *TaskStore) stagingDir() string {
 	return filepath.Join(s.tasksDir, ".staging")
+}
+
+// RemoveStaging removes incomplete submissions that were never published.
+func (s *TaskStore) RemoveStaging() error {
+	if err := os.RemoveAll(s.stagingDir()); err != nil {
+		return fmt.Errorf("remove task staging failed: %w", err)
+	}
+	return nil
 }
 
 func (s *TaskStore) ListIDs() ([]string, error) {
@@ -180,6 +192,9 @@ func (s *TaskStore) ListTasks() ([]Task, error) {
 		task, err := s.Load(id)
 		if err != nil {
 			return nil, err
+		}
+		if task.ID != id {
+			return nil, fmt.Errorf("task metadata id mismatch: directory=%q metadata=%q", id, task.ID)
 		}
 		tasks = append(tasks, task)
 	}

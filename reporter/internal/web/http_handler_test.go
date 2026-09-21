@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"mime/multipart"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestCORSPreflightAllowsConfiguredOrigin(t *testing.T) {
@@ -230,10 +232,7 @@ func TestGenerateCreatesTaskRecord(t *testing.T) {
 		MaxUploadBytes: 0,
 		PythonBin:      "python3",
 	}
-	h, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
+	h := newStartedTestAPIHandler(t, cfg, nil)
 	handler := h.handler()
 
 	var body bytes.Buffer
@@ -286,10 +285,7 @@ func TestGenerateAcceptsMultipleIndexedWDRUploads(t *testing.T) {
 		MaxUploadBytes: 0,
 		PythonBin:      "python3",
 	}
-	h, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
+	h := newStartedTestAPIHandler(t, cfg, nil)
 
 	req := multipartRequestPairs(t, []filePart{
 		{field: "zips", name: "demo.zip"},
@@ -333,10 +329,7 @@ func TestGenerateAcceptsBulkWDRUpload(t *testing.T) {
 		MaxUploadBytes: 0,
 		PythonBin:      "python3",
 	}
-	h, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
+	h := newStartedTestAPIHandler(t, cfg, nil)
 
 	req := multipartRequest(t, map[string]string{
 		"zips": "demo.zip",
@@ -357,10 +350,7 @@ func TestGenerateRejectsMultipleIndexedAWRUploads(t *testing.T) {
 		MaxUploadBytes: 0,
 		PythonBin:      "python3",
 	}
-	h, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
+	h := newStartedTestAPIHandler(t, cfg, nil)
 
 	req := multipartRequestPairs(t, []filePart{
 		{field: "zips", name: "demo.zip"},
@@ -381,10 +371,7 @@ func TestGenerateEnforcesUploadLimit(t *testing.T) {
 		APIToken:       defaultAPIToken,
 		MaxUploadBytes: 64, // tiny
 	}
-	h, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
+	h := newStartedTestAPIHandler(t, cfg, nil)
 	handler := h.handler()
 
 	var body bytes.Buffer
@@ -417,10 +404,16 @@ func TestGenerateRejectsFullCapacityBeforeReadingMultipartBody(t *testing.T) {
 		MaxAcceptedTasks: 1,
 		PythonBin:        "python3",
 	}
-	h, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
+	blocked := make(chan struct{})
+	h := newStartedTestAPIHandler(t, cfg, func() (*Pipeline, error) {
+		pipeline := controlledLifecyclePipeline()
+		pipeline.ExtractZip = func(string, string) error {
+			<-blocked
+			return nil
+		}
+		return pipeline, nil
+	})
+	t.Cleanup(func() { close(blocked) })
 	handler := h.handler()
 
 	first := multipartRequest(t, map[string]string{"zips": "first.zip"})
@@ -456,6 +449,28 @@ func TestGenerateRejectsFullCapacityBeforeReadingMultipartBody(t *testing.T) {
 
 type unreadMultipartBody struct {
 	reads int
+}
+
+func newStartedTestAPIHandler(t *testing.T, cfg Config, factory pipelineFactory) *apiHandler {
+	t.Helper()
+	if factory == nil {
+		factory = controlledRecoveryPipeline
+	}
+	lifecycle, err := newTaskLifecycle(cfg, factory)
+	if err != nil {
+		t.Fatalf("newTaskLifecycle failed: %v", err)
+	}
+	if err := lifecycle.Start(context.Background()); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := lifecycle.Close(ctx); err != nil {
+			t.Errorf("Close failed: %v", err)
+		}
+	})
+	return newAPIHandlerWithLifecycle(cfg, lifecycle)
 }
 
 func (b *unreadMultipartBody) Read([]byte) (int, error) {

@@ -68,7 +68,11 @@ func (l *TaskLifecycle) submitKeyed(ctx context.Context, request SubmissionReque
 
 		// A failed leader leaves no durable key record, so retry admission from
 		// the beginning. A published leader is resolved from the durable index.
-		if retained := l.acquireRetainedSubmission(key); retained != nil {
+		retained, err = l.acquireRetainedSubmission(key)
+		if err != nil {
+			return Task{}, err
+		}
+		if retained != nil {
 			return l.loadRetainedSubmission(key, retained, digest)
 		}
 	}
@@ -79,6 +83,9 @@ func (l *TaskLifecycle) beginKeyedSubmission(key string) (*retainedSubmission, *
 	defer l.mu.Unlock()
 	if l.closed {
 		return nil, nil, false, ErrLifecycleClosed
+	}
+	if !l.ready {
+		return nil, nil, false, ErrLifecycleNotReady
 	}
 	if retained := l.keyIndex[key]; retained != nil {
 		retained.leases++
@@ -106,14 +113,20 @@ func (l *TaskLifecycle) finishKeyedSubmission(key string, flight *keyedSubmissio
 	close(flight.done)
 }
 
-func (l *TaskLifecycle) acquireRetainedSubmission(key string) *retainedSubmission {
+func (l *TaskLifecycle) acquireRetainedSubmission(key string) (*retainedSubmission, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.closed {
+		return nil, ErrLifecycleClosed
+	}
+	if !l.ready {
+		return nil, ErrLifecycleNotReady
+	}
 	retained := l.keyIndex[key]
 	if retained != nil {
 		retained.leases++
 	}
-	return retained
+	return retained, nil
 }
 
 func (l *TaskLifecycle) resolveRetainedSubmission(ctx context.Context, key string, retained *retainedSubmission, request SubmissionRequest) (Task, error) {
@@ -127,6 +140,9 @@ func (l *TaskLifecycle) resolveRetainedSubmission(ctx context.Context, key strin
 
 func (l *TaskLifecycle) loadRetainedSubmission(key string, retained *retainedSubmission, digest string) (Task, error) {
 	defer l.releaseRetainedSubmission(key, retained)
+	if err := l.requireReady(); err != nil {
+		return Task{}, err
+	}
 	if digest != retained.digest {
 		return Task{}, ErrIdempotencyConflict
 	}
@@ -146,6 +162,9 @@ func (l *TaskLifecycle) releaseRetainedSubmission(key string, retained *retained
 }
 
 func (l *TaskLifecycle) probeSubmission(ctx context.Context, request SubmissionRequest) (digest string, err error) {
+	if err := l.requireReady(); err != nil {
+		return "", err
+	}
 	select {
 	case l.probeSlots <- struct{}{}:
 		defer func() { <-l.probeSlots }()

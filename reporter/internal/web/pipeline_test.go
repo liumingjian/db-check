@@ -133,6 +133,39 @@ func TestPipelineRejectsMismatchedHTMLAttachments(t *testing.T) {
 	}
 }
 
+func TestPipelineUsesDistinctAttemptDirectoriesForReruns(t *testing.T) {
+	root := t.TempDir()
+	pipeline := NewPipeline("ignored", "python3")
+	pipeline.ExtractZip = func(string, string) error { return nil }
+	pipeline.DetectRun = func(root string) (string, error) {
+		return writeRunDir(t, root, "mysql"), nil
+	}
+	pipeline.LayoutResolver = fakeLayoutResolver{}
+	pipeline.Runner = lifecycleTestRunner{}
+
+	input := ItemInput{ID: "1", Name: "retry.zip", ZipPath: "/tmp/retry.zip"}
+	first := pipeline.runOne(root, input, nil)
+	second := pipeline.runOne(root, input, nil)
+	if first.Status != ItemDone || second.Status != ItemDone {
+		t.Fatalf("rerun results: first=%#v second=%#v", first, second)
+	}
+	if first.ReportDocx == second.ReportDocx {
+		t.Fatalf("reruns reused output path %q", first.ReportDocx)
+	}
+	for _, path := range []string{first.ReportDocx, second.ReportDocx} {
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			t.Fatalf("relative report path: %v", err)
+		}
+		if !strings.HasPrefix(rel, filepath.Join("items", "1", "attempts")+string(filepath.Separator)) {
+			t.Fatalf("report path %q is outside an item attempt directory", path)
+		}
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("report output missing at %q: %v", path, err)
+		}
+	}
+}
+
 func writeRunDir(t *testing.T, root string, dbType string) string {
 	t.Helper()
 	runDir := filepath.Join(root, "run")

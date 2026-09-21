@@ -13,10 +13,7 @@ import (
 )
 
 func TestTaskLifecyclePublishesCompleteStagedSubmission(t *testing.T) {
-	lifecycle, err := NewTaskLifecycle(Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
-	if err != nil {
-		t.Fatalf("NewTaskLifecycle failed: %v", err)
-	}
+	lifecycle := newStartedAdmissionLifecycle(t, Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
 	acceptedAt := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
 	lifecycle.store.now = func() time.Time { return acceptedAt }
 
@@ -51,10 +48,7 @@ func TestTaskLifecyclePublishesCompleteStagedSubmission(t *testing.T) {
 
 func TestTaskLifecycleCleansRejectedAndCanceledStaging(t *testing.T) {
 	t.Run("rejected upload releases reservation", func(t *testing.T) {
-		lifecycle, err := NewTaskLifecycle(Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
-		if err != nil {
-			t.Fatalf("NewTaskLifecycle failed: %v", err)
-		}
+		lifecycle := newStartedAdmissionLifecycle(t, Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
 		invalid := testSubmission("not-a-zip.txt", "invalid")
 		if _, err := lifecycle.Submit(context.Background(), materializedSubmission(invalid)); !errors.Is(err, ErrInvalidSubmission) {
 			t.Fatalf("expected invalid submission error, got %v", err)
@@ -68,10 +62,7 @@ func TestTaskLifecycleCleansRejectedAndCanceledStaging(t *testing.T) {
 	})
 
 	t.Run("canceled copy releases reservation", func(t *testing.T) {
-		lifecycle, err := NewTaskLifecycle(Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
-		if err != nil {
-			t.Fatalf("NewTaskLifecycle failed: %v", err)
-		}
+		lifecycle := newStartedAdmissionLifecycle(t, Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
 		ctx, cancel := context.WithCancel(context.Background())
 		canceledSubmission := ReportSubmission{Items: []ReportItemSubmission{{
 			Zip: SubmissionFile{
@@ -94,10 +85,7 @@ func TestTaskLifecycleCleansRejectedAndCanceledStaging(t *testing.T) {
 }
 
 func TestTaskLifecycleKeepsPublishedTaskAfterRequestCancellation(t *testing.T) {
-	lifecycle, err := NewTaskLifecycle(Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
-	if err != nil {
-		t.Fatalf("NewTaskLifecycle failed: %v", err)
-	}
+	lifecycle := newStartedAdmissionLifecycle(t, Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
 	ctx, cancel := context.WithCancel(context.Background())
 	task, err := lifecycle.Submit(ctx, materializedSubmission(testSubmission("accepted.zip", "accepted")))
 	if err != nil {
@@ -109,16 +97,13 @@ func TestTaskLifecycleKeepsPublishedTaskAfterRequestCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("published task was removed after cancellation: %v", err)
 	}
-	if persisted.Status != TaskQueued {
+	if persisted.Status != TaskQueued && persisted.Status != TaskProcessing {
 		t.Fatalf("unexpected published task status: %#v", persisted)
 	}
 }
 
 func TestTaskLifecycleCountsReservationsTowardCapacity(t *testing.T) {
-	lifecycle, err := NewTaskLifecycle(Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
-	if err != nil {
-		t.Fatalf("NewTaskLifecycle failed: %v", err)
-	}
+	lifecycle := newStartedAdmissionLifecycle(t, Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
 	started := make(chan struct{})
 	release := make(chan struct{})
 	result := make(chan error, 1)
@@ -139,7 +124,7 @@ func TestTaskLifecycleCountsReservationsTowardCapacity(t *testing.T) {
 	}
 
 	materialized := false
-	_, err = lifecycle.Submit(context.Background(), SubmissionRequest{
+	_, err := lifecycle.Submit(context.Background(), SubmissionRequest{
 		Materialize: func(context.Context) (ReportSubmission, error) {
 			materialized = true
 			return testSubmission("second.zip", "second"), nil
@@ -230,6 +215,34 @@ func materializedSubmission(submission ReportSubmission) SubmissionRequest {
 			return submission, nil
 		},
 	}
+}
+
+func newStartedAdmissionLifecycle(t *testing.T, cfg Config) *TaskLifecycle {
+	t.Helper()
+	releasePipeline := make(chan struct{})
+	lifecycle, err := newTaskLifecycle(cfg, func() (*Pipeline, error) {
+		pipeline := controlledLifecyclePipeline()
+		pipeline.ExtractZip = func(string, string) error {
+			<-releasePipeline
+			return nil
+		}
+		return pipeline, nil
+	})
+	if err != nil {
+		t.Fatalf("newTaskLifecycle failed: %v", err)
+	}
+	if err := lifecycle.Start(context.Background()); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	t.Cleanup(func() {
+		close(releasePipeline)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := lifecycle.Close(ctx); err != nil {
+			t.Errorf("Close failed: %v", err)
+		}
+	})
+	return lifecycle
 }
 
 func testSubmission(name, content string) ReportSubmission {

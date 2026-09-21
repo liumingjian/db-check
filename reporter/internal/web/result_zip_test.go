@@ -31,3 +31,14 @@ func TestBuildResultZipReportsFailedItemsWhenNoSuccess(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildResultZipRejectsDoneItemWithoutReportArtifact(t *testing.T) {
+	err := buildResultZip(
+		t.TempDir()+"/reports.zip",
+		[]ItemResult{{ID: "1", Status: ItemDone}},
+		[]ItemInput{{ID: "1", Name: "oracle.zip"}},
+	)
+	if err == nil || !strings.Contains(err.Error(), "completed report artifact is missing") {
+		t.Fatalf("result zip error=%v, want missing completed artifact", err)
+	}
+}

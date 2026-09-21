@@ -10,15 +10,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
 	"time"
 )
 
 func TestTaskLifecycleReturnsRetainedTaskForIdenticalKeyedRetry(t *testing.T) {
-	lifecycle, err := NewTaskLifecycle(Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
-	if err != nil {
-		t.Fatalf("NewTaskLifecycle failed: %v", err)
-	}
+	lifecycle, _ := newStartedIdempotencyLifecycle(t, Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
 
 	first, err := lifecycle.Submit(context.Background(), keyedSubmission("retry-key", testSubmission("collector.zip", "same")))
 	if err != nil {
@@ -46,10 +44,7 @@ func TestTaskLifecycleReturnsRetainedTaskForIdenticalKeyedRetry(t *testing.T) {
 }
 
 func TestTaskLifecycleSerializesConcurrentKeyedRetries(t *testing.T) {
-	lifecycle, err := NewTaskLifecycle(Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
-	if err != nil {
-		t.Fatalf("NewTaskLifecycle failed: %v", err)
-	}
+	lifecycle, _ := newStartedIdempotencyLifecycle(t, Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
 
 	leaderStarted := make(chan struct{})
 	releaseLeader := make(chan struct{})
@@ -114,10 +109,7 @@ func TestTaskLifecycleSerializesConcurrentKeyedRetries(t *testing.T) {
 }
 
 func TestTaskLifecycleBoundsConcurrentRetainedKeyProbes(t *testing.T) {
-	lifecycle, err := NewTaskLifecycle(Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
-	if err != nil {
-		t.Fatalf("NewTaskLifecycle failed: %v", err)
-	}
+	lifecycle, _ := newStartedIdempotencyLifecycle(t, Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
 	if _, err := lifecycle.Submit(context.Background(), keyedSubmission("probe-key", testSubmission("collector.zip", "same"))); err != nil {
 		t.Fatalf("initial Submit failed: %v", err)
 	}
@@ -184,10 +176,7 @@ func TestTaskLifecycleBoundsConcurrentRetainedKeyProbes(t *testing.T) {
 }
 
 func TestTaskLifecycleRejectsConflictingKeyedRetryEvenAtCapacity(t *testing.T) {
-	lifecycle, err := NewTaskLifecycle(Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
-	if err != nil {
-		t.Fatalf("NewTaskLifecycle failed: %v", err)
-	}
+	lifecycle, _ := newStartedIdempotencyLifecycle(t, Config{DataDir: t.TempDir(), MaxAcceptedTasks: 1})
 	first, err := lifecycle.Submit(context.Background(), keyedSubmission("conflict-key", testSubmission("collector.zip", "first")))
 	if err != nil {
 		t.Fatalf("first Submit failed: %v", err)
@@ -265,10 +254,7 @@ func TestSubmissionDigestBindsNamesPairingAndOrder(t *testing.T) {
 
 func TestTaskLifecycleRebuildsKeyIndexAndLeavesLegacyTasksUnkeyed(t *testing.T) {
 	dataDir := t.TempDir()
-	first, err := NewTaskLifecycle(Config{DataDir: dataDir, MaxAcceptedTasks: 3})
-	if err != nil {
-		t.Fatalf("NewTaskLifecycle failed: %v", err)
-	}
+	first, closeFirst := newStartedIdempotencyLifecycle(t, Config{DataDir: dataDir, MaxAcceptedTasks: 3})
 	accepted, err := first.Submit(context.Background(), keyedSubmission("restart-key", testSubmission("collector.zip", "same")))
 	if err != nil {
 		t.Fatalf("Submit failed: %v", err)
@@ -276,14 +262,9 @@ func TestTaskLifecycleRebuildsKeyIndexAndLeavesLegacyTasksUnkeyed(t *testing.T) 
 	if _, err := first.store.Create(Task{ID: "legacy-task", Status: TaskDone}); err != nil {
 		t.Fatalf("create legacy task: %v", err)
 	}
+	closeFirst()
 
-	restarted, err := NewTaskLifecycle(Config{DataDir: dataDir, MaxAcceptedTasks: 3})
-	if err != nil {
-		t.Fatalf("NewTaskLifecycle after restart failed: %v", err)
-	}
-	if err := restarted.rebuildKeyIndex(); err != nil {
-		t.Fatalf("rebuildKeyIndex failed: %v", err)
-	}
+	restarted, _ := newStartedIdempotencyLifecycle(t, Config{DataDir: dataDir, MaxAcceptedTasks: 3})
 	retry, err := restarted.Submit(context.Background(), keyedSubmission("restart-key", testSubmission("collector.zip", "same")))
 	if err != nil {
 		t.Fatalf("keyed retry after restart failed: %v", err)
@@ -307,10 +288,7 @@ func TestTaskLifecycleRebuildsKeyIndexAndLeavesLegacyTasksUnkeyed(t *testing.T) 
 
 func TestTaskLifecycleStartRebuildsRetainedKeyIndex(t *testing.T) {
 	dataDir := t.TempDir()
-	first, err := NewTaskLifecycle(Config{DataDir: dataDir, MaxAcceptedTasks: 1})
-	if err != nil {
-		t.Fatalf("NewTaskLifecycle failed: %v", err)
-	}
+	first, closeFirst := newStartedIdempotencyLifecycle(t, Config{DataDir: dataDir, MaxAcceptedTasks: 1})
 	accepted, err := first.Submit(context.Background(), keyedSubmission("start-key", testSubmission("collector.zip", "same")))
 	if err != nil {
 		t.Fatalf("Submit failed: %v", err)
@@ -319,6 +297,7 @@ func TestTaskLifecycleStartRebuildsRetainedKeyIndex(t *testing.T) {
 	if _, err := first.store.Update(accepted); err != nil {
 		t.Fatalf("mark task terminal: %v", err)
 	}
+	closeFirst()
 
 	restarted, err := newTaskLifecycle(Config{DataDir: dataDir, MaxAcceptedTasks: 1}, func() (*Pipeline, error) {
 		return controlledLifecyclePipeline(), nil
@@ -348,14 +327,12 @@ func TestTaskLifecycleStartRebuildsRetainedKeyIndex(t *testing.T) {
 
 func TestTaskLifecycleRetentionWaitsForKeyProbeThenExpiresKey(t *testing.T) {
 	dataDir := t.TempDir()
-	lifecycle, err := NewTaskLifecycle(Config{DataDir: dataDir, MaxAcceptedTasks: 2, RetentionTTL: time.Hour})
-	if err != nil {
-		t.Fatalf("NewTaskLifecycle failed: %v", err)
-	}
+	lifecycle, _ := newStartedIdempotencyLifecycle(t, Config{DataDir: dataDir, MaxAcceptedTasks: 2, RetentionTTL: time.Hour})
 	accepted, err := lifecycle.Submit(context.Background(), keyedSubmission("expiry-key", testSubmission("collector.zip", "same")))
 	if err != nil {
 		t.Fatalf("Submit failed: %v", err)
 	}
+	waitForTaskStatus(t, lifecycle, accepted.ID, TaskProcessing)
 
 	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
 	lifecycle.store.now = func() time.Time { return now.Add(-2 * time.Hour) }
@@ -432,10 +409,16 @@ func TestGenerateHTTPIdempotencyHeaderReturnsConflictForChangedPayload(t *testin
 		MaxUploadBytes:   0,
 		MaxAcceptedTasks: 1,
 	}
-	handler, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
+	blocked := make(chan struct{})
+	handler := newStartedTestAPIHandler(t, cfg, func() (*Pipeline, error) {
+		pipeline := controlledLifecyclePipeline()
+		pipeline.ExtractZip = func(string, string) error {
+			<-blocked
+			return nil
+		}
+		return pipeline, nil
+	})
+	t.Cleanup(func() { close(blocked) })
 
 	first := performGenerate(t, handler.handler(), "api-key", "same")
 	if first.Code != http.StatusOK {
@@ -489,6 +472,39 @@ func keyedSubmission(key string, submission ReportSubmission) SubmissionRequest 
 	request := materializedSubmission(submission)
 	request.Key = key
 	return request
+}
+
+func newStartedIdempotencyLifecycle(t *testing.T, cfg Config) (*TaskLifecycle, func()) {
+	t.Helper()
+	releasePipeline := make(chan struct{})
+	lifecycle, err := newTaskLifecycle(cfg, func() (*Pipeline, error) {
+		pipeline := controlledLifecyclePipeline()
+		pipeline.ExtractZip = func(string, string) error {
+			<-releasePipeline
+			return nil
+		}
+		return pipeline, nil
+	})
+	if err != nil {
+		t.Fatalf("newTaskLifecycle failed: %v", err)
+	}
+	if err := lifecycle.Start(context.Background()); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	var closeOnce sync.Once
+	closeLifecycle := func() {
+		closeOnce.Do(func() {
+			close(releasePipeline)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if err := lifecycle.Close(ctx); err != nil {
+				t.Errorf("Close failed: %v", err)
+			}
+		})
+	}
+	t.Cleanup(closeLifecycle)
+	return lifecycle, closeLifecycle
 }
 
 func testSubmissionFile(name, content string) SubmissionFile {
