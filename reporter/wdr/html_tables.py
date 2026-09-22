@@ -9,7 +9,7 @@ from reporter.html_tables import HTMLTableCollector as _TableCollector
 from reporter.html_tables import normalize_text as _normalize_text
 from reporter.html_tables import normalized_header as _shared_normalized_header
 from reporter.html_tables import parse_number as _parse_number
-from reporter.html_tables import row_dict as _shared_row_dict
+from reporter.html_tables import row_dict as _row_dict
 from reporter.wdr.errors import WDRParseError
 
 
@@ -17,11 +17,6 @@ def _normalized_header(table: _Table) -> list[str]:
     if not table.rows:
         raise WDRParseError(f"table has no rows: {table.summary}")
     return _shared_normalized_header(table)
-
-
-def _row_dict(header: list[str], row: tuple[str, ...]) -> dict[str, str]:
-    return _shared_row_dict(header, row)
-
 
 def _optional_tables(tables: list[_Table], *, summary_contains: str) -> list[_Table]:
     needle = summary_contains.lower().strip()
