@@ -3,13 +3,12 @@
 import { cn } from "@/lib/utils";
 
 interface StepIndicatorProps {
-  current: 1 | 2 | 3;
+  current: 1 | 2;
 }
 
 const STEPS = [
-  { step: 1 as const, label: "选择类型" },
-  { step: 2 as const, label: "上传文件" },
-  { step: 3 as const, label: "生成报告" },
+  { step: 1 as const, label: "上传采集数据" },
+  { step: 2 as const, label: "生成巡检报告" },
 ];
 
 export function StepIndicator({ current }: StepIndicatorProps) {

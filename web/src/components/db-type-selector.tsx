@@ -26,7 +26,7 @@ export function DbTypeSelector({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-3xl">
         {DB_TYPE_OPTIONS.map((opt) => {
           const isSelected = selected === opt.type;
           return (
@@ -63,10 +63,10 @@ export function DbTypeSelector({
 
       {selected && (
         <div className="flex flex-col items-center gap-3">
-          {DB_TYPE_OPTIONS.find((o) => o.type === selected)?.hasAwrWdr && (
+          {DB_TYPE_OPTIONS.find((o) => o.type === selected)?.diagnostic && (
             <p className="text-xs text-accent">
               下一步可为每个 ZIP 包关联{" "}
-              {DB_TYPE_OPTIONS.find((o) => o.type === selected)?.awrWdrLabel}
+              {DB_TYPE_OPTIONS.find((o) => o.type === selected)?.diagnostic?.label}
             </p>
           )}
           <button

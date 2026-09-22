@@ -126,3 +126,13 @@
     scroll-behavior: auto;
   }
 }
+
+/* Nav tab active indicator entrance */
+@keyframes nav-indicator-in {
+  from { transform: scaleX(0); opacity: 1; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+.nav-active-indicator {
+  animation: nav-indicator-in 0.2s ease-out;
+}
+

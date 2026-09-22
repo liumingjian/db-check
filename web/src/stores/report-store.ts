@@ -23,8 +23,8 @@ interface ReportStore {
   removeZipFile: (id: string) => void;
   setAwrFile: (zipId: string, files: File[] | null) => void;
 
-  /* Step 3 */
-  currentStep: 1 | 2 | 3;
+  /* Steps (2-step wizard) */
+  currentStep: 1 | 2;
   taskId: string | null;
   progress: ProgressState;
   logs: LogEntry[];
@@ -111,12 +111,12 @@ export const useReportStore = create<ReportStore>((set) => ({
 
   nextStep: () =>
     set((state) => ({
-      currentStep: Math.min(state.currentStep + 1, 3) as 1 | 2 | 3,
+      currentStep: Math.min(state.currentStep + 1, 2) as 1 | 2,
     })),
 
   prevStep: () =>
     set((state) => ({
-      currentStep: Math.max(state.currentStep - 1, 1) as 1 | 2 | 3,
+      currentStep: Math.max(state.currentStep - 1, 1) as 1 | 2,
     })),
 
   setTaskId: (id) => set({ taskId: id }),
