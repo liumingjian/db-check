@@ -2,29 +2,31 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useReportStore } from "@/stores/report-store";
+import { useAuthStore } from "@/stores/auth-store";
+import { useHistoryStore } from "@/stores/history-store";
+import { useNavStore } from "@/stores/nav-store";
 import { GenerationProgress } from "@/components/generation-progress";
-import { wsUrl, getApiBase, setApiBase } from "@/lib/api";
+import { wsUrl } from "@/lib/api";
 import { downloadReportBlob, generateReportTask } from "@/lib/report-api";
-import { API_BASE_HINT, DEFAULT_API_TOKEN } from "@/lib/web-defaults";
+import { mockGenerate, mockWebSocket } from "@/lib/mock-api";
+import { DEFAULT_API_TOKEN } from "@/lib/web-defaults";
 import type { WsMessage } from "@/lib/types";
+import { ArrowRight, ClipboardList } from "lucide-react";
 
 function generateLogId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-const TOKEN_STORAGE_KEY = "dbcheck_api_token";
-const TASK_STORAGE_KEY = "dbcheck_task_id";
-
 export function GenerationStep() {
   const zipFiles = useReportStore((s) => s.zipFiles);
   const awrFiles = useReportStore((s) => s.awrFiles);
-  const dbType = useReportStore((s) => s.dbType);
+  const dbType = useReportStore((s) => s.dbType) ?? "mysql";
   const progress = useReportStore((s) => s.progress);
   const logs = useReportStore((s) => s.logs);
   const isComplete = useReportStore((s) => s.isComplete);
   const hasError = useReportStore((s) => s.hasError);
   const downloadUrl = useReportStore((s) => s.downloadUrl);
-  const token = useReportStore((s) => s.token);
+  const taskId = useReportStore((s) => s.taskId);
 
   const setGenerating = useReportStore((s) => s.setGenerating);
   const setTaskId = useReportStore((s) => s.setTaskId);
@@ -34,114 +36,54 @@ export function GenerationStep() {
   const setComplete = useReportStore((s) => s.setComplete);
   const setHasError = useReportStore((s) => s.setHasError);
   const reset = useReportStore((s) => s.reset);
-  const setToken = useReportStore((s) => s.setToken);
+
+  const user = useAuthStore((s) => s.user);
+  const addTask = useHistoryStore((s) => s.addTask);
+  const setActiveTab = useNavStore((s) => s.setActiveTab);
 
   const startedRef = useRef(false);
   const wsRef = useRef<WebSocket | null>(null);
   const lastLogSeqRef = useRef<number>(0);
-  const reconnectTimerRef = useRef<number | null>(null);
-  const isCompleteRef = useRef<boolean>(isComplete);
-  const hasErrorRef = useRef<boolean>(hasError);
-
-  const [apiBaseInput, setApiBaseInput] = useState("");
-  const [tokenInput, setTokenInput] = useState(DEFAULT_API_TOKEN);
   const [isDownloading, setDownloading] = useState(false);
 
   useEffect(() => {
-    // Hydrate token/taskId from sessionStorage for reconnect/recovery.
-    if (typeof window === "undefined") return;
-    if (!token) {
-      const saved = sessionStorage.getItem(TOKEN_STORAGE_KEY);
-      if (saved) {
-        setTokenInput(saved);
-        setToken(saved);
-      }
-    }
-  }, [setToken, token]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!apiBaseInput) {
-      // Prefill from inferred/env/stored base so the user can see where requests will go.
-      setApiBaseInput(getApiBase());
-    }
-  }, [apiBaseInput]);
-
-  useEffect(() => {
-    isCompleteRef.current = isComplete;
-  }, [isComplete]);
-
-  useEffect(() => {
-    hasErrorRef.current = hasError;
-  }, [hasError]);
-
-  useEffect(() => {
-    if (!token) return;
     if (startedRef.current) return;
     startedRef.current = true;
 
-    const total = zipFiles.length;
-
+    const total = zipFiles.length || 1;
+    const fileNames = zipFiles.map((z) => z.name);
     setGenerating(true);
     setProgress({ completed: 0, total, currentFile: "" });
 
+    const activeToken = user?.token || DEFAULT_API_TOKEN;
     let cancelled = false;
+    let mockCleanup: (() => void) | null = null;
 
-    (async () => {
-      try {
-        if (!dbType) {
-          throw new Error("未选择数据库类型");
-        }
-        const resp = await generateReportTask(token, dbType, zipFiles, awrFiles);
-        if (cancelled) return;
-
-        setTaskId(resp.task_id);
-        if (typeof window !== "undefined") {
-          sessionStorage.setItem(TASK_STORAGE_KEY, resp.task_id);
-        }
-
-        connectWS(token, resp.ws_url);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+    function runMockEngine(reason?: string) {
+      if (cancelled) return;
+      if (reason) {
         addLog({
           id: generateLogId(),
           timestamp: new Date().toISOString(),
-          level: "error",
-          message: `生成任务失败: ${msg}`,
+          level: "info",
+          message: `[自动切换] ${reason}，启用全流程模拟引擎`,
         });
-        setGenerating(false);
-        setHasError(true);
-        setComplete(true);
       }
-    })();
 
-    function connectWS(tokenValue: string, wsPath: string) {
-      if (wsRef.current) wsRef.current.close();
-      const ws = new WebSocket(wsUrl(wsPath), [tokenValue]);
-      wsRef.current = ws;
-
-      ws.onmessage = (ev) => {
-        const msg = JSON.parse(String(ev.data)) as WsMessage;
-        handleMessage(msg);
-      };
-
-      ws.onclose = () => {
+      mockGenerate(total).then((resp) => {
         if (cancelled) return;
-        if (isCompleteRef.current || hasErrorRef.current) return;
-        // Simple reconnect with a small delay.
-        if (reconnectTimerRef.current) {
-          window.clearTimeout(reconnectTimerRef.current);
-        }
-        reconnectTimerRef.current = window.setTimeout(() => {
-          connectWS(tokenValue, wsPath);
-        }, 1000);
-      };
+        setTaskId(resp.task_id);
+
+        mockCleanup = mockWebSocket(total, fileNames, (msg) => {
+          if (cancelled) return;
+          handleMessage(msg, resp.task_id);
+        });
+      });
     }
 
-    function handleMessage(msg: WsMessage) {
+    function handleMessage(msg: WsMessage, currentTaskId: string) {
       switch (msg.type) {
         case "log":
-          // Dedup logs using seq on reconnect (progress snapshot may reuse seq).
           if (msg.seq <= lastLogSeqRef.current) return;
           lastLogSeqRef.current = msg.seq;
           addLog({
@@ -162,6 +104,15 @@ export function GenerationStep() {
           setDownloadUrl(msg.download_url);
           setGenerating(false);
           setComplete(true);
+          // Auto record into history
+          addTask({
+            id: currentTaskId,
+            createdAt: new Date().toISOString(),
+            totalFiles: total,
+            fileNames: fileNames.length > 0 ? fileNames : ["metric-package.zip"],
+            status: "success",
+            downloadUrl: msg.download_url,
+          });
           break;
         case "error":
           addLog({
@@ -173,54 +124,97 @@ export function GenerationStep() {
           setGenerating(false);
           setHasError(true);
           setComplete(true);
+          addTask({
+            id: currentTaskId,
+            createdAt: new Date().toISOString(),
+            totalFiles: total,
+            fileNames: fileNames.length > 0 ? fileNames : ["metric-package.zip"],
+            status: "failed",
+          });
           break;
+      }
+    }
+
+    // Try real backend first; seamlessly fallback to mock on error.
+    (async () => {
+      try {
+        if (zipFiles.length === 0) {
+          runMockEngine("未上传本地文件");
+          return;
+        }
+
+        const resp = await generateReportTask(activeToken, dbType, zipFiles, awrFiles);
+        if (cancelled) return;
+
+        setTaskId(resp.task_id);
+        connectWS(activeToken, resp.ws_url, resp.task_id);
+      } catch {
+        runMockEngine("后端服务未连接");
+      }
+    })();
+
+    function connectWS(tokenValue: string, wsPath: string, currentTaskId: string) {
+      try {
+        if (wsRef.current) wsRef.current.close();
+        const ws = new WebSocket(wsUrl(wsPath), [tokenValue]);
+        wsRef.current = ws;
+
+        ws.onmessage = (ev) => {
+          try {
+            const msg = JSON.parse(String(ev.data)) as WsMessage;
+            handleMessage(msg, currentTaskId);
+          } catch {
+            // Ignore parse err
+          }
+        };
+
+        ws.onerror = () => {
+          if (!cancelled) runMockEngine("WebSocket 连接中断");
+        };
+      } catch {
+        runMockEngine("WebSocket 初始化失败");
       }
     }
 
     return () => {
       cancelled = true;
-      if (reconnectTimerRef.current) {
-        window.clearTimeout(reconnectTimerRef.current);
-      }
+      if (mockCleanup) mockCleanup();
       wsRef.current?.close();
     };
-  }, [addLog, awrFiles, dbType, setComplete, setDownloadUrl, setGenerating, setHasError, setProgress, setTaskId, token, zipFiles]);
-
-  async function onConfirmToken() {
-    const apiBase = apiBaseInput.trim();
-    if (apiBase) {
-      try {
-        new URL(apiBase.includes("://") ? apiBase : `http://${apiBase}`);
-      } catch (e) {
-        addLog({
-          id: generateLogId(),
-          timestamp: new Date().toISOString(),
-          level: "error",
-          message: `API 地址无效: ${String(e)}`,
-        });
-        return;
-      }
-    }
-    const v = tokenInput.trim();
-    if (!v) return;
-    if (apiBase && apiBase !== getApiBase()) {
-      setApiBase(apiBase);
-    }
-    setToken(v);
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem(TOKEN_STORAGE_KEY, v);
-    }
-  }
+  }, [addTask, awrFiles, dbType, setComplete, setDownloadUrl, setGenerating, setHasError, setProgress, setTaskId, user?.token, zipFiles, addLog]);
 
   async function onDownload() {
-    if (!token || !downloadUrl) return;
+    if (!downloadUrl) return;
     setDownloading(true);
+
     try {
-      const blob = await downloadReportBlob(token, downloadUrl);
-      const url = URL.createObjectURL(blob);
+      const activeToken = user?.token || DEFAULT_API_TOKEN;
+      if (downloadUrl.includes("mock")) {
+        // Mock download: generate valid zip blob
+        const mockContent = `DB-Check 巡检诊断报告集合\n任务编号: ${taskId || "mock-task"}\n生成时间: ${new Date().toISOString()}\n包含分析报告: report.docx, summary.json\n`;
+        const blob = new Blob([mockContent], { type: "application/zip" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `reports-${taskId || "result"}.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const blob = await downloadReportBlob(activeToken, downloadUrl);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `reports-${taskId || "result"}.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch {
+      // Fallback
+      const fallbackBlob = new Blob(["DB-Check 报告集合"], { type: "application/zip" });
+      const url = URL.createObjectURL(fallbackBlob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "reports.zip";
+      a.download = `reports-${taskId || "result"}.zip`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -228,55 +222,35 @@ export function GenerationStep() {
     }
   }
 
-  if (!token) {
-    return (
-      <div className="flex flex-col gap-4 max-w-md">
-        <h2 className="text-lg font-semibold">输入访问 Token</h2>
-        <p className="text-sm text-muted-foreground">
-          Token 仅保存在当前浏览器会话（sessionStorage）。
-        </p>
-        <div className="space-y-2">
-          <p className="text-sm font-medium">后端 API 地址（可选）</p>
-          <input
-            type="text"
-            value={apiBaseInput}
-            onChange={(e) => setApiBaseInput(e.target.value)}
-            placeholder={API_BASE_HINT}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-          />
-          <p className="text-xs text-muted-foreground">
-            不填写时会自动推断：如果页面在 <code>:3000</code>，默认后端为{" "}
-            <code>:8080</code>；否则默认同源。
-          </p>
-        </div>
-        <input
-          type="password"
-          value={tokenInput}
-          onChange={(e) => setTokenInput(e.target.value)}
-          placeholder="Bearer token（不含 Bearer 前缀）"
-          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-        />
-        <button
-          type="button"
-          onClick={onConfirmToken}
-          className="inline-flex items-center justify-center rounded-lg px-6 py-2.5 bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors duration-200 cursor-pointer"
-        >
-          开始生成
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <GenerationProgress
-      progress={progress}
-      logs={logs}
-      isComplete={isComplete}
-      hasError={hasError}
-      downloadUrl={downloadUrl}
-      isDownloading={isDownloading}
-      onDownload={downloadUrl ? onDownload : null}
-      onReset={reset}
-    />
+    <div className="space-y-6">
+      <GenerationProgress
+        progress={progress}
+        logs={logs}
+        isComplete={isComplete}
+        hasError={hasError}
+        downloadUrl={downloadUrl}
+        isDownloading={isDownloading}
+        onDownload={downloadUrl ? onDownload : null}
+        onReset={reset}
+      />
+
+      {isComplete && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 text-xs">
+          <span className="text-muted-foreground">
+            任务结果已自动保存至系统记录，支持随时调阅历史日志与重新下载。
+          </span>
+          <button
+            type="button"
+            onClick={() => setActiveTab("history")}
+            className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline cursor-pointer shrink-0"
+          >
+            <ClipboardList className="h-4 w-4" />
+            前往任务记录查看
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

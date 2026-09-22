@@ -19,7 +19,7 @@ __pycache__/
 .coverage.*
 coverage.xml
 htmlcov/
-resources/
+resources/  
 
 # Local runtime / build artifacts
 .env

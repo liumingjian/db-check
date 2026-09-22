@@ -14,10 +14,41 @@ The [web task lifecycle design](web-task-lifecycle.md) is the source of truth fo
 
 ## HTML table extraction
 
-No parser compatibility decisions have been accepted.
+The accepted design goal is to reduce duplicate maintenance while preserving current parser behavior.
 
-- Which AWR and WDR results, errors, unit parsing, optional lookups, and match behavior must remain?
-- Which tests define required parser behavior before extraction code is shared?
+- Preserve existing parser results, exception types, match behavior and order, and units.
+- Decide bugs separately from extraction design. This decision does not establish bug compatibility requirements.
+
+The shared layer will contain the following:
+
+- The HTML table collector and a common table data structure.
+- Text and whitespace normalization.
+- Row mapping.
+- Ordinary numeric parsing with existing semantics.
+
+AWR and WDR will retain the following:
+
+- Required and optional selection.
+- First-match and all-match policy.
+- Units and report field semantics.
+- Their own exceptions and validations.
+
+Small duplicated validation code is accepted. The shared layer needs no error adaptation. Do not add a generic exception factory or error translation.
+
+### Compatibility acceptance criteria
+
+- For every existing AWR and WDR fixture, the full parsed result is equal before and after extraction.
+- For a missing required table, the exception type and message remain unchanged.
+- Match ordering, the handling of absent optional tables, and unit parsing remain unchanged.
+- Direct tests for shared helpers cover whitespace normalization, nested formatting tags inside cells but not nested tables, uneven row lengths, and ordinary numeric parsing.
+
+### Suspected issues
+
+- A nested table may cause the parser to lose the outer table.
+- Normalized duplicate headers can overwrite earlier columns.
+- The parser accepts `NaN` and `Infinity`.
+
+The extraction must preserve behavior before and after the change. Fixes require separate decisions, and these observations do not create permanent support guarantees. Implementation remains unauthorized.
 
 ## Outer report assembly
 
