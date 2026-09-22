@@ -18,6 +18,7 @@ def _normalized_header(table: _Table) -> list[str]:
         raise WDRParseError(f"table has no rows: {table.summary}")
     return _shared_normalized_header(table)
 
+
 def _optional_tables(tables: list[_Table], *, summary_contains: str) -> list[_Table]:
     needle = summary_contains.lower().strip()
     return [table for table in tables if needle in table.summary.lower()]

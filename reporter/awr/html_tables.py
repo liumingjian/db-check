@@ -18,6 +18,7 @@ def _normalized_header(table: _Table) -> list[str]:
         raise AWRParseError(f"table has no rows: {table.summary}")
     return _shared_normalized_header(table)
 
+
 def _require_table(tables: list[_Table], *, summary_contains: str) -> _Table:
     match = _optional_table(tables, summary_contains=summary_contains)
     if match is None:
