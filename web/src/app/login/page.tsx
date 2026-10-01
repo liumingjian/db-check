@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { apiMode } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
+import { FormError, INPUT } from "@/components/console/account/form";
 import { Brand, CAPTION, PRESS, YellowButton } from "@/components/console/kit";
 import { SessionGuard } from "@/components/console/session-guard";
-
-const INPUT = "h-12 w-full rounded-lg bg-card px-4 text-[15px] ring-1 ring-transparent outline-none placeholder:text-[#5a5a5a] focus:ring-primary";
 
 function SignInForm() {
   const login = useAuthStore((s) => s.login);
@@ -58,15 +58,20 @@ function SignInForm() {
             placeholder="密码"
             className={INPUT}
           />
-          {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
+          <FormError message={error} />
           <YellowButton type="submit" disabled={busy} className="mt-3 w-full">
             登录
           </YellowButton>
         </form>
+
+        {apiMode === "mock" && (
+          <p className="mt-6 text-sm text-muted-foreground">
+            还没有账号？
+            <Link href="/register" className="ml-1 font-semibold text-foreground hover:text-primary">
+              申请账号 →
+            </Link>
+          </p>
+        )}
 
         {apiMode === "real" && (
           <p className="mt-6 text-xs text-muted-foreground">后端暂未提供账号体系，密码处请填写 db-web 的 API Token（DBCHECK_API_TOKEN）。</p>

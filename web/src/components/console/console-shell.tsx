@@ -6,7 +6,7 @@ import { SessionGuard, type RouteAccess } from "@/components/console/session-gua
 import type { SectionKey } from "@/components/console/sections";
 
 /** Every signed-in screen: the session guard, the left rail, and the dialog host. */
-export function ConsoleShell({ access = "console", children }: { access?: Exclude<RouteAccess, "public">; children: React.ReactNode }) {
+export function ConsoleShell({ access = "console", children }: { access?: Extract<RouteAccess, "console" | "admin">; children: React.ReactNode }) {
   return (
     <SessionGuard access={access}>
       <DialogHost>
