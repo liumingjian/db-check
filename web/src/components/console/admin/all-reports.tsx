@@ -7,11 +7,6 @@ import { ReportRow } from "@/components/console/reports/report-row";
 import { api, ApiError, type Account, type ReportTask } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 
-/** Link to 全部报告, narrowed to one submitter when `user` is set. */
-function allReportsHref(user?: string): string {
-  return user ? `/admin/reports?${new URLSearchParams({ user })}` : "/admin/reports";
-}
-
 /**
  * 管理 → 全部报告: every user's report tasks with a submitter column, narrowed
  * by a submitter chip kept in the URL query (`?user=<id>`). Rows are the same
@@ -33,6 +28,9 @@ export function AllReports() {
     if (token) api.reports.listAll(token, { submitterId: user }).then(setTasks, (e: unknown) => setError(errorText(e)));
   }, [token, user]);
 
+  // Replace, not push: flipping chips shouldn't fill the back button's history.
+  const show = (id?: string) => router.replace(id ? `/admin/reports?${new URLSearchParams({ user: id })}` : "/admin/reports");
+
   // Applicants never got console access, so they have no tasks. Disabled users keep theirs.
   const submitters = accounts.filter((a) => a.status === "active" || a.status === "disabled");
 
@@ -40,9 +38,9 @@ export function AllReports() {
     <>
       <div className="flex flex-wrap items-center gap-2 py-2">
         <span className="w-12 shrink-0 text-xs font-semibold text-[#5a5a5a]">提交人</span>
-        <Chip on={!user} onClick={() => router.replace(allReportsHref())}>全部</Chip>
+        <Chip on={!user} onClick={() => show()}>全部</Chip>
         {submitters.map((a) => (
-          <Chip key={a.id} on={user === a.id} onClick={() => router.replace(allReportsHref(a.id))}>
+          <Chip key={a.id} on={user === a.id} onClick={() => show(a.id)}>
             {a.displayName}
           </Chip>
         ))}

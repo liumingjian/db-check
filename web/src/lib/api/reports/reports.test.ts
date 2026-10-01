@@ -123,7 +123,9 @@ describe.each(contractImplementations)("%s reports contract", (_name, makeApi) =
   });
 
   it("narrows all tasks to one submitter", async () => {
-    const api = makeApi();
+    // Pinned: until the first write, every read rebuilds the seed relative to `now`.
+    const now = Date.parse("2026-10-01T08:00:00Z");
+    const api = makeApi({ now: () => now });
     const admin = await api.auth.signIn("admin", "admin");
 
     const disabledUsers = await api.reports.listAll(admin.token, { submitterId: "u-disabled-001" });
