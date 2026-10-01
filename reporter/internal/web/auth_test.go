@@ -70,7 +70,7 @@ func newPlatformFixture(t *testing.T) *platformFixture {
 	}
 	p.Now = f.clock.Now
 	p.Log = log.New(f.log, "", 0)
-	cfg := Config{DataDir: dataDir, AllowedOrigins: []string{"http://example.com"}, APIToken: defaultAPIToken}
+	cfg := Config{DataDir: dataDir, AllowedOrigins: []string{"http://example.com"}}
 	h, err := newAPIHandler(cfg, p, false)
 	if err != nil {
 		t.Fatalf("newAPIHandler: %v", err)

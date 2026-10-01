@@ -5,22 +5,25 @@ info:
   description: |
     Web service for generating db-check reports from uploaded collector ZIP packages.
 
-    Platform routes (`/api/auth`, `/api/users`, `/api/releases`, and later
-    `/api/downloads`) authenticate with a session token from sign-in
-    (`Authorization: Bearer <token>`) and answer errors with `ApiError`
+    Platform routes (`/api/auth`, `/api/users`, `/api/releases`,
+    `/api/downloads`, and `/api/reports`) authenticate with a session token
+    from sign-in (`Authorization: Bearer <token>`; WebSockets pass it as the
+    subprotocol) and answer errors with `ApiError`
     (`{"code", "message"}`): 401 `unauthorized`, 403 `forbidden`,
     404 `not_found`, 400 or 409 `invalid`, anything else `failed`. The
     message is Chinese and shown to the user as-is.
 
     Access levels: most operations need an active user with no forced
-    password change due (otherwise 403); current user accepts any account
-    status except disabled. A disabled user's session answers 401.
+    password change due (otherwise 403); current user, own profile,
+    resubmit, and the forced password change accept any account status
+    except disabled. A disabled user's session answers 401. The shared
+    `DBCHECK_API_TOKEN` is retired and accepted nowhere.
 
     The publish API (`/api/ci/releases`) takes no session: it authenticates
     the CI machine credential `DBCHECK_PUBLISH_TOKEN` (ADR 0002).
 
-    The `/api/reports` routes still check the shared `DBCHECK_API_TOKEN` and
-    answer `ErrorResponse` until they move to sessions.
+    A report task belongs to its submitter: anyone else but an admin gets
+    404 `not_found` from its status, WebSocket, and download.
 
 servers:
   - url: /
@@ -292,6 +295,101 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /api/users/{id}/reset-password:
+    post:
+      summary: Reset a user's password (admin only)
+      description: |
+        Sets a generated temporary password that the user must change at the
+        next sign-in (`mustChangePassword`), ends every session of the user,
+        and appends `reset` to their account action history. The temporary
+        password appears in this response only, for the admin to hand over
+        in person.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The account after the reset, and the temporary password.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordReset"
+        "401":
+          description: No live session, or the user is disabled (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not an active admin (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No such user (`not_found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/users/me/password:
+    post:
+      summary: Change the signed-in user's own password
+      description: |
+        A forced change (`mustChangePassword`, after a reset or `db-web admin
+        create`) needs no current password and lifts the forced-change gate.
+        Otherwise only an active user may change their password, and only
+        with the right current password. The session stays signed in.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newPassword]
+              properties:
+                newPassword:
+                  type: string
+                currentPassword:
+                  type: string
+                  description: Required unless the change is forced.
+      responses:
+        "200":
+          description: The caller's profile after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "400":
+          description: |
+            (`invalid`) A missing current password (请输入当前密码), a wrong
+            one (当前密码不正确), a blank new password (请输入新密码), or a
+            new password equal to the current one (新密码不能与当前密码相同).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: No live session, or the user is disabled (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: A voluntary change by a user who is not active (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /api/releases:
     get:
       summary: The collector releases the user may see, newest first
@@ -391,6 +489,124 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /api/releases/{version}/packages/{platform}:
+    get:
+      summary: Download one release package
+      description: |
+        Streams the package as a `.zip` attachment and writes one download
+        record (user, release, package, time) as the transfer starts.
+        Engineers may download latest and deprecated releases; admins may
+        download every status. A package the user may not see answers
+        404 `not_found`, exactly like an unknown one, and writes no record.
+        Needs an active user.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 1.2.0
+        - name: platform
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Platform"
+      responses:
+        "200":
+          description: The package file.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: attachment; filename="db-collector-1.2.0-linux-amd64.zip"
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: No live session (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: The account is not active, or a password change is due (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: |
+            Unknown version or platform, or a release the user may not see:
+            pre-release and revoked releases for engineers (`not_found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/downloads:
+    get:
+      summary: Download records, newest first (admins only)
+      description: |
+        Every query parameter is optional and narrows the list; set ones
+        must all match. Not paginated.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: string
+          example: u-user-001
+        - name: version
+          in: query
+          description: Release version.
+          schema:
+            type: string
+          example: 1.2.0
+        - name: from
+          in: query
+          description: Keeps records at or after this time (inclusive).
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: Keeps records strictly before this time (exclusive).
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Matching download records, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DownloadRecord"
+        "400":
+          description: "`from` or `to` is not an RFC 3339 time (`invalid`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: No live session (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not an active admin (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /api/ci/releases:
     post:
       summary: Publish a collector release with its four packages (CI only)
@@ -484,9 +700,17 @@ paths:
 
   /api/reports/generate:
     post:
-      summary: Generate reports from uploaded ZIP packages
+      summary: Submit a report task
+      description: |
+        Needs an active user, who becomes the task's submitter. The server
+        reads each ZIP's `db_type` and `collector_version` itself (the one
+        `manifest.json`, then `manifest.artifacts.result`, then that file's
+        `meta` block) and stores the task and its report items before it
+        answers, so an acknowledged task is never lost. A worker takes
+        stored tasks in submission order; tasks interrupted by a restart
+        resume.
       security:
-        - bearerAuth: []
+        - sessionAuth: []
       requestBody:
         required: true
         content:
@@ -498,7 +722,7 @@ paths:
               properties:
                 zips:
                   type: array
-                  description: One or more collector ZIP packages.
+                  description: One or more collector ZIP packages, one per report item.
                   items:
                     type: string
                     format: binary
@@ -507,41 +731,57 @@ paths:
                   description: |
                     Optional Oracle AWR HTML files.
                     Either provide `awrs` with the same count as `zips` (paired by index),
-                    or provide per-item fields `awr_<index>` (1-based, e.g. `awr_1`).
+                    or provide per-item fields `awr_<index>` (1-based, e.g. `awr_1`; at most one per item).
+                  items:
+                    type: string
+                    format: binary
+                wdrs:
+                  type: array
+                  description: |
+                    Optional GaussDB WDR HTML files, paired like `awrs`, or per-item
+                    fields `wdr_<index>` (any number per item).
                   items:
                     type: string
                     format: binary
       responses:
         "200":
-          description: Task created and processing started (queued on a single worker).
+          description: Task stored; it reports `processing` until it finishes.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/GenerateResponse"
         "400":
-          description: Invalid request.
+          description: |
+            No ZIP, a ZIP the server cannot read (the message names the file
+            and the problem), or misplaced AWR/WDR files (`invalid`).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "401":
-          description: Missing or invalid token.
+          description: No live session (`unauthorized`).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: The account is not active, or must change its password first (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "413":
-          description: Upload too large.
+          description: Upload too large (`failed`).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
 
   /api/reports/status/{task_id}:
     get:
       summary: Get task status
       security:
-        - bearerAuth: []
+        - sessionAuth: []
       parameters:
         - name: task_id
           in: path
@@ -556,19 +796,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/StatusResponse"
         "401":
-          description: Missing or invalid token.
+          description: No live session (`unauthorized`).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: The account is not active, or must change its password first (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
-          description: Task not found.
+          description: No such task, or another user's task for an engineer (`not_found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/reports/download/{task_id}:
     get:
       summary: Download result ZIP
       security:
-        - bearerAuth: []
+        - sessionAuth: []
       parameters:
         - name: task_id
           in: path
@@ -584,36 +834,52 @@ paths:
                 type: string
                 format: binary
         "401":
-          description: Missing or invalid token.
+          description: No live session (`unauthorized`).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: The account is not active, or must change its password first (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
-          description: Task not found.
-        "409":
-          description: Task not finished.
+          description: No such task, or another user's task for an engineer (`not_found`).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The task is not done (`invalid`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/reports/ws/{task_id}:
     get:
       summary: WebSocket stream for task logs and progress
       description: |
-        WebSocket endpoint. Clients MUST pass the API token via `Sec-WebSocket-Protocol`.
+        WebSocket endpoint. Clients pass the session token as the subprotocol
+        (`Sec-WebSocket-Protocol`); the server checks it like a bearer token
+        and accepts by echoing it.
 
         Example (browser):
         - `new WebSocket(wsUrl, [token])`
 
-        The server negotiates the subprotocol by echoing the token value.
+        The stream replays the kept logs, then a progress snapshot, then
+        live events. A finished task ends with `done` or `error`, after which
+        the server closes the socket.
 
         Messages are JSON objects matching one of:
         - `WsLogMessage`
         - `WsProgressMessage`
         - `WsDoneMessage`
         - `WsErrorMessage`
+      security:
+        - sessionAuth: []
       parameters:
         - name: task_id
           in: path
@@ -624,21 +890,26 @@ paths:
         "101":
           description: Switching Protocols (WebSocket upgrade).
         "401":
-          description: Missing or invalid token.
+          description: No live session (`unauthorized`).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: The account is not active, or must change its password first (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
-          description: Task not found.
+          description: No such task, or another user's task for an engineer (`not_found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
 components:
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: token
-      description: The shared DBCHECK_API_TOKEN (report routes only, until they move to sessions).
     sessionAuth:
       type: http
       scheme: bearer
@@ -762,6 +1033,16 @@ components:
               items:
                 $ref: "#/components/schemas/AccountAction"
 
+    PasswordReset:
+      type: object
+      required: [profile, temporaryPassword]
+      properties:
+        profile:
+          $ref: "#/components/schemas/UserProfile"
+        temporaryPassword:
+          type: string
+          description: Shown once; the user must change it at the next sign-in.
+
     Platform:
       type: string
       enum: [linux-amd64, linux-arm64, windows-amd64, windows-arm64]
@@ -822,6 +1103,24 @@ components:
           description: In platform order.
           items:
             $ref: "#/components/schemas/ReleasePackage"
+
+    DownloadRecord:
+      type: object
+      description: Which user downloaded which release package, and when.
+      required: [id, userId, version, platform, at]
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        version:
+          type: string
+          example: 1.2.0
+        platform:
+          $ref: "#/components/schemas/Platform"
+        at:
+          type: string
+          format: date-time
 
     PublishMetadata:
       type: object
@@ -895,25 +1194,23 @@ components:
           type: string
         status:
           type: string
-          enum: ["queued", "processing", "done", "failed"]
+          enum: ["processing", "done", "failed"]
+          description: A task still queued on the server reports `processing`.
         total:
           type: integer
+          description: The number of report items.
         completed:
           type: integer
+          description: Report items finished, done or failed.
         current_file:
           type: string
+          description: The ZIP being generated; empty between items.
         download_url:
           type: string
           description: Present when status is `done`.
         error:
           type: string
-
-    ErrorResponse:
-      type: object
-      required: [error]
-      properties:
-        error:
-          type: string
+          description: Why a failed task failed.
 
     WsLogMessage:
       type: object

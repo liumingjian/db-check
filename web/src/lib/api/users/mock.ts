@@ -1,5 +1,5 @@
 import type { User } from "@/lib/auth-types";
-import { requireSessionUser, resolveSessionUser, startMockSession } from "@/lib/api/auth/mock";
+import { endMockSessions, requireSessionUser, resolveSessionUser, startMockSession } from "@/lib/api/auth/mock";
 import { ApiError } from "@/lib/api/errors";
 import { mockCollection, mockId, type MockContext } from "@/lib/api/mock-storage";
 import type { UserProfile, AccountActionKind, UsersApi } from "@/lib/api/users/contract";
@@ -197,6 +197,7 @@ export function createMockUsers(ctx: MockContext): UsersApi {
     async resetPassword(token, userId) {
       const temporaryPassword = makeTemporaryPassword();
       const reset = administer(token, userId, "reset", () => ({ password: temporaryPassword, mustChangePassword: true }));
+      endMockSessions(ctx, userId);
       return { profile: reset, temporaryPassword };
     },
 

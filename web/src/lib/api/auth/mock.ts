@@ -38,6 +38,12 @@ export function requireSessionUser(ctx: MockContext, token: string): User {
   return user;
 }
 
+/** Ends every session of a user, as a password reset does. */
+export function endMockSessions(ctx: MockContext, userId: string): void {
+  const sessions = mockSessions(ctx);
+  sessions.write(Object.fromEntries(Object.entries(sessions.read()).filter(([, id]) => id !== userId)));
+}
+
 /** Opens a session for a user, as sign-in and registration both do. */
 export function startMockSession(ctx: MockContext, userId: string): Session {
   const token = mockId("mock-session");

@@ -5,7 +5,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 API_BASE="${DBCHECK_SMOKE_API_BASE:-http://127.0.0.1:8080}"
 WEB_BASE="${DBCHECK_SMOKE_WEB_BASE:-http://127.0.0.1:3000}"
-TOKEN="${DBCHECK_SMOKE_TOKEN:-${DBCHECK_API_TOKEN:-ATI}}"
+# An active account whose temporary password was already changed (the first
+# admin from `db-web admin create` must sign in to the console once first).
+SMOKE_USERNAME="${DBCHECK_SMOKE_USERNAME:-}"
+SMOKE_PASSWORD="${DBCHECK_SMOKE_PASSWORD:-}"
 TIMEOUT_SECONDS="${DBCHECK_SMOKE_TIMEOUT_SECONDS:-300}"
 
 ZIP_PATH="${DBCHECK_SMOKE_ZIP_PATH:-/tmp/dbcheck-mysql-e2e.zip}"
@@ -57,6 +60,11 @@ require_cmd xargs
 require_cmd zip
 require_cmd python3
 
+if [[ -z "${SMOKE_USERNAME}" || -z "${SMOKE_PASSWORD}" ]]; then
+  echo "[ERROR] set DBCHECK_SMOKE_USERNAME and DBCHECK_SMOKE_PASSWORD to an active account" >&2
+  exit 1
+fi
+
 maybe_start_pm2
 
 echo "[INFO] waiting for frontend: ${WEB_BASE}"
@@ -65,19 +73,13 @@ wait_for_http "${WEB_BASE}/" "frontend"
 echo "[INFO] waiting for backend: ${API_BASE}"
 deadline="$((SECONDS + TIMEOUT_SECONDS))"
 while true; do
-  # Use a valid-looking task id so the handler reaches TaskStore (404 is OK).
+  # Without a session the current-user route answers 401 once the API is up.
   code="$(
     curl -sS -o /dev/null -w "%{http_code}" \
-      -H "Authorization: Bearer ${TOKEN}" \
-      "${API_BASE}/api/reports/status/00000000000000000000000000000000" || true
+      "${API_BASE}/api/auth/me" || true
   )"
   case "${code}" in
-    404) break ;;
-    200) break ;;
-    401)
-      echo "[ERROR] backend reachable but token invalid (401). Set DBCHECK_SMOKE_TOKEN / DBCHECK_API_TOKEN." >&2
-      exit 1
-      ;;
+    401) break ;;
     000|"")
       ;;
     *)
@@ -90,6 +92,21 @@ while true; do
   fi
   sleep 1
 done
+
+sign_in_json="$(
+  python3 -c 'import json,sys; print(json.dumps({"username": sys.argv[1], "password": sys.argv[2]}))' \
+    "${SMOKE_USERNAME}" "${SMOKE_PASSWORD}"
+)"
+session="$(
+  curl -sS -X POST -H "Content-Type: application/json" \
+    -d "${sign_in_json}" \
+    "${API_BASE}/api/auth/sign-in"
+)"
+TOKEN="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("token",""))' <<<"${session}" || true)"
+if [[ -z "${TOKEN}" ]]; then
+  echo "[ERROR] sign-in as ${SMOKE_USERNAME} failed: ${session}" >&2
+  exit 1
+fi
 
 RUN_DIR="$(
   find "${ROOT_DIR}/tests/e2e/runs" -maxdepth 4 -path '*/mysql-8.0/*/manifest.json' -print \
@@ -136,7 +153,7 @@ while true; do
       echo "[ERROR] task failed: ${err}" >&2
       exit 1
       ;;
-    processing|queued|"")
+    processing|"")
       ;;
     *)
       echo "[WARN] unexpected status: ${status}" >&2

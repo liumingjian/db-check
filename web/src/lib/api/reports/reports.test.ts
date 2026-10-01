@@ -1,17 +1,19 @@
 import { describe, expect, it } from "vitest";
 import type { ReportItemInput } from "@/lib/api/contract";
-import { contractImplementations, watchToEnd, zipFile } from "@/lib/api/testing";
+import { contractImplementations, contractImplementationsWithReal, watchToEnd, zipFile } from "@/lib/api/testing";
 import type { DbType } from "@/lib/types";
 
 function item(name: string, dbType: DbType = "mysql", collectorVersion: string | null = "1.2.0"): ReportItemInput {
-  return { zip: zipFile(name), dbType, collectorVersion, diagnostics: [] };
+  return { zip: zipFile(name, dbType, collectorVersion), dbType, collectorVersion, diagnostics: [] };
 }
 
 function isNewestFirst(isoTimes: string[]): boolean {
   return isoTimes.every((at, i) => i === 0 || Date.parse(isoTimes[i - 1]) >= Date.parse(at));
 }
 
-describe.each(contractImplementations)("%s reports contract", (_name, makeApi) => {
+// db-web serves generation, watching, and download; the task reads below
+// (lists, getTask) run against the mock only until it serves them too.
+describe.each(contractImplementationsWithReal)("%s reports contract: generation", (_name, makeApi) => {
   it("refuses to generate without a valid session", async () => {
     const api = makeApi();
     await expect(api.reports.generate("not-a-session", { items: [item("mysql-prod-01.zip")] })).rejects.toMatchObject({
@@ -40,6 +42,27 @@ describe.each(contractImplementations)("%s reports contract", (_name, makeApi) =
     expect(report.size).toBeGreaterThan(0);
   });
 
+  it.each(["lisi", "zhaoliu"])("refuses report downloads to applicant %s", async (username) => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn(username, username);
+    await expect(api.reports.download(token, "t-any")).rejects.toMatchObject({ code: "forbidden" });
+  });
+
+  it("refuses an empty submission", async () => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn("user", "user");
+    await expect(api.reports.generate(token, { items: [] })).rejects.toMatchObject({ code: "invalid" });
+  });
+
+  it("refuses to download a task that is still generating", async () => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn("user", "user");
+    const { taskId } = await api.reports.generate(token, { items: [item("mysql-prod-01.zip")] });
+    await expect(api.reports.download(token, taskId)).rejects.toMatchObject({ code: "invalid" });
+  });
+});
+
+describe.each(contractImplementations)("%s reports contract", (_name, makeApi) => {
   it("records the task under the signed-in submitter, with each item's database type and collector version", async () => {
     const api = makeApi();
     const { token, user } = await api.auth.signIn("user", "user");
@@ -150,12 +173,6 @@ describe.each(contractImplementations)("%s reports contract", (_name, makeApi) =
     expect(await api.reports.listAll(admin.token, { submitterId: "no-such-user" })).toEqual([]);
   });
 
-  it.each(["lisi", "zhaoliu"])("refuses report downloads to applicant %s", async (username) => {
-    const api = makeApi();
-    const { token } = await api.auth.signIn(username, username);
-    await expect(api.reports.download(token, "t-any")).rejects.toMatchObject({ code: "forbidden" });
-  });
-
   it("lists all tasks to admins only", async () => {
     const api = makeApi();
     const engineer = await api.auth.signIn("user", "user");
@@ -186,19 +203,6 @@ describe.each(contractImplementations)("%s reports contract", (_name, makeApi) =
   it("refuses to list without a valid session", async () => {
     const api = makeApi();
     await expect(api.reports.listOwn("not-a-session")).rejects.toMatchObject({ code: "unauthorized" });
-  });
-
-  it("refuses an empty submission", async () => {
-    const api = makeApi();
-    const { token } = await api.auth.signIn("user", "user");
-    await expect(api.reports.generate(token, { items: [] })).rejects.toMatchObject({ code: "invalid" });
-  });
-
-  it("refuses to download a task that is still generating", async () => {
-    const api = makeApi();
-    const { token } = await api.auth.signIn("user", "user");
-    const { taskId } = await api.reports.generate(token, { items: [item("mysql-prod-01.zip")] });
-    await expect(api.reports.download(token, taskId)).rejects.toMatchObject({ code: "invalid" });
   });
 
   it("reports an unknown task as not found", async () => {

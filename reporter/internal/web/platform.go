@@ -18,6 +18,8 @@ type Platform struct {
 	DB  *store.DB
 	Now func() time.Time
 	Log *log.Logger
+	// Pipeline generates report items; nil means the real report launcher.
+	Pipeline ReportPipeline
 }
 
 func (p Platform) withDefaults() Platform {
@@ -37,6 +39,7 @@ func (h *apiHandler) registerPlatformRoutes(mux *http.ServeMux) {
 	h.registerAuthRoutes(mux)
 	h.registerUsersRoutes(mux)
 	h.registerReleaseRoutes(mux)
+	h.registerDownloadRoutes(mux)
 }
 
 // writeAPIError answers with the error envelope (package apierr). Errors
