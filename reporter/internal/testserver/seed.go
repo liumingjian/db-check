@@ -52,6 +52,7 @@ var seeders = []seeder{
 	seedUsers,
 	seedReleases,
 	seedDownloads,
+	seedReportTasks,
 }
 
 var offsetPattern = regexp.MustCompile(`^now(?:-(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?)?$`)

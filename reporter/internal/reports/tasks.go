@@ -68,8 +68,10 @@ type Task struct {
 var ErrNotFound = apierr.NotFound("报告任务不存在")
 
 // VisibleTo reports whether u may read the task: its submitter and admins.
-func (t Task) VisibleTo(u users.User) bool {
-	return u.Role == users.RoleAdmin || t.SubmitterID == u.ID
+func (t Task) VisibleTo(u users.User) bool { return visibleTo(t.SubmitterID, u) }
+
+func visibleTo(submitterID string, u users.User) bool {
+	return u.Role == users.RoleAdmin || submitterID == u.ID
 }
 
 // Insert stores a new task and its items.

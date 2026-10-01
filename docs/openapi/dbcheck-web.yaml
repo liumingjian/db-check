@@ -23,7 +23,7 @@ info:
     the CI machine credential `DBCHECK_PUBLISH_TOKEN` (ADR 0002).
 
     A report task belongs to its submitter: anyone else but an admin gets
-    404 `not_found` from its status, WebSocket, and download.
+    404 `not_found` from reading it, its status, WebSocket, and download.
 
 servers:
   - url: /
@@ -774,6 +774,107 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /api/reports:
+    get:
+      summary: All report tasks, newest first (管理 → 全部报告; admins only)
+      description: |
+        Every user's tasks, disabled users' included. Not paginated.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: submitterId
+          in: query
+          description: Keeps only this submitter's tasks; an unknown id answers an empty list.
+          schema:
+            type: string
+          example: u-user-001
+      responses:
+        "200":
+          description: Matching report tasks, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReportTask"
+        "401":
+          description: No live session (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not an active admin (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/reports/mine:
+    get:
+      summary: The caller's own report tasks, newest first (我的报告)
+      description: Admins get only their own tasks here too. Not paginated.
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: The caller's report tasks, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReportTask"
+        "401":
+          description: No live session (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: The account is not active, or must change its password first (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/reports/tasks/{task_id}:
+    get:
+      summary: One report task
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The task.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportTask"
+        "401":
+          description: No live session (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: The account is not active, or must change its password first (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No such task, or another user's task for an engineer (`not_found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /api/reports/status/{task_id}:
     get:
       summary: Get task status
@@ -1157,6 +1258,76 @@ components:
                 format: int64
               sha256:
                 type: string
+
+    ReportTask:
+      type: object
+      description: A recorded report task (CONTEXT.md, Report task).
+      required: [id, submitter, status, createdAt, expired, items]
+      properties:
+        id:
+          type: string
+        submitter:
+          type: object
+          required: [id, displayName]
+          properties:
+            id:
+              type: string
+            displayName:
+              type: string
+        status:
+          type: string
+          enum: [processing, done, failed]
+          description: A task still queued on the server reports `processing`. A task with some failed items is `done`.
+        createdAt:
+          type: string
+          format: date-time
+        expired:
+          type: boolean
+          description: True once the task's files were deleted, 30 days after submission; the record stays.
+        items:
+          type: array
+          description: In submission order.
+          items:
+            $ref: "#/components/schemas/ReportItem"
+
+    ReportItem:
+      type: object
+      required: [fileName, dbType, collectorVersion, collectorNotice, outcome]
+      properties:
+        fileName:
+          type: string
+        dbType:
+          type: string
+          enum: [mysql, oracle, gaussdb]
+          description: What the server read from the ZIP.
+        collectorVersion:
+          type: string
+          nullable: true
+          description: "`meta.collector_version` the server read from the ZIP; null when unknown."
+        collectorNotice:
+          nullable: true
+          description: |
+            What the item's collector release currently calls for: `{"status": "deprecated"}`,
+            or `{"status": "revoked", "reason"}`; null otherwise.
+          type: object
+          required: [status]
+          properties:
+            status:
+              type: string
+              enum: [deprecated, revoked]
+            reason:
+              type: string
+              description: Present for `revoked`.
+        outcome:
+          type: object
+          required: [status]
+          properties:
+            status:
+              type: string
+              enum: [processing, done, failed]
+            reason:
+              type: string
+              description: Present exactly when `failed`.
 
     GenerateResponse:
       type: object

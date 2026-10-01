@@ -1,6 +1,5 @@
-import { ApiError } from "@/lib/api/errors";
 import type { HttpClient } from "@/lib/api/http-client";
-import type { ReportEvent, ReportsApi } from "@/lib/api/reports/contract";
+import type { ReportEvent, ReportsApi, ReportTask } from "@/lib/api/reports/contract";
 import type { GenerateResponse } from "@/lib/types";
 
 export function createHttpReports(client: HttpClient): ReportsApi {
@@ -19,16 +18,20 @@ export function createHttpReports(client: HttpClient): ReportsApi {
       return { taskId: body.task_id, total: body.total };
     },
 
-    async listOwn() {
-      throw new ApiError("failed", "后端尚未提供报告任务列表接口");
+    async listOwn(token) {
+      const resp = await client.request("读取我的报告失败", "/api/reports/mine", token);
+      return (await resp.json()) as ReportTask[];
     },
 
-    async listAll() {
-      throw new ApiError("failed", "后端尚未提供报告任务列表接口");
+    async listAll(token, { submitterId } = {}) {
+      const query = submitterId ? `?${new URLSearchParams({ submitterId })}` : "";
+      const resp = await client.request("读取全部报告失败", `/api/reports${query}`, token);
+      return (await resp.json()) as ReportTask[];
     },
 
-    async getTask() {
-      throw new ApiError("failed", "后端尚未提供报告任务查询接口");
+    async getTask(token, taskId) {
+      const resp = await client.request("读取报告任务失败", `/api/reports/tasks/${encodeURIComponent(taskId)}`, token);
+      return (await resp.json()) as ReportTask;
     },
 
     watch(token, taskId, onEvent) {
