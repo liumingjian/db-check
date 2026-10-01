@@ -7,8 +7,7 @@ describe("mock API state", () => {
   async function generateFinishedTask(api: ReturnType<typeof createMockApi>) {
     const { token } = await api.auth.signIn("user", "user");
     const { taskId } = await api.reports.generate(token, {
-      dbType: "mysql",
-      items: [{ zip: zipFile("mysql-prod-01.zip"), diagnostics: [] }],
+      items: [{ zip: zipFile("mysql-prod-01.zip"), dbType: "mysql", collectorVersion: "1.2.0", diagnostics: [] }],
     });
     await watchToEnd(api, token, taskId);
     return { token, taskId };

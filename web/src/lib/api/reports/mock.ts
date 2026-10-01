@@ -1,8 +1,10 @@
 import { requireSessionUser } from "@/lib/api/auth/mock";
 import { ApiError } from "@/lib/api/errors";
 import { delay, mockCollection, mockId, type MockContext } from "@/lib/api/mock-storage";
-import type { ReportEvent, ReportsApi } from "@/lib/api/reports/contract";
+import type { ReportEvent, ReportsApi, ReportTask } from "@/lib/api/reports/contract";
 import { seedReportTasks, type MockReportTask } from "@/lib/api/reports/seed";
+import { mockUserRecords } from "@/lib/api/users/mock";
+import type { User } from "@/lib/auth-types";
 import type { LogLevel } from "@/lib/types";
 
 const SIMULATED_ITEM_LOGS: Array<{ level: LogLevel; message: string }> = [
@@ -26,6 +28,22 @@ export function createMockReports(ctx: MockContext): ReportsApi {
     return task;
   }
 
+  /** Engineers see only their own tasks; admins see all (CONTEXT.md, Submitter). */
+  function requireVisibleTask(caller: User, taskId: string): MockReportTask {
+    const task = requireTask(taskId);
+    if (caller.role !== "admin" && task.submitterId !== caller.id) {
+      throw new ApiError("not_found", `报告任务不存在: ${taskId}`);
+    }
+    return task;
+  }
+
+  function toReportTask({ submitterId, ...task }: MockReportTask): ReportTask {
+    const submitter = mockUserRecords(ctx)
+      .read()
+      .find((u) => u.id === submitterId);
+    return { ...task, submitter: { id: submitterId, displayName: submitter?.displayName ?? submitterId } };
+  }
+
   function markDone(taskId: string): void {
     tasks.write(tasks.read().map((t) => (t.id === taskId ? { ...t, status: "done" } : t)));
   }
@@ -33,11 +51,12 @@ export function createMockReports(ctx: MockContext): ReportsApi {
   /** Plays the backend's event stream for a task, then records it as done. */
   async function simulate(task: MockReportTask, emit: (event: ReportEvent) => void, stopped: () => boolean) {
     let seq = 0;
-    const total = task.fileNames.length;
+    const fileNames = task.items.map((item) => item.fileName);
+    const total = fileNames.length;
     const log = (level: LogLevel, message: string) =>
       emit({ type: "log", seq: ++seq, timestamp: new Date().toISOString(), level, message });
 
-    for (const [index, fileName] of task.fileNames.entries()) {
+    for (const [index, fileName] of fileNames.entries()) {
       log("info", `开始处理 ${fileName}`);
       for (const step of SIMULATED_ITEM_LOGS) {
         await delay(ctx.stepDelayMs);
@@ -60,13 +79,20 @@ export function createMockReports(ctx: MockContext): ReportsApi {
       const task: MockReportTask = {
         id: mockId("mock-task"),
         submitterId: submitter.id,
-        dbType: input.dbType,
-        fileNames: input.items.map((item) => item.zip.name),
+        items: input.items.map(({ zip, dbType, collectorVersion }) => ({
+          fileName: zip.name,
+          dbType,
+          collectorVersion,
+        })),
         status: "processing",
         createdAt: new Date().toISOString(),
       };
       tasks.write([task, ...tasks.read()]);
-      return { taskId: task.id, total: task.fileNames.length };
+      return { taskId: task.id, total: task.items.length };
+    },
+
+    async getTask(token, taskId) {
+      return toReportTask(requireVisibleTask(requireSessionUser(ctx, token), taskId));
     },
 
     watch(token, taskId, onEvent) {
@@ -76,8 +102,7 @@ export function createMockReports(ctx: MockContext): ReportsApi {
       };
       (async () => {
         try {
-          requireSessionUser(ctx, token);
-          await simulate(requireTask(taskId), emit, () => stopped);
+          await simulate(requireVisibleTask(requireSessionUser(ctx, token), taskId), emit, () => stopped);
         } catch (e) {
           emit({ type: "error", seq: 0, message: e instanceof Error ? e.message : String(e) });
         }
@@ -88,13 +113,12 @@ export function createMockReports(ctx: MockContext): ReportsApi {
     },
 
     async download(token, taskId) {
-      requireSessionUser(ctx, token);
-      const task = requireTask(taskId);
+      const task = requireVisibleTask(requireSessionUser(ctx, token), taskId);
       if (task.status !== "done") throw new ApiError("invalid", "报告尚未生成完成");
       const content = [
         "DB-Check 巡检诊断报告集合 (mock)",
         `任务编号: ${task.id}`,
-        `包含报告: ${task.fileNames.join(", ")}`,
+        `包含报告: ${task.items.map((item) => item.fileName).join(", ")}`,
       ].join("\n");
       return new Blob([content], { type: "application/zip" });
     },

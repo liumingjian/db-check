@@ -1,12 +1,11 @@
-import type { DbType } from "@/lib/types";
+import type { ReportItem, ReportTaskStatus } from "@/lib/api/reports/contract";
 
 export interface MockReportTask {
   id: string;
   submitterId: string;
-  dbType: DbType;
   /** One per report item, in submission order. */
-  fileNames: string[];
-  status: "processing" | "done" | "failed";
+  items: ReportItem[];
+  status: ReportTaskStatus;
   createdAt: string;
 }
 
@@ -16,16 +15,17 @@ export function seedReportTasks(): MockReportTask[] {
     {
       id: "task-seed-001",
       submitterId: "u-user-001",
-      dbType: "mysql",
-      fileNames: ["mysql-prod-01.zip", "mysql-prod-02.zip"],
+      items: [
+        { fileName: "mysql-prod-01.zip", dbType: "mysql", collectorVersion: "1.2.0" },
+        { fileName: "mysql-prod-02.zip", dbType: "mysql", collectorVersion: "1.2.0" },
+      ],
       status: "done",
       createdAt: "2026-09-20T14:32:00Z",
     },
     {
       id: "task-seed-002",
       submitterId: "u-user-001",
-      dbType: "oracle",
-      fileNames: ["oracle-core-rac.zip"],
+      items: [{ fileName: "oracle-core-rac.zip", dbType: "oracle", collectorVersion: "1.1.0" }],
       status: "done",
       createdAt: "2026-09-18T09:15:00Z",
     },

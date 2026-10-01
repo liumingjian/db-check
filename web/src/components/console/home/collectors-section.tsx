@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowDown } from "lucide-react";
+import { downloadRecordsHref } from "@/components/console/admin/download-records";
 import { ConsoleSection } from "@/components/console/console-shell";
 import { useDialogs } from "@/components/console/dialog-host";
-import { CAPTION, Chip, CopyText, EASE_OUT } from "@/components/console/kit";
+import { CAPTION, Chip, CopyText, EASE_OUT, Menu, type MenuItem } from "@/components/console/kit";
 import {
   api,
   ApiError,
@@ -13,6 +15,7 @@ import {
   type ReleasePackage,
   type ReleaseStatus,
 } from "@/lib/api";
+import { releaseActionsFor, type ReleaseAction } from "@/lib/api/releases/contract";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -33,17 +36,71 @@ const HISTORY_STATUS: Record<Exclude<ReleaseStatus, "latest">, { label: string; 
   revoked: { label: "已撤回", className: "text-destructive" },
 };
 
+const ACTION_LABEL: Record<ReleaseAction, string> = {
+  promote: "设为最新",
+  deprecate: "弃用",
+  revoke: "撤回",
+  restore: "恢复",
+};
+
 /** 采集器: the latest release as four equal tiles, usage guide, and older releases collapsed (spec #19). */
 export function CollectorsSection() {
   const token = useAuthStore((s) => s.token);
-  const { toast } = useDialogs();
-  const [releases, setReleases] = useState<CollectorRelease[] | null>(null);
+  const isAdmin = useAuthStore((s) => s.user?.role === "admin");
+  const { toast, ask } = useDialogs();
+  const router = useRouter();
+  const [releases,setReleases] = useState<CollectorRelease[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Bumped after a status change; the list lives here, so it must be re-fetched.
+  const [reloads, setReloads] = useState(0);
 
   useEffect(() => {
     if (!token) return;
     api.releases.list(token).then(setReleases, (e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-  }, [token]);
+  }, [token, reloads]);
+
+  async function changeStatus(release: CollectorRelease, action: ReleaseAction, reason = "") {
+    if (!token) return;
+    const { version } = release;
+    try {
+      await (action === "revoke" ? api.releases.revoke(token, version, reason) : api.releases[action](token, version));
+      toast(`v${version} 已${ACTION_LABEL[action]}`);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : `操作失败：${String(e)}`);
+    }
+    setReloads((n) => n + 1);
+  }
+
+  function releaseMenu(release: CollectorRelease): MenuItem[] {
+    if (!isAdmin) return [];
+    const actions: MenuItem[] = releaseActionsFor(release.status).map((action) => ({
+      label: action === "revoke" ? "撤回…" : ACTION_LABEL[action],
+      danger: action === "revoke",
+      onSelect: () => {
+        if (action === "revoke") {
+          ask({
+            title: `撤回 v${release.version}`,
+            body: "撤回后工程师看不到也下载不了这个版本。",
+            input: "撤回原因（必填）",
+            confirm: "撤回",
+            danger: true,
+            onConfirm: (reason) => void changeStatus(release, action, reason),
+          });
+        } else if (action === "deprecate" && release.status === "latest") {
+          ask({
+            title: `弃用 v${release.version}`,
+            body: "这是当前最新版本。弃用后平台暂无推荐版本，直到另一个版本被设为最新。",
+            confirm: "弃用",
+            danger: true,
+            onConfirm: () => void changeStatus(release, action),
+          });
+        } else {
+          void changeStatus(release, action);
+        }
+      },
+    }));
+    return [...actions, { label: "查看下载记录", onSelect: () => router.push(downloadRecordsHref({ release: release.version })) }];
+  }
 
   async function download(release: CollectorRelease, pkg: ReleasePackage) {
     if (!token) return;
@@ -62,20 +119,31 @@ export function CollectorsSection() {
     <ConsoleSection id="collectors">
       <div className="mx-auto max-w-[1240px] px-8 py-24">
         <p className={CAPTION}>Collector</p>
-        <h2 className="mt-4 text-[56px] leading-[1.1] font-bold tracking-[-2px]">
-          下载采集器{" "}
-          {latest ? (
-            <span className="text-primary">v{latest.version}</span>
-          ) : (
-            releases && <span className="text-muted-foreground">· 暂无推荐版本</span>
-          )}
-        </h2>
+        <div className="mt-4 flex items-center gap-4">
+          <h2 className="text-[56px] leading-[1.1] font-bold tracking-[-2px]">
+            下载采集器 {latest && <span className="text-primary">v{latest.version}</span>}
+          </h2>
+          {latest && <Menu items={releaseMenu(latest)} label={`v${latest.version} 的操作`} />}
+        </div>
         <p className="mt-4 text-lg text-[#ccc]">按客户主机的系统和架构选择，四个包功能完全一致。</p>
         {error && <p className="mt-8 text-sm text-destructive">{error}</p>}
 
-        {latest && <LatestRelease release={latest} onDownload={(pkg) => void download(latest, pkg)} />}
-        {latest && <UsageGuide dbTypes={latest.dbTypes} />}
-        {older.length > 0 && <OlderReleases releases={older} onDownload={(r, pkg) => void download(r, pkg)} />}
+        {latest ? (
+          <>
+            <LatestRelease release={latest} onDownload={(pkg) => void download(latest, pkg)} />
+            <UsageGuide dbTypes={latest.dbTypes} />
+          </>
+        ) : (
+          releases && <NoLatest hasOlder={older.length > 0} />
+        )}
+        {older.length > 0 && (
+          <OlderReleases
+            releases={older}
+            defaultOpen={!latest}
+            menuFor={releaseMenu}
+            onDownload={(r, pkg) => void download(r, pkg)}
+          />
+        )}
       </div>
     </ConsoleSection>
   );
@@ -185,14 +253,28 @@ function UsageGuide({ dbTypes }: { dbTypes: ReleaseDbType[] }) {
   );
 }
 
+/** In place of the latest release while an admin has deprecated or revoked it and promoted none. */
+function NoLatest({ hasOlder }: { hasOlder: boolean }) {
+  return (
+    <div className="mt-12 rounded-2xl bg-card p-10">
+      <p className="text-[32px] leading-tight font-bold tracking-[-1px]">暂无推荐版本，请联系管理员</p>
+      {hasOlder && <p className="mt-3 text-sm text-muted-foreground">下方历史版本仍可下载。</p>}
+    </div>
+  );
+}
+
 function OlderReleases({
   releases,
+  defaultOpen,
+  menuFor,
   onDownload,
 }: {
   releases: CollectorRelease[];
+  defaultOpen: boolean;
+  menuFor: (release: CollectorRelease) => MenuItem[];
   onDownload: (release: CollectorRelease, pkg: ReleasePackage) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="mt-16">
       <button
@@ -226,6 +308,7 @@ function OlderReleases({
                     </button>
                   ))}
                 </span>
+                <Menu items={menuFor(r)} label={`v${r.version} 的操作`} />
               </div>
             );
           })}
