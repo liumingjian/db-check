@@ -1317,7 +1317,9 @@ components:
           nullable: true
           description: |
             What the item's collector release currently calls for: `{"status": "deprecated"}`,
-            or `{"status": "revoked", "reason"}`; null otherwise.
+            or `{"status": "revoked", "reason"}`; null for a latest or pre-release version, an
+            unpublished version, or no version. Joined with the release's current status on every
+            read, so changing a release's status changes the notice on tasks already recorded.
           type: object
           required: [status]
           properties:
