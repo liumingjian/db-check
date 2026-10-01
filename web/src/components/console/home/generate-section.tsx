@@ -38,17 +38,7 @@ export function GenerateSection() {
           dragging && "bg-primary text-primary-foreground",
         )}
       >
-        <input
-          ref={picker}
-          type="file"
-          multiple
-          accept=".zip,.html,.htm"
-          className="hidden"
-          onChange={(e) => {
-            void inputs.add(Array.from(e.target.files ?? []));
-            e.target.value = "";
-          }}
-        />
+        <FilePicker inputRef={picker} onFiles={(files) => void inputs.add(files)} />
         <div className="mx-auto grid w-full max-w-[1240px] flex-1 grid-cols-[1.3fr_1fr] items-center gap-16 px-8 py-16">
           <div>
             {dragging ? (
@@ -70,6 +60,29 @@ export function GenerateSection() {
         </div>
       </div>
     </ConsoleSection>
+  );
+}
+
+/** The hidden input behind 选择采集包: ZIPs plus AWR/WDR HTML files. */
+function FilePicker({
+  inputRef,
+  onFiles,
+}: {
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onFiles: (files: File[]) => void;
+}) {
+  return (
+    <input
+      ref={inputRef}
+      type="file"
+      multiple
+      accept=".zip,.html,.htm"
+      className="hidden"
+      onChange={(e) => {
+        onFiles(Array.from(e.target.files ?? []));
+        e.target.value = "";
+      }}
+    />
   );
 }
 

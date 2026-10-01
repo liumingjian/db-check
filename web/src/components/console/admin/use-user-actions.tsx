@@ -3,8 +3,22 @@
 import { ApiError, type UserProfile } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUsersStore } from "@/stores/users-store";
-import { useDialogs } from "@/components/console/dialog-host";
+import { useDialogs, type AskOptions } from "@/components/console/dialog-host";
 import { CopyText, type MenuItem } from "@/components/console/kit";
+
+/** Shows a reset's temporary password once, for the admin to hand over in person. */
+function temporaryPasswordNotice(u: UserProfile, temporaryPassword: string): AskOptions {
+  return {
+    title: `${u.displayName} 的临时密码`,
+    body: (
+      <div className="mt-2 flex flex-col gap-3">
+        <CopyText text={temporaryPassword} className="text-lg text-foreground" />
+        <p>这个密码只显示这一次。</p>
+      </div>
+    ),
+    confirm: "我已记下",
+  };
+}
 
 /**
  * The `···` account actions an admin may take on an approved user. Failures
@@ -35,25 +49,13 @@ export function useUserActions(): (user: UserProfile) => MenuItem[] {
       onConfirm: (reason) => void run(disable(token, u.id, reason), () => toast(`已禁用 ${u.displayName}`)),
     });
 
-  const showTemporaryPassword = (u: UserProfile, temporaryPassword: string) =>
-    ask({
-      title: `${u.displayName} 的临时密码`,
-      body: (
-        <div className="mt-2 flex flex-col gap-3">
-          <CopyText text={temporaryPassword} className="text-lg text-foreground" />
-          <p>这个密码只显示这一次。</p>
-        </div>
-      ),
-      confirm: "我已记下",
-    });
-
   const askReset = (token: string, u: UserProfile) =>
     ask({
       title: `重置 ${u.displayName} 的密码`,
       body: "会生成一个临时密码，请当面交给对方。对方下次登录必须先改密码。",
       confirm: "重置",
       danger: true,
-      onConfirm: () => void run(resetPassword(token, u.id), (password) => showTemporaryPassword(u, password)),
+      onConfirm: () => void run(resetPassword(token, u.id), (password) => ask(temporaryPasswordNotice(u, password))),
     });
 
   return (u) => {

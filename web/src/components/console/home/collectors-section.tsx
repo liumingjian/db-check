@@ -7,7 +7,7 @@ import { LatestRelease, NoLatest } from "@/components/console/home/collectors/la
 import { OlderReleases } from "@/components/console/home/collectors/older-releases";
 import { UsageGuide } from "@/components/console/home/collectors/usage-guide";
 import { useReleaseMenu } from "@/components/console/home/collectors/use-release-menu";
-import { CAPTION, Menu } from "@/components/console/kit";
+import { CAPTION, Menu, type MenuItem } from "@/components/console/kit";
 import { useBlobDownload } from "@/components/console/use-blob-download";
 import { api, errorMessage, type CollectorRelease, type ReleasePackage } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
@@ -41,14 +41,7 @@ export function CollectorsSection() {
   return (
     <ConsoleSection id="collectors">
       <div className="mx-auto max-w-[1240px] px-8 py-24">
-        <p className={CAPTION}>Collector</p>
-        <div className="mt-4 flex items-center gap-4">
-          <h2 className="text-[56px] leading-[1.1] font-bold tracking-[-2px]">
-            下载采集器 {latest && <span className="text-primary">v{latest.version}</span>}
-          </h2>
-          {latest && <Menu items={releaseMenu(latest)} label={`v${latest.version} 的操作`} />}
-        </div>
-        <p className="mt-4 text-lg text-[#ccc]">按客户主机的系统和架构选择，四个包功能完全一致。</p>
+        <Heading latest={latest} menu={latest ? releaseMenu(latest) : []} />
         {error && <p className="mt-8 text-sm text-destructive">{error}</p>}
 
         {latest ? (
@@ -69,5 +62,21 @@ export function CollectorsSection() {
         )}
       </div>
     </ConsoleSection>
+  );
+}
+
+/** The caption, the headline with the latest version and its `···` menu, and the subline. */
+function Heading({ latest, menu }: { latest: CollectorRelease | undefined; menu: MenuItem[] }) {
+  return (
+    <>
+      <p className={CAPTION}>Collector</p>
+      <div className="mt-4 flex items-center gap-4">
+        <h2 className="text-[56px] leading-[1.1] font-bold tracking-[-2px]">
+          下载采集器 {latest && <span className="text-primary">v{latest.version}</span>}
+        </h2>
+        {latest && <Menu items={menu} label={`v${latest.version} 的操作`} />}
+      </div>
+      <p className="mt-4 text-lg text-[#ccc]">按客户主机的系统和架构选择，四个包功能完全一致。</p>
+    </>
   );
 }

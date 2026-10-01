@@ -6,7 +6,8 @@ import { collectUnpaired, fileKey, inspectDrop, pairDiagnostic, toTaskInput, typ
 
 /**
  * What the drop zone holds before submission: one inspected row per ZIP, the
- * HTML files waiting in 待配对 (Unpaired), and how many drops are still being read.
+ * HTML files waiting in 待配对 (Unpaired), whether a drop is still being read,
+ * and the submission (`taskInput`, `null` while blocked).
  */
 export function useReportInputs() {
   const { toast } = useDialogs();
@@ -60,17 +61,6 @@ export function useReportInputs() {
     setUnpaired([]);
   }
 
-  return {
-    items,
-    unpaired,
-    inspecting: inspecting > 0,
-    /** The submission, or `null` while it is blocked. */
-    taskInput: toTaskInput(items, unpaired),
-    add,
-    pair,
-    unpair,
-    removeItem,
-    removeUnpaired,
-    clear,
-  };
+  const taskInput = toTaskInput(items, unpaired);
+  return { items, unpaired, inspecting: inspecting > 0, taskInput, add, pair, unpair, removeItem, removeUnpaired, clear };
 }
