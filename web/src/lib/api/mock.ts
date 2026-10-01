@@ -15,9 +15,9 @@ export function createMockApi({ storage, stepDelayMs = 250 }: Partial<MockContex
   const ctx: MockContext = { storage, stepDelayMs };
   return {
     auth: createMockAuth(ctx),
-    users: createMockUsers(),
-    releases: createMockReleases(),
-    downloads: createMockDownloads(),
+    users: createMockUsers(ctx),
+    releases: createMockReleases(ctx),
+    downloads: createMockDownloads(ctx),
     reports: createMockReports(ctx),
     resetMockData: () => clearMockData(storage),
   };
