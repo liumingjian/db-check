@@ -77,6 +77,19 @@ describe.each(contractImplementations)("%s reports contract", (_name, makeApi) =
     expect(finished.items.map((i) => i.outcome)).toEqual([{ status: "done" }, { status: "done" }]);
   });
 
+  it("finishes a task left mid-generation, with nobody watching it", async () => {
+    let now = Date.parse("2026-10-01T08:00:00Z");
+    const api = makeApi({ now: () => now });
+    const { token } = await api.auth.signIn("user", "user");
+    const { taskId } = await api.reports.generate(token, { items: [item("a.zip"), item("b.zip")] });
+    expect(await api.reports.getTask(token, taskId)).toMatchObject({ status: "processing" });
+
+    now += 10 * 60 * 1000;
+    const finished = (await api.reports.listOwn(token)).find((t) => t.id === taskId);
+    expect(finished).toMatchObject({ status: "done", items: [{ outcome: { status: "done" } }, { outcome: { status: "done" } }] });
+    await expect(api.reports.download(token, taskId)).resolves.toBeInstanceOf(Blob);
+  });
+
   it("shows a task to its submitter and admins only", async () => {
     const api = makeApi();
     const engineer = await api.auth.signIn("user", "user");
@@ -123,9 +136,7 @@ describe.each(contractImplementations)("%s reports contract", (_name, makeApi) =
   });
 
   it("narrows all tasks to one submitter", async () => {
-    // Pinned: until the first write, every read rebuilds the seed relative to `now`.
-    const now = Date.parse("2026-10-01T08:00:00Z");
-    const api = makeApi({ now: () => now });
+    const api = makeApi();
     const admin = await api.auth.signIn("admin", "admin");
 
     const disabledUsers = await api.reports.listAll(admin.token, { submitterId: "u-disabled-001" });

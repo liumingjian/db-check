@@ -11,6 +11,11 @@ export interface MockReportTask {
   items: MockReportItem[];
   status: ReportTaskStatus;
   createdAt: string;
+  /**
+   * When a processing task finishes by itself, watched or not. Absent on a
+   * task that never finishes by itself, such as seed task 003 (生成中).
+   */
+  finishesAt?: string;
 }
 
 const MINUTE_MS = 60 * 1000;

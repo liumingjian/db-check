@@ -23,11 +23,29 @@ const SIMULATED_ITEM_LOGS: Array<{ level: LogLevel; message: string }> = [
 /** Uploaded ZIPs and generated reports are deleted after 30 days (ADR 0003). */
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
+/**
+ * How long the simulated backend takes per report item. It bounds the watched
+ * simulation (9 steps of 250 ms), so a task left mid-generation still finishes.
+ */
+const GENERATION_MS_PER_ITEM = 5_000;
+
 export function createMockReports(ctx: MockContext): ReportsApi {
   const tasks = mockReportTasks(ctx);
 
+  /** The stored tasks, with every processing task past its `finishesAt` recorded as done. */
+  function readTasks(): MockReportTask[] {
+    const stored = tasks.read();
+    const settled = stored.map((t) => (isDue(t) ? finished(t) : t));
+    if (settled.some((t, i) => t !== stored[i])) tasks.write(settled);
+    return settled;
+  }
+
+  function isDue(task: MockReportTask): boolean {
+    return task.status === "processing" && task.finishesAt !== undefined && Date.parse(task.finishesAt) <= ctx.now();
+  }
+
   function requireTask(taskId: string): MockReportTask {
-    const task = tasks.read().find((t) => t.id === taskId);
+    const task = readTasks().find((t) => t.id === taskId);
     if (!task) throw new ApiError("not_found", `报告任务不存在: ${taskId}`);
     return task;
   }
@@ -68,15 +86,7 @@ export function createMockReports(ctx: MockContext): ReportsApi {
   }
 
   function markDone(taskId: string): void {
-    tasks.write(
-      tasks
-        .read()
-        .map((t) =>
-          t.id === taskId
-            ? { ...t, status: "done", items: t.items.map((item) => ({ ...item, outcome: { status: "done" } })) }
-            : t,
-        ),
-    );
+    tasks.write(readTasks().map((t) => (t.id === taskId ? finished(t) : t)));
   }
 
   /** Plays the backend's event stream for a task, then records it as done. */
@@ -107,6 +117,7 @@ export function createMockReports(ctx: MockContext): ReportsApi {
     async generate(token, input) {
       const submitter = requireSessionUser(ctx, token);
       if (input.items.length === 0) throw new ApiError("invalid", "请至少上传一个 ZIP 文件");
+      const createdAt = ctx.now();
       const task: MockReportTask = {
         id: mockId("mock-task"),
         submitterId: submitter.id,
@@ -117,20 +128,21 @@ export function createMockReports(ctx: MockContext): ReportsApi {
           outcome: { status: "processing" },
         })),
         status: "processing",
-        createdAt: new Date(ctx.now()).toISOString(),
+        createdAt: new Date(createdAt).toISOString(),
+        finishesAt: new Date(createdAt + input.items.length * GENERATION_MS_PER_ITEM).toISOString(),
       };
-      tasks.write([task, ...tasks.read()]);
+      tasks.write([task, ...readTasks()]);
       return { taskId: task.id, total: task.items.length };
     },
 
     async listOwn(token) {
       const caller = requireSessionUser(ctx, token);
-      return newestFirst(tasks.read().filter((t) => t.submitterId === caller.id)).map(toReportTask);
+      return newestFirst(readTasks().filter((t) => t.submitterId === caller.id)).map(toReportTask);
     },
 
     async listAll(token, { submitterId } = {}) {
       if (requireSessionUser(ctx, token).role !== "admin") throw new ApiError("forbidden", "只有管理员可以查看全部报告");
-      const all = tasks.read();
+      const all = readTasks();
       return newestFirst(submitterId ? all.filter((t) => t.submitterId === submitterId) : all).map(toReportTask);
     },
 
@@ -167,6 +179,10 @@ export function createMockReports(ctx: MockContext): ReportsApi {
       return new Blob([content], { type: "application/zip" });
     },
   };
+}
+
+function finished(task: MockReportTask): MockReportTask {
+  return { ...task, status: "done", items: task.items.map((item) => ({ ...item, outcome: { status: "done" } })) };
 }
 
 /** Stable, so tasks created in the same millisecond keep their newest-first storage order. */
