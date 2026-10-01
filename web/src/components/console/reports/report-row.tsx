@@ -3,14 +3,15 @@
 import { useState } from "react";
 import { ArrowDown, ChevronDown, TriangleAlert } from "lucide-react";
 import { useDialogs } from "@/components/console/dialog-host";
+import { failedItems, MARKER_LABEL, markersFor } from "@/components/console/reports/markers";
 import { api, ApiError, type ReportTask } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 
 /**
  * One report task as a hairline row: time, file name, one-click re-download,
- * and a marker only when something is off. 部分失败 and 失败 expand to each
- * failed item's reason. A revoked collector version adds a yellow warning
+ * and markers only when something is off. 部分失败 and 失败 expand to each
+ * failed item's reason, expired or not. A revoked collector version adds a yellow warning
  * line. Shared by 我的报告 and 管理 → 全部报告
  * (`showSubmitter`).
  */
@@ -19,9 +20,9 @@ export function ReportRow({ task, showSubmitter = false }: { task: ReportTask; s
   const { toast } = useDialogs();
   const [open, setOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const marker = markerFor(task);
+  const markers = markersFor(task);
   const failures = failedItems(task);
-  const expandable = (marker === "failed" || marker === "partial") && failures.length > 0;
+  const expandable = failures.length > 0;
   const downloadable = task.status === "done" && !task.expired;
 
   async function download() {
@@ -45,9 +46,10 @@ export function ReportRow({ task, showSubmitter = false }: { task: ReportTask; s
           {task.items[0]?.fileName}
           {task.items.length > 1 && <span className="text-muted-foreground"> 等 {task.items.length} 份</span>}
         </span>
-        {marker &&
-          (expandable ? (
+        {markers.map((marker) =>
+          expandable && (marker === "failed" || marker === "partial") ? (
             <button
+              key={marker}
               type="button"
               aria-expanded={open}
               onClick={() => setOpen((o) => !o)}
@@ -57,8 +59,11 @@ export function ReportRow({ task, showSubmitter = false }: { task: ReportTask; s
               <ChevronDown className={cn("h-3.5 w-3.5", open && "rotate-180")} />
             </button>
           ) : (
-            <span className="text-sm text-[#5a5a5a]">{MARKER_LABEL[marker]}</span>
-          ))}
+            <span key={marker} className="text-sm text-[#5a5a5a]">
+              {MARKER_LABEL[marker]}
+            </span>
+          ),
+        )}
         {downloadable && (
           <button
             type="button"
@@ -89,30 +94,6 @@ export function ReportRow({ task, showSubmitter = false }: { task: ReportTask; s
         </ul>
       )}
     </div>
-  );
-}
-
-/** The one marker a row shows when something is off; a plain successful task has none (spec #19). */
-type Marker = "processing" | "failed" | "expired" | "partial";
-
-const MARKER_LABEL: Record<Marker, string> = {
-  processing: "生成中",
-  failed: "失败",
-  expired: "已过期",
-  partial: "部分失败",
-};
-
-function markerFor(task: ReportTask): Marker | null {
-  if (task.status === "processing") return "processing";
-  if (task.status === "failed") return "failed";
-  if (task.expired) return "expired";
-  if (task.items.some((item) => item.outcome.status === "failed")) return "partial";
-  return null;
-}
-
-function failedItems(task: ReportTask): Array<{ fileName: string; reason: string }> {
-  return task.items.flatMap((item) =>
-    item.outcome.status === "failed" ? [{ fileName: item.fileName, reason: item.outcome.reason }] : [],
   );
 }
 
