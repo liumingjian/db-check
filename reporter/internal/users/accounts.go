@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"dbcheck/reporter/internal/apierr"
-	"dbcheck/reporter/internal/sessions"
 	"dbcheck/reporter/internal/store"
 )
 
@@ -55,11 +54,14 @@ type Registration struct {
 	Note        string `json:"note"`
 }
 
-// Resubmission is a rejected user's new application; username and email stay.
+// Resubmission is a rejected user's new application; username and email
+// stay. The caller sets UserID and At; the rest arrives in the request.
 type Resubmission struct {
-	DisplayName string `json:"displayName"`
-	Team        string `json:"team"`
-	Note        string `json:"note"`
+	UserID      string    `json:"-"`
+	DisplayName string    `json:"displayName"`
+	Team        string    `json:"team"`
+	Note        string    `json:"note"`
+	At          time.Time `json:"-"`
 }
 
 // Register stores a pending engineer. Usernames are unique as written,
@@ -97,7 +99,8 @@ func Register(ctx context.Context, q store.Querier, r Registration, now time.Tim
 }
 
 // Resubmit moves a rejected user back to pending with a new application.
-func Resubmit(ctx context.Context, q store.Querier, id string, r Resubmission, now time.Time) (Profile, error) {
+func Resubmit(ctx context.Context, q store.Querier, r Resubmission) (Profile, error) {
+	id := r.UserID
 	displayName, team := strings.TrimSpace(r.DisplayName), strings.TrimSpace(r.Team)
 	if displayName == "" || team == "" {
 		return Profile{}, apierr.Invalid("请填写显示名称和团队")
@@ -110,7 +113,7 @@ func Resubmit(ctx context.Context, q store.Querier, id string, r Resubmission, n
 		return Profile{}, apierr.Invalid("只有被拒绝的申请可以重新提交")
 	}
 	_, err = q.ExecContext(ctx, `UPDATE users SET display_name = ?, team = ?, note = ?, status = ?, reason = NULL, applied_at = ?
-		WHERE id = ?`, displayName, team, strings.TrimSpace(r.Note), StatusPending, store.FormatTime(now), id)
+		WHERE id = ?`, displayName, team, strings.TrimSpace(r.Note), StatusPending, store.FormatTime(r.At), id)
 	if err != nil {
 		return Profile{}, fmt.Errorf("resubmit %s: %w", id, err)
 	}
@@ -191,145 +194,6 @@ func loadActions(ctx context.Context, q store.Querier, where string, args ...any
 		byUser[userID] = append(byUser[userID], a)
 	}
 	return byUser, rows.Err()
-}
-
-// RecordAction appends one entry to a user's account action history.
-func RecordAction(ctx context.Context, q store.Querier, userID string, action ActionKind, byID string, at time.Time) error {
-	_, err := q.ExecContext(ctx, "INSERT INTO account_actions (user_id, action, by_id, at) VALUES (?, ?, ?, ?)",
-		userID, action, byID, store.FormatTime(at))
-	if err != nil {
-		return fmt.Errorf("record %s on %s: %w", action, userID, err)
-	}
-	return nil
-}
-
-// The admin's account actions. Each checks the target's state, changes it,
-// and appends the action with the acting admin and time. Callers check that
-// admin is an active admin; run each in one transaction.
-
-// Approve moves a pending user to active.
-func Approve(ctx context.Context, q store.Querier, admin User, id string, now time.Time) (Profile, error) {
-	return administer(ctx, q, admin, id, ActionApprove, now, func(p *Profile) error {
-		if p.Status != StatusPending {
-			return errNotPending
-		}
-		p.Status, p.Reason = StatusActive, ""
-		return nil
-	})
-}
-
-// Reject moves a pending user to rejected; the reason is required.
-func Reject(ctx context.Context, q store.Querier, admin User, id, reason string, now time.Time) (Profile, error) {
-	reason = strings.TrimSpace(reason)
-	if reason == "" {
-		return Profile{}, apierr.Invalid("请填写拒绝原因")
-	}
-	return administer(ctx, q, admin, id, ActionReject, now, func(p *Profile) error {
-		if p.Status != StatusPending {
-			return errNotPending
-		}
-		p.Status, p.Reason = StatusRejected, reason
-		return nil
-	})
-}
-
-// Disable moves an active user to disabled and ends all of their sessions;
-// the reason is required.
-func Disable(ctx context.Context, q store.Querier, admin User, id, reason string, now time.Time) (Profile, error) {
-	reason = strings.TrimSpace(reason)
-	if reason == "" {
-		return Profile{}, apierr.Invalid("请填写禁用原因")
-	}
-	p, err := administer(ctx, q, admin, id, ActionDisable, now, func(p *Profile) error {
-		if p.Status != StatusActive {
-			return apierr.Invalid("只能禁用已启用的账号")
-		}
-		if err := keepAdminSeat(ctx, q, admin, p); err != nil {
-			return err
-		}
-		p.Status, p.Reason = StatusDisabled, reason
-		return nil
-	})
-	if err != nil {
-		return Profile{}, err
-	}
-	return p, sessions.RevokeAll(ctx, q, id)
-}
-
-// Enable moves a disabled user back to active.
-func Enable(ctx context.Context, q store.Querier, admin User, id string, now time.Time) (Profile, error) {
-	return administer(ctx, q, admin, id, ActionEnable, now, func(p *Profile) error {
-		if p.Status != StatusDisabled {
-			return apierr.Invalid("只能启用已禁用的账号")
-		}
-		p.Status, p.Reason = StatusActive, ""
-		return nil
-	})
-}
-
-// Promote makes an active engineer an admin.
-func Promote(ctx context.Context, q store.Querier, admin User, id string, now time.Time) (Profile, error) {
-	return administer(ctx, q, admin, id, ActionPromote, now, func(p *Profile) error {
-		if p.Status != StatusActive || p.Role != RoleEngineer {
-			return apierr.Invalid("只能提升已启用的工程师")
-		}
-		p.Role = RoleAdmin
-		return nil
-	})
-}
-
-// Demote makes an active admin an engineer.
-func Demote(ctx context.Context, q store.Querier, admin User, id string, now time.Time) (Profile, error) {
-	return administer(ctx, q, admin, id, ActionDemote, now, func(p *Profile) error {
-		if p.Status != StatusActive || p.Role != RoleAdmin {
-			return apierr.Invalid("只能降级已启用的管理员")
-		}
-		if err := keepAdminSeat(ctx, q, admin, p); err != nil {
-			return err
-		}
-		p.Role = RoleEngineer
-		return nil
-	})
-}
-
-var errNotPending = apierr.Invalid("只能处理待审批的申请")
-
-// administer loads the target, lets change check and edit its role, status,
-// and reason, stores them, and records the action.
-func administer(ctx context.Context, q store.Querier, admin User, id string, action ActionKind, now time.Time,
-	change func(p *Profile) error) (Profile, error) {
-	p, err := ProfileByID(ctx, q, id)
-	if err != nil {
-		return Profile{}, err
-	}
-	if err := change(&p); err != nil {
-		return Profile{}, err
-	}
-	_, err = q.ExecContext(ctx, "UPDATE users SET role = ?, status = ?, reason = ? WHERE id = ?",
-		p.Role, p.Status, nullable(p.Reason), id)
-	if err != nil {
-		return Profile{}, fmt.Errorf("%s %s: %w", action, id, err)
-	}
-	if err := RecordAction(ctx, q, id, action, admin.ID, now); err != nil {
-		return Profile{}, err
-	}
-	return ProfileByID(ctx, q, id)
-}
-
-// keepAdminSeat refuses to disable or demote oneself, or the last active
-// admin, so the platform always keeps one.
-func keepAdminSeat(ctx context.Context, q store.Querier, admin User, target *Profile) error {
-	if target.ID == admin.ID {
-		return apierr.Invalid("不能对自己执行此操作")
-	}
-	if target.Role != RoleAdmin {
-		return nil
-	}
-	others, err := exists(ctx, q, "role = ? AND status = ? AND id <> ?", RoleAdmin, StatusActive, target.ID)
-	if err != nil || others {
-		return err
-	}
-	return apierr.Invalid("平台至少要保留一位可用的管理员")
 }
 
 func exists(ctx context.Context, q store.Querier, where string, args ...any) (bool, error) {

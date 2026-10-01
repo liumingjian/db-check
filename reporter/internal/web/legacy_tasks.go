@@ -3,12 +3,13 @@ package web
 import (
 	"context"
 	"fmt"
-	"time"
+
+	"dbcheck/reporter/internal/reports"
 )
 
 // Report tasks from before the store live in tasks/<id>/task.json and
 // are not migrated. Those left queued or processing finish once at startup,
-// ahead of the store's tasks, and the retention loop deletes them under the
+// ahead of the store's tasks, and the retention sweep deletes them under the
 // old rule: RetentionTTL (24 hours by default) after their last update.
 // Nobody can reach them through the API any more: they had no submitter.
 
@@ -22,6 +23,7 @@ type queuedTask struct {
 func (l *reportLifecycle) legacyBacklog() []queuedTask {
 	ids, err := l.legacy.ListIDs()
 	if err != nil {
+		l.platform.Log.Printf("[ERROR] listing legacy report tasks: %v", err)
 		return nil
 	}
 	var backlog []queuedTask
@@ -35,7 +37,7 @@ func (l *reportLifecycle) legacyBacklog() []queuedTask {
 			task.Status = TaskFailed
 			task.Error = fmt.Sprintf("resume failed: %v", err)
 			task.CurrentFile = ""
-			_, _ = l.legacy.Update(task)
+			l.saveLegacy(task)
 			continue
 		}
 		backlog = append(backlog, queuedTask{TaskID: task.ID, Items: items})
@@ -43,46 +45,38 @@ func (l *reportLifecycle) legacyBacklog() []queuedTask {
 	return backlog
 }
 
+// saveLegacy writes a legacy task's task.json, logging a failure: the task
+// then stays as last written, and resumes or is retried at the next start.
+func (l *reportLifecycle) saveLegacy(task Task) {
+	if _, err := l.legacy.Update(task); err != nil {
+		l.platform.Log.Printf("[ERROR] legacy report task %s: saving task.json failed: %v", task.ID, err)
+	}
+}
+
 // runLegacy finishes one legacy task, writing its task.json as before.
 func (l *reportLifecycle) runLegacy(ctx context.Context, queued queuedTask) {
-	store := l.legacy
-	task, err := store.Load(queued.TaskID)
+	task, err := l.legacy.Load(queued.TaskID)
 	if err != nil {
+		l.platform.Log.Printf("[ERROR] loading legacy report task %s: %v", queued.TaskID, err)
 		return
 	}
-	task.Status = TaskProcessing
-	task.Total = len(queued.Items)
-	task.Error = ""
+	task = resumedLegacyTask(task, queued.Items)
+	l.saveLegacy(task)
 
-	prev := make(map[string]TaskItem, len(task.Items))
-	for _, item := range task.Items {
-		prev[item.ID] = item
-	}
-	task.Items = make([]TaskItem, 0, len(queued.Items))
-	for _, input := range queued.Items {
-		item, ok := prev[input.ID]
-		if !ok {
-			item = TaskItem{ID: input.ID, Name: input.Name, Status: string(TaskQueued)}
-		}
-		task.Items = append(task.Items, item)
-	}
-	task.Completed = countProcessed(task.Items)
-	_, _ = store.Update(task)
-
-	taskDir := store.taskDir(task.ID)
+	taskDir := l.legacy.taskDir(task.ID)
 	for i, input := range queued.Items {
-		if task.Items[i].Status == string(ItemDone) || task.Items[i].Status == string(ItemFailed) {
+		if legacyItemStatus(task.Items[i]).Finished() {
 			continue
 		}
 		task.CurrentFile = input.Name
-		_, _ = store.Update(task)
+		l.saveLegacy(task)
 		job := ItemJob{TaskID: task.ID, TaskDir: taskDir, TaskCreatedAt: task.CreatedAt, Input: input}
 		result := l.platform.Pipeline.RunItem(ctx, job, func(LogEvent) {})
 		task.Items[i].Status = string(result.Status)
 		task.Items[i].Error = result.Error
 		task.Items[i].ReportDocx = result.ReportDocx
-		task.Completed = countProcessed(task.Items)
-		_, _ = store.Update(task)
+		task.Completed = countFinished(task.Items, legacyItemStatus)
+		l.saveLegacy(task)
 	}
 
 	results := make([]ItemResult, 0, len(task.Items))
@@ -95,33 +89,42 @@ func (l *reportLifecycle) runLegacy(ctx context.Context, queued queuedTask) {
 		task.Status = TaskFailed
 		task.Error = err.Error()
 	}
-	_, _ = store.Update(task)
+	l.saveLegacy(task)
 }
 
-func countProcessed(items []TaskItem) int {
+// resumedLegacyTask is task as processing again, with one item per input:
+// the item it already had, or a new queued one.
+func resumedLegacyTask(task Task, inputs []ItemInput) Task {
+	prev := make(map[string]TaskItem, len(task.Items))
+	for _, item := range task.Items {
+		prev[item.ID] = item
+	}
+	task.Status = TaskProcessing
+	task.Total = len(inputs)
+	task.Error = ""
+	task.Items = make([]TaskItem, 0, len(inputs))
+	for _, input := range inputs {
+		item, ok := prev[input.ID]
+		if !ok {
+			item = TaskItem{ID: input.ID, Name: input.Name, Status: string(TaskQueued)}
+		}
+		task.Items = append(task.Items, item)
+	}
+	task.Completed = countFinished(task.Items, legacyItemStatus)
+	return task
+}
+
+// legacyItemStatus reads a legacy item's status; it uses the same words as
+// the store's.
+func legacyItemStatus(item TaskItem) reports.Status { return reports.Status(item.Status) }
+
+// countFinished counts the items whose status is final.
+func countFinished[T any](items []T, status func(T) reports.Status) int {
 	n := 0
-	for _, item := range items {
-		if item.Status == string(ItemDone) || item.Status == string(ItemFailed) {
+	for _, it := range items {
+		if status(it).Finished() {
 			n++
 		}
 	}
 	return n
-}
-
-// startLegacyRetention deletes finished legacy tasks RetentionTTL after
-// their last update.
-func (l *reportLifecycle) startLegacyRetention() {
-	ttl := l.cfg.RetentionTTL
-	if ttl <= 0 {
-		return
-	}
-	interval := min(time.Hour, ttl/2)
-	interval = max(interval, time.Minute)
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for range ticker.C {
-			_, _ = cleanupExpiredTasks(l.legacy, ttl, time.Now)
-		}
-	}()
 }

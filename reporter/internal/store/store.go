@@ -126,6 +126,14 @@ func (db *DB) Tx(ctx context.Context, fn func(tx Querier) error) error {
 	return tx.Commit()
 }
 
+// NullIfEmpty stores an empty string as NULL, for optional text columns.
+func NullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
 const timeLayout = "2006-01-02T15:04:05.000Z"
 
 // FormatTime is how every time is stored: fixed-width UTC ISO 8601 with

@@ -6,7 +6,7 @@ import type { HttpClient } from "@/lib/api/http-client";
 export function createHttpAuth(client: HttpClient): AuthApi {
   return {
     async signIn(username, password) {
-      const resp = await client.send("登录失败", "POST", "/api/auth/sign-in", null, { username, password });
+      const resp = await client.post({ action: "登录失败", path: "/api/auth/sign-in", token: null, body: { username, password } });
       return (await resp.json()) as Session;
     },
 
@@ -16,7 +16,7 @@ export function createHttpAuth(client: HttpClient): AuthApi {
     },
 
     async signOut(token) {
-      await client.send("退出登录失败", "POST", "/api/auth/sign-out", token);
+      await client.post({ action: "退出登录失败", path: "/api/auth/sign-out", token });
     },
   };
 }

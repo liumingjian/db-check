@@ -781,7 +781,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "413":
-          description: Upload too large (`failed`).
+          description: Upload over the configured limit (`invalid`).
           content:
             application/json:
               schema:
@@ -1396,7 +1396,7 @@ components:
           description: The ZIP being generated; empty between items.
         download_url:
           type: string
-          description: Present when status is `done`.
+          description: Present when status is `done` and the task has not expired.
         error:
           type: string
           description: Why a failed task failed.
@@ -1439,7 +1439,7 @@ components:
 
     WsDoneMessage:
       type: object
-      required: [type, seq, download_url]
+      required: [type, seq]
       properties:
         type:
           type: string
@@ -1449,6 +1449,7 @@ components:
           format: int64
         download_url:
           type: string
+          description: Absent when the task has expired (its reports are deleted).
 
     WsErrorMessage:
       type: object

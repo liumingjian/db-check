@@ -31,28 +31,40 @@ type Record struct {
 	At       string            `json:"at"`
 }
 
-// Start begins u's download of one release package: it checks the release
-// is visible to u (releases.Visible), writes the download record at now,
+// Request is User's download, at At, of the Version package for Platform,
+// stored under DataDir.
+type Request struct {
+	DataDir  string
+	User     users.User
+	Version  string
+	Platform releases.Platform
+	At       time.Time
+}
+
+// Start begins a download of one release package: it checks the release
+// is visible to the user (releases.Visible), writes the download record,
 // and returns the open package file for the caller to stream and close.
-// A package u may not see answers NotFound, like an unknown one, and
+// A package the user may not see answers NotFound, like an unknown one, and
 // writes no record.
-func Start(ctx context.Context, q store.Querier, dataDir string, u users.User, version string, p releases.Platform, now time.Time) (*os.File, releases.Package, error) {
-	pkg, err := visiblePackage(ctx, q, u, version, p)
+func Start(ctx context.Context, q store.Querier, req Request) (*os.File, releases.Package, error) {
+	pkg, err := visiblePackage(ctx, q, req)
 	if err != nil {
 		return nil, releases.Package{}, err
 	}
-	f, err := os.Open(releases.PackagePath(dataDir, version, p))
+	f, err := os.Open(releases.PackagePath(req.DataDir, req.Version, req.Platform))
 	if err != nil {
-		return nil, releases.Package{}, fmt.Errorf("open release package %s %s: %w", version, p, err)
+		return nil, releases.Package{}, fmt.Errorf("open release package %s %s: %w", req.Version, req.Platform, err)
 	}
-	if err := Insert(ctx, q, Record{ID: newID(), UserID: u.ID, Version: version, Platform: p, At: store.FormatTime(now)}); err != nil {
+	record := Record{ID: newID(), UserID: req.User.ID, Version: req.Version, Platform: req.Platform, At: store.FormatTime(req.At)}
+	if err := Insert(ctx, q, record); err != nil {
 		f.Close()
 		return nil, releases.Package{}, err
 	}
 	return f, pkg, nil
 }
 
-func visiblePackage(ctx context.Context, q store.Querier, u users.User, version string, p releases.Platform) (releases.Package, error) {
+func visiblePackage(ctx context.Context, q store.Querier, req Request) (releases.Package, error) {
+	version, p, u := req.Version, req.Platform, req.User
 	notFound := apierr.NotFound(fmt.Sprintf("没有 v%s 的 %s 采集器包", version, p))
 	r, err := releases.Get(ctx, q, version)
 	var apiErr *apierr.Error
@@ -62,7 +74,7 @@ func visiblePackage(ctx context.Context, q store.Querier, u users.User, version 
 	if err != nil {
 		return releases.Package{}, err
 	}
-	if !releases.Visible(r.Status, u.Role == users.RoleAdmin) {
+	if !releases.Visible(r.Status, u.IsAdmin()) {
 		return releases.Package{}, notFound
 	}
 	i := slices.IndexFunc(r.Packages, func(pkg releases.Package) bool { return pkg.Platform == p })

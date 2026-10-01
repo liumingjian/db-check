@@ -30,13 +30,17 @@ func (h *apiHandler) registerReportRoutes(mux routeMux) {
 	mux.HandleFunc("GET /api/reports/ws/{id}", h.handleWS)
 }
 
-var errUploadTooLarge = &apierr.Error{Status: http.StatusRequestEntityTooLarge, Code: apierr.CodeFailed, Message: "上传文件超过大小上限"}
+// multipartMemoryBytes is how much of a submission ParseMultipartForm keeps
+// in memory; larger files spill to temporary files.
+const multipartMemoryBytes = 32 << 20
+
+var errUploadTooLarge = apierr.TooLarge("上传文件超过大小上限")
 
 func (h *apiHandler) handleGenerate(w http.ResponseWriter, r *http.Request, u users.User) {
 	if h.cfg.MaxUploadBytes > 0 {
 		r.Body = http.MaxBytesReader(w, r.Body, h.cfg.MaxUploadBytes)
 	}
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
+	if err := r.ParseMultipartForm(multipartMemoryBytes); err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
 			h.writeAPIError(w, errUploadTooLarge)
@@ -59,12 +63,12 @@ func (h *apiHandler) handleGenerate(w http.ResponseWriter, r *http.Request, u us
 	})
 }
 
-// handleListOwn answers 我的报告: the caller's own tasks, admins included.
+// handleListOwn answers My reports (我的报告): the caller's own tasks, admins included.
 func (h *apiHandler) handleListOwn(w http.ResponseWriter, r *http.Request, u users.User) {
 	h.answerTasks(w, r, reports.Filter{SubmitterID: u.ID})
 }
 
-// handleListAll answers 全部报告, optionally narrowed to one submitter.
+// handleListAll answers All reports (全部报告), optionally narrowed to one submitter.
 func (h *apiHandler) handleListAll(w http.ResponseWriter, r *http.Request, _ users.User) {
 	h.answerTasks(w, r, reports.Filter{SubmitterID: r.URL.Query().Get("submitterId")})
 }
@@ -79,7 +83,8 @@ func (h *apiHandler) answerTasks(w http.ResponseWriter, r *http.Request, f repor
 }
 
 func (h *apiHandler) handleGetTask(w http.ResponseWriter, r *http.Request, u users.User) {
-	task, err := reports.Read(r.Context(), h.platform.DB, r.PathValue("id"), u, h.platform.Now())
+	lookup := reports.Lookup{ID: r.PathValue("id"), Viewer: u, Now: h.platform.Now()}
+	task, err := reports.Read(r.Context(), h.platform.DB, lookup)
 	if err != nil {
 		h.writeAPIError(w, err)
 		return
@@ -99,6 +104,8 @@ func (h *apiHandler) visibleTask(ctx context.Context, id string, u users.User) (
 	return task, nil
 }
 
+// handleStatus answers a task's progress. It offers the download only while
+// there is one: a done task past retention has none.
 func (h *apiHandler) handleStatus(w http.ResponseWriter, r *http.Request, u users.User) {
 	task, err := h.visibleTask(r.Context(), r.PathValue("id"), u)
 	if err != nil {
@@ -112,8 +119,8 @@ func (h *apiHandler) handleStatus(w http.ResponseWriter, r *http.Request, u user
 		"completed":    finishedItems(task.Items),
 		"current_file": currentItem(task.Items),
 	}
-	if task.Status == reports.StatusDone {
-		resp["download_url"] = "/api/reports/download/" + task.ID
+	if task.Downloadable(h.platform.Now()) {
+		resp["download_url"] = reportDownloadURL(task.ID)
 	}
 	if task.Error != "" {
 		resp["error"] = task.Error
@@ -158,20 +165,27 @@ func (h *apiHandler) handleWS(w http.ResponseWriter, r *http.Request) {
 	authed := r.Clone(r.Context())
 	authed.Header.Set("Authorization", "Bearer "+token)
 	h.active(func(w http.ResponseWriter, _ *http.Request, u users.User) {
-		h.streamTask(w, r, u, token)
+		h.streamTask(w, r, wsViewer{user: u, token: token})
 	})(w, authed)
 }
 
-func (h *apiHandler) streamTask(w http.ResponseWriter, r *http.Request, u users.User, token string) {
+// wsViewer is the signed-in user watching a task, and the session token
+// they offered as the subprotocol.
+type wsViewer struct {
+	user  users.User
+	token string
+}
+
+func (h *apiHandler) streamTask(w http.ResponseWriter, r *http.Request, viewer wsViewer) {
 	ctx := r.Context()
-	task, err := h.visibleTask(ctx, r.PathValue("id"), u)
+	task, err := h.visibleTask(ctx, r.PathValue("id"), viewer.user)
 	if err != nil {
 		h.writeAPIError(w, err)
 		return
 	}
 	originAllow := newOriginAllowlist(h.cfg.AllowedOrigins)
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		Subprotocols:       []string{token},
+		Subprotocols:       []string{viewer.token},
 		InsecureSkipVerify: originAllow.allowAll,
 		OriginPatterns:     originAllow.wsPatterns,
 	})
@@ -189,36 +203,49 @@ func (h *apiHandler) streamTask(w http.ResponseWriter, r *http.Request, u users.
 	if task, err = reports.Get(ctx, h.platform.DB, task.ID); err != nil {
 		return
 	}
-	snapshot := append(logs, mustJSON(withSeq(&wsProgressMessage{
-		Type: "progress", Completed: finishedItems(task.Items), Total: len(task.Items), CurrentFile: currentItem(task.Items),
-	}, lastSeq)))
-	switch task.Status {
-	case reports.StatusDone:
-		snapshot = append(snapshot, mustJSON(withSeq(&wsDoneMessage{Type: "done", DownloadURL: "/api/reports/download/" + task.ID}, lastSeq)))
-	case reports.StatusFailed:
-		snapshot = append(snapshot, mustJSON(withSeq(&wsErrorMessage{Type: "error", Message: task.Error}, lastSeq)))
-	}
-	for _, b := range snapshot {
-		if err := conn.Write(ctx, websocket.MessageText, b); err != nil {
-			return
-		}
-	}
-	if task.Status.Finished() {
+	snapshot := append(logs, h.taskSnapshot(task, lastSeq)...)
+	if !writeAll(ctx, conn, snapshot) || task.Status.Finished() {
 		return
 	}
 	for {
 		select {
 		case b, ok := <-ch:
-			if !ok {
-				return
-			}
-			if err := conn.Write(ctx, websocket.MessageText, b); err != nil {
+			if !ok || !writeAll(ctx, conn, [][]byte{b}) {
 				return
 			}
 		case <-ctx.Done():
 			return
 		}
 	}
+}
+
+// taskSnapshot is the task's saved state as events: its progress, then how
+// it ended, if it has. A done task past retention offers no download.
+func (h *apiHandler) taskSnapshot(task reports.Task, seq int64) [][]byte {
+	events := [][]byte{mustJSON(withSeq(&wsProgressMessage{
+		Type: "progress", Completed: finishedItems(task.Items), Total: len(task.Items), CurrentFile: currentItem(task.Items),
+	}, seq))}
+	switch task.Status {
+	case reports.StatusDone:
+		done := wsDoneMessage{Type: "done"}
+		if task.Downloadable(h.platform.Now()) {
+			done.DownloadURL = reportDownloadURL(task.ID)
+		}
+		events = append(events, mustJSON(withSeq(&done, seq)))
+	case reports.StatusFailed:
+		events = append(events, mustJSON(withSeq(&wsErrorMessage{Type: "error", Message: task.Error}, seq)))
+	}
+	return events
+}
+
+// writeAll sends each message in order; false when the connection failed.
+func writeAll(ctx context.Context, conn *websocket.Conn, messages [][]byte) bool {
+	for _, b := range messages {
+		if err := conn.Write(ctx, websocket.MessageText, b); err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 func mustJSON(v any) []byte {

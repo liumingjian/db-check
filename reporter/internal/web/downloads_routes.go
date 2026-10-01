@@ -21,8 +21,10 @@ func (h *apiHandler) registerDownloadRoutes(mux routeMux) {
 // handleDownloadPackage streams one release package as a .zip attachment,
 // after downloads.Start has authorized it and written the download record.
 func (h *apiHandler) handleDownloadPackage(w http.ResponseWriter, r *http.Request, u users.User) {
-	version, platform := r.PathValue("version"), releases.Platform(r.PathValue("platform"))
-	f, pkg, err := downloads.Start(r.Context(), h.platform.DB, h.cfg.DataDir, u, version, platform, h.platform.Now())
+	f, pkg, err := downloads.Start(r.Context(), h.platform.DB, downloads.Request{
+		DataDir: h.cfg.DataDir, User: u, At: h.platform.Now(),
+		Version: r.PathValue("version"), Platform: releases.Platform(r.PathValue("platform")),
+	})
 	if err != nil {
 		h.writeAPIError(w, err)
 		return

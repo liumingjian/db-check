@@ -143,11 +143,11 @@ func withSeq(msg any, seq int64) map[string]any {
 			"current_file": m.CurrentFile,
 		}
 	case *wsDoneMessage:
-		return map[string]any{
-			"type":         m.Type,
-			"seq":          seq,
-			"download_url": m.DownloadURL,
+		done := map[string]any{"type": m.Type, "seq": seq}
+		if m.DownloadURL != "" {
+			done["download_url"] = m.DownloadURL
 		}
+		return done
 	case *wsErrorMessage:
 		return map[string]any{
 			"type":    m.Type,

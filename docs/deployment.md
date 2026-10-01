@@ -145,6 +145,8 @@ The script:
 
 A `vX.Y.Z` tag publishes as latest, and the previous latest becomes deprecated. A `vX.Y.Z-rcN` tag publishes as a pre-release that only admins see. The packages are reproducible, so rerunning the same tag is safe: identical content answers `already published ... nothing changed`. The same version with different content (for example a moved tag) answers 409 and the script fails.
 
+> Re-publishing only matches byte for byte when the rebuild uses the same toolchain (the same Go version and `zip`) as the first publish. A 409 on a rerun means the rebuilt packages differ from the stored ones: check the toolchain before suspecting the tag.
+
 ## Smoke test
 
 With an active account that has already changed its temporary password:

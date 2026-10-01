@@ -39,6 +39,10 @@
 3. [template-mysql](/Users/lmj/projects/ai-project/db-check/docs/reporting/template-mysql.md)
 4. [模板说明](/Users/lmj/projects/ai-project/db-check/docs/templates/README.md)
 
+### 如果你负责部署与发布
+
+1. [Deploying the platform (部署与发布)](/Users/lmj/projects/ai-project/db-check/docs/deployment.md)
+
 ### 如果你负责开发与测试
 
 1. [README.md](/Users/lmj/projects/ai-project/db-check/README.md)

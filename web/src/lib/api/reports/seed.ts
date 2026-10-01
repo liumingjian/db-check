@@ -19,9 +19,10 @@ export interface MockReportTask {
 }
 
 /**
- * The fixture's report tasks. Task 003 stays 生成中, 004 is 部分失败, 005 is
- * 失败, 008 and 006 are 已过期, and 010 holds an item from the revoked
- * release 1.0.0, so 我的报告 shows every marker and the revoked warning.
+ * The fixture's report tasks. Task 003 stays generating (生成中), 004 is
+ * partly failed (部分失败), 005 is failed (失败), 008 and 006 are expired
+ * (已过期), and 010 holds an item from the revoked release 1.0.0, so My
+ * reports (我的报告) shows every marker and the revoked warning.
  */
 export function seedReportTasks(now: number): MockReportTask[] {
   return seedFixture.reportTasks.map((task) => ({ ...task, createdAt: seedTime(task.createdAt, now) })) as MockReportTask[];

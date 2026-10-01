@@ -90,17 +90,24 @@ func List(ctx context.Context, q store.Querier, f Filter, now time.Time) ([]List
 	return out, nil
 }
 
-// Read returns one task as the console reads it at now, if u may see it;
+// Lookup asks for one task as Viewer sees it at Now.
+type Lookup struct {
+	ID     string
+	Viewer users.User
+	Now    time.Time
+}
+
+// Read returns one task as the console reads it, if the viewer may see it;
 // ErrNotFound otherwise.
-func Read(ctx context.Context, q store.Querier, id string, u users.User, now time.Time) (Listed, error) {
-	if id == "" { // an empty TaskID would match every task
+func Read(ctx context.Context, q store.Querier, l Lookup) (Listed, error) {
+	if l.ID == "" { // an empty TaskID would match every task
 		return Listed{}, ErrNotFound
 	}
-	tasks, err := List(ctx, q, Filter{TaskID: id}, now)
+	tasks, err := List(ctx, q, Filter{TaskID: l.ID}, l.Now)
 	if err != nil {
 		return Listed{}, err
 	}
-	if len(tasks) == 0 || !visibleTo(tasks[0].Submitter.ID, u) {
+	if len(tasks) == 0 || !visibleTo(tasks[0].Submitter.ID, l.Viewer) {
 		return Listed{}, ErrNotFound
 	}
 	return tasks[0], nil

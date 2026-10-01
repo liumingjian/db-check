@@ -72,12 +72,7 @@ func ptr(s string) *string { return &s }
 // the server's reading differs only where decisions.md item 3 keeps the
 // launcher's db_type normalisation.
 func TestReadCollectorZipFindsDBTypeAndCollectorVersion(t *testing.T) {
-	cases := []struct {
-		name        string
-		entries     map[string]any
-		wantDBType  string
-		wantVersion *string
-	}{
+	cases := []readCase{
 		{"mysql at the root", map[string]any{"manifest.json": manifest("mysql"), "result.json": result("1.2.0")}, "mysql", ptr("1.2.0")},
 		{"oracle run dir in a subdirectory, custom result name", map[string]any{
 			"oracle-10.0.0.8-20260312/manifest.json":      manifest("oracle", "result_oracle.json"),
@@ -106,21 +101,31 @@ func TestReadCollectorZipFindsDBTypeAndCollectorVersion(t *testing.T) {
 		}, "oracle", ptr("1.2.0")},
 	}
 	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			got, err := ReadCollectorZip(writeZip(t, c.entries))
-			if err != nil {
-				t.Fatalf("ReadCollectorZip: %v", err)
-			}
-			if got.DBType != c.wantDBType {
-				t.Errorf("DBType = %q, want %q", got.DBType, c.wantDBType)
-			}
-			switch {
-			case c.wantVersion == nil && got.CollectorVersion != nil:
-				t.Errorf("CollectorVersion = %q, want none", *got.CollectorVersion)
-			case c.wantVersion != nil && (got.CollectorVersion == nil || *got.CollectorVersion != *c.wantVersion):
-				t.Errorf("CollectorVersion = %v, want %q", got.CollectorVersion, *c.wantVersion)
-			}
-		})
+		t.Run(c.name, c.check)
+	}
+}
+
+// readCase is a ZIP with these entries, and what ReadCollectorZip must read.
+type readCase struct {
+	name        string
+	entries     map[string]any
+	wantDBType  string
+	wantVersion *string
+}
+
+func (c readCase) check(t *testing.T) {
+	got, err := ReadCollectorZip(writeZip(t, c.entries))
+	if err != nil {
+		t.Fatalf("ReadCollectorZip: %v", err)
+	}
+	if got.DBType != c.wantDBType {
+		t.Errorf("DBType = %q, want %q", got.DBType, c.wantDBType)
+	}
+	switch {
+	case c.wantVersion == nil && got.CollectorVersion != nil:
+		t.Errorf("CollectorVersion = %q, want none", *got.CollectorVersion)
+	case c.wantVersion != nil && (got.CollectorVersion == nil || *got.CollectorVersion != *c.wantVersion):
+		t.Errorf("CollectorVersion = %v, want %q", got.CollectorVersion, *c.wantVersion)
 	}
 }
 

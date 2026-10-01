@@ -50,6 +50,10 @@ type User struct {
 	MustChangePassword bool   `json:"mustChangePassword,omitempty"`
 }
 
+// IsAdmin reports whether the user holds the admin role, whatever their
+// account status.
+func (u User) IsAdmin() bool { return u.Role == RoleAdmin }
+
 // NewUser is everything stored for a new account.
 type NewUser struct {
 	ID                 string
@@ -82,7 +86,7 @@ func Insert(ctx context.Context, q store.Querier, u NewUser) error {
 		(id, username, display_name, role, status, password_hash, must_change_password, email, team, note, reason, applied_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		u.ID, u.Username, u.DisplayName, u.Role, u.Status, u.PasswordHash, u.MustChangePassword,
-		nullable(u.Email), u.Team, u.Note, nullable(u.Reason), store.FormatTime(u.AppliedAt))
+		store.NullIfEmpty(u.Email), u.Team, u.Note, store.NullIfEmpty(u.Reason), store.FormatTime(u.AppliedAt))
 	if err != nil {
 		return fmt.Errorf("insert user %s: %w", u.Username, err)
 	}
@@ -200,11 +204,4 @@ func randomBytes(n int) []byte {
 		panic(err) // crypto/rand never fails on supported platforms
 	}
 	return b
-}
-
-func nullable(s string) any {
-	if s == "" {
-		return nil
-	}
-	return s
 }
