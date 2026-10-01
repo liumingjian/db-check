@@ -23,7 +23,7 @@
 - 基于统一 `ReportView` 和 Word 模板生成正式巡检报告
 - 远程 OS 采集通过 SSH 下发临时 `db-osprobe` 二进制执行，避免依赖目标机 `sar/free/vmstat/iostat`
 - GaussDB 数据库指标默认通过 openGauss Go 驱动 SQL-first 采集，并在 `run_dir/sql/` 保留原始 SQL 与结果
-- 支持 Linux / macOS / Windows 多平台发布包构建
+- 支持 Linux / Windows（x86_64 与 ARM64）多平台发布包构建
 - 支持 MySQL / Oracle 的 Docker 多版本 e2e 验证，保证采集、分析、报告链路一致
 
 ## 适用场景
@@ -412,10 +412,10 @@ make release
 
 ```text
 dist/
-├── db-check-darwin-arm64/
 ├── db-check-linux-amd64/
 ├── db-check-linux-arm64/
-└── db-check-windows-amd64/
+├── db-check-windows-amd64/
+└── db-check-windows-arm64/
 ```
 
 每个发布包目录中都包含：

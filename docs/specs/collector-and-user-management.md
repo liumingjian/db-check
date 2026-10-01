@@ -1,6 +1,6 @@
 # Collector management, users, and report ownership
 
-Status: requirements settled 2026-10-01. Phase 1 (frontend on mock data) is ready for implementation; later phases are recorded here so the mock contract matches them.
+Status: requirements settled 2026-10-01; layout and visual direction settled the same day by a UI prototype (see [UI](#ui)). Phase 1 (frontend on mock data) is ready for implementation; later phases are recorded here so the mock contract matches them.
 
 Terms follow [`CONTEXT.md`](../../CONTEXT.md). Decisions: [ADR 0002](../adr/0002-collector-releases-published-by-ci.md) (CI-only releases), [ADR 0003](../adr/0003-persistent-platform-data.md) (persistent data, proposed).
 
@@ -45,7 +45,7 @@ Admin rules:
 - The first admin comes from deployment config or an init command; nobody can register as admin.
 - Password reset: an admin generates a temporary password and hands it over out of band. The user must change it at the next sign-in.
 - Every account action records the acting admin and a timestamp.
-- The "Users" nav item shows a badge with the pending count.
+- The 管理 (Admin) nav item shows a badge with the pending count.
 
 ## Collector releases
 
@@ -69,17 +69,19 @@ Release metadata comes from CI and is read-only on the platform:
 - supported database types, which CI reads from the collector itself
 - release packages: OS/arch, size, SHA256
 
+Release packages cover exactly four platforms: linux-amd64, linux-arm64, windows-amd64, windows-arm64. They are equals: customer core systems run Linux and Windows on both x86_64 and ARM64. No macOS package is built (`scripts/build_release_packages.sh`).
+
 Engineer collector page:
 
-- The latest release at the top, with its release packages. The package matching the browser's platform is highlighted, and each SHA256 has a copy button.
+- The latest release at the top, with its four release packages shown as equal tiles. Nothing is highlighted by the browser's platform, because the collector runs on the customer's host, not the engineer's machine. Each SHA256 has a copy button.
 - Usage instructions taken from the existing QUICKSTART content.
 - Older releases collapsed underneath. Deprecated releases carry a warning tag; revoked releases are hidden.
 
 Admin collector view:
 
-- All releases in every status, with the status actions above.
+- The same page, plus pre-release and revoked releases in the collapsed list. Status actions sit in a `···` menu on each release.
 - A release detail page with its download records, filterable by user and time.
-- A global download records page.
+- A global download records page, under 管理 → 下载记录 (Download records).
 
 Every package download creates a download record (user, release, package, time).
 
@@ -89,22 +91,36 @@ Every package download creates a download record (user, release, package, time).
 - Database types offered: mysql, oracle, gaussdb only.
 - Retention: report task records are kept permanently. Uploaded ZIPs and generated reports expire after 30 days; expired tasks show "files expired".
 - Each report item shows the `collector_version` read from its ZIP:
-  - deprecated version: the report is generated and a notice is shown;
-  - revoked version: the report is generated and a prominent warning shows the revocation reason;
+  - deprecated version: the report is generated and a notice is shown while generating; report lists do not repeat it;
+  - revoked version: the report is generated and a prominent warning shows the revocation reason, both while generating and in report lists;
   - an unknown version is shown as-is.
-- The task list filters by status and time. Admins also get a submitter column and filter.
+- 我的报告 (My reports) lists the signed-in user's own report tasks, admins included, newest first, with a one-click re-download and no filters. Users come here only when they missed or lost a download, so it stays a plain list.
+- Admins see every user's report tasks under 管理 → 全部报告 (All reports), filterable by submitter.
 - The shared API token (`DBCHECK_API_TOKEN`) is retired; every request carries the user's identity. No scripts depend on it.
 
 ## Navigation
 
+Priority, by frequency and importance: 生成报告 (Generate report) first, then 采集器 (Collectors), then 我的报告 (My reports).
+
 Routes:
 
 - `/login`, `/register`, `/pending` (waiting page and rejection/resubmit)
-- `/reports/new` (default after sign-in), `/reports`
-- `/collectors`
-- `/admin/users`, `/admin/downloads`
+- `/` (default after sign-in): one long page with three sections in priority order, anchored `#new-report`, `#collectors`, `#reports`
+- `/admin/users`, `/admin/downloads`, `/admin/reports`: the 管理 view, with tabs 成员 (Members) / 下载记录 / 全部报告
 
-A shared layout shows the nav per role: Generate report / Report tasks / Collectors, and for admins also Users (with the pending badge) and Download records. A forced password change interrupts any route until it is completed. UI text is Chinese only, with no i18n framework.
+A slim fixed left rail carries the nav: the brand mark at the top, the section labels 生成报告 / 采集器 / 我的报告 set vertically in the middle (they scroll to their section; the current one is marked), 管理 for admins with the pending badge, and the account menu at the bottom. There is no top bar. A forced password change interrupts any route until it is completed. UI text is Chinese only, with no i18n framework.
+
+## UI
+
+Chosen in a throwaway UI prototype: branch `worktree-ui-prototype-console`, verdict commit `3268e83`, variant D3b (`/prototype/console?variant=D3b`, dev only). Use it as the visual reference; do not merge it.
+
+- Dark only. After ClickHouse's DESIGN.md on getdesign.md: canvas `#0a0a0a`, cards `#1a1a1a`, hairlines `#2a2a2a`, muted text `#888`, one accent, electric yellow `#faff69`, on primary actions, key numbers and full-bleed bands. Inter 700 with negative tracking for headlines, JetBrains Mono for commands and checksums.
+- 生成报告: the first screen is the drop zone. A large headline («拖进 ZIP，拿走报告。») with a select-files button; dropping anywhere on it adds ZIPs, and the whole screen turns yellow while a file is dragged over it. During generation one large percentage shows overall progress beside per-file rows. When done, a full-bleed yellow band («报告好了。») holds the download button.
+- 采集器: four equal platform tiles (OS, architecture, size, download), SHA256 copy line, a three-step usage guide beside the command with a database switch, history collapsed.
+- 我的报告: a plain hairline list (time, file name, re-download).
+- 管理: a separate view in the same language. The headline states the pending count; each applicant is a card with a yellow 批准 and a text 拒绝… link; lists use hairline rows with chip filters for people.
+- `/pending`: same language. Pending shows a large waiting headline; rejected shows the reason and the resubmit form.
+- Motion follows Emil Kowalski's rules: nothing animates on frequent navigation; popovers and dialogs take 150–200 ms with `cubic-bezier(0.23, 1, 0.32, 1)` and scale from 0.95; buttons scale to 0.97 when pressed; transitions name their properties.
 
 ## Phase 1: frontend on mock data
 
