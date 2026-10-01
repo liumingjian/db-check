@@ -37,6 +37,7 @@ func (h *apiHandler) registerPlatformRoutes(mux *http.ServeMux) {
 	h.registerAuthRoutes(mux)
 	h.registerUsersRoutes(mux)
 	h.registerReleaseRoutes(mux)
+	h.registerDownloadRoutes(mux)
 }
 
 // writeAPIError answers with the error envelope (package apierr). Errors
