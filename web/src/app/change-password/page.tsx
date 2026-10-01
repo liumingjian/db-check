@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 import { FormError, INPUT } from "@/components/console/account/form";
-import { Brand, CAPTION, PRESS, YellowButton } from "@/components/console/kit";
+import { Brand, CAPTION, YellowButton } from "@/components/console/kit";
+import { ResetMockDataButton, TOP_BAR_ACTION } from "@/components/console/reset-mock-data";
 import { SessionGuard } from "@/components/console/session-guard";
 
 function ChangePasswordForm() {
@@ -37,9 +37,12 @@ function ChangePasswordForm() {
     <main className="min-h-screen px-8 py-7">
       <div className="flex items-center justify-between">
         <Brand />
-        <button type="button" onClick={() => void logout()} className={cn("cursor-pointer text-sm font-semibold text-muted-foreground hover:text-foreground", PRESS)}>
-          退出登录
-        </button>
+        <div className="flex items-center gap-6">
+          <ResetMockDataButton className={TOP_BAR_ACTION} />
+          <button type="button" onClick={() => void logout()} className={TOP_BAR_ACTION}>
+            退出登录
+          </button>
+        </div>
       </div>
       <div className="mx-auto mt-[12vh] max-w-[440px]">
         <p className={CAPTION}>Change password</p>

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 import { FormError, INPUT } from "@/components/console/account/form";
 import { Brand, CAPTION, PRESS, YellowButton } from "@/components/console/kit";
+import { ResetMockDataButton } from "@/components/console/reset-mock-data";
 import { SessionGuard } from "@/components/console/session-guard";
 
 function SignInForm() {
@@ -96,6 +97,7 @@ function SignInForm() {
                   {label} →
                 </button>
               ))}
+              <ResetMockDataButton className={cn("ml-auto cursor-pointer text-sm text-muted-foreground hover:text-foreground", PRESS)} />
             </div>
           </div>
         )}

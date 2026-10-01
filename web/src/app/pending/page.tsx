@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { api, ApiError, type Account, type Resubmission } from "@/lib/api";
-import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 import { appliedAtLabel, FormError, INPUT, TEXTAREA } from "@/components/console/account/form";
-import { Brand, CAPTION, PRESS, YellowButton } from "@/components/console/kit";
+import { Brand, CAPTION, YellowButton } from "@/components/console/kit";
+import { ResetMockDataButton, TOP_BAR_ACTION } from "@/components/console/reset-mock-data";
 import { SessionGuard } from "@/components/console/session-guard";
 
 const HEADLINE = "mt-4 text-[88px] leading-[1.02] font-bold tracking-[-3px]";
@@ -101,9 +101,12 @@ function ApplicationGate() {
     <div className="flex min-h-screen flex-col">
       <div className="mx-auto flex h-20 w-full max-w-[1240px] items-center justify-between px-8">
         <Brand />
-        <button type="button" onClick={() => void logout()} className={cn("cursor-pointer text-sm font-semibold text-muted-foreground hover:text-foreground", PRESS)}>
-          退出登录
-        </button>
+        <div className="flex items-center gap-6">
+          <ResetMockDataButton className={TOP_BAR_ACTION} />
+          <button type="button" onClick={() => void logout()} className={TOP_BAR_ACTION}>
+            退出登录
+          </button>
+        </div>
       </div>
       {account && (
         <div className="mx-auto grid w-full max-w-[1240px] flex-1 grid-cols-[1.3fr_1fr] items-center gap-16 px-8 pb-32">

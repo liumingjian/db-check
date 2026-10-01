@@ -3,11 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { apiMode, resetMockData } from "@/lib/api";
+import { apiMode } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { usePendingCount } from "@/stores/accounts-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { POP_IN, PRESS } from "@/components/console/kit";
+import { ResetMockDataButton } from "@/components/console/reset-mock-data";
 
 const ROLE_LABEL = { admin: "管理员", user: "工程师" } as const;
 
@@ -61,20 +62,7 @@ export function AccountMenu() {
                   回到工作台
                 </Link>
               )}
-              {resetMockData && (
-                <button
-                  type="button"
-                  className={item}
-                  onClick={() => {
-                    // Restart from the seed: mock data and this tab's session both go.
-                    resetMockData?.();
-                    sessionStorage.clear();
-                    window.location.assign("/login");
-                  }}
-                >
-                  重置 Mock 数据
-                </button>
-              )}
+              <ResetMockDataButton className={item} />
               <button type="button" className={cn(item, "text-muted-foreground")} onClick={() => void logout()}>
                 退出登录
               </button>
