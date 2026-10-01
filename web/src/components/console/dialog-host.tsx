@@ -91,6 +91,16 @@ function Dialog({ options, onClose }: { options: AskOptions; onClose: () => void
   );
 }
 
+let carriedToast: string | null = null;
+
+/**
+ * Shows a toast on the next screen that mounts a `DialogHost`, for screens
+ * outside the console shell that end by navigating into it (e.g. /change-password).
+ */
+export function toastOnNextScreen(message: string) {
+  carriedToast = message;
+}
+
 /** Hosts the one open dialog and a short toast stack. */
 export function DialogHost({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
@@ -105,6 +115,12 @@ export function DialogHost({ children }: { children: React.ReactNode }) {
     },
     ask: setDialog,
   }));
+
+  useEffect(() => {
+    if (!carriedToast) return;
+    api.toast(carriedToast);
+    carriedToast = null;
+  }, [api]);
 
   return (
     <DialogHostContext.Provider value={api}>

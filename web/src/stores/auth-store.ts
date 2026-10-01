@@ -16,8 +16,11 @@ interface AuthStore {
   login: (username: string, password: string) => Promise<string | null>;
   /** Registers and signs in the new, pending applicant. Resolves to an error message, or null on success. */
   register: (registration: Registration) => Promise<string | null>;
-  /** Sets the caller's own password, ending a forced change. Resolves to an error message, or null on success. */
-  changePassword: (newPassword: string) => Promise<string | null>;
+  /**
+   * Sets the caller's own password: ends a forced change, or, given the current
+   * password, changes it voluntarily. Resolves to an error message, or null on success.
+   */
+  changePassword: (newPassword: string, currentPassword?: string) => Promise<string | null>;
   /** Mock mode only: signs in with the seed account of a role. */
   quickLogin: (role: UserRole) => Promise<void>;
   logout: () => Promise<void>;
@@ -68,11 +71,11 @@ export const useAuthStore = create<AuthStore>((set, get) => {
 
     register: (registration) => attempt(() => api.users.register(registration)),
 
-    changePassword: async (newPassword) => {
+    changePassword: async (newPassword, currentPassword) => {
       const { token } = get();
       if (!token) return null;
       try {
-        await api.users.changePassword(token, newPassword);
+        await api.users.changePassword(token, newPassword, currentPassword);
       } catch (e) {
         if (e instanceof ApiError) return e.message;
         throw e;

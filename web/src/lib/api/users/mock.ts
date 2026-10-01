@@ -200,10 +200,14 @@ export function createMockUsers(ctx: MockContext): UsersApi {
       return { profile: reset, temporaryPassword };
     },
 
-    async changePassword(token, newPassword) {
-      const { id } = resolveSessionUser(ctx, token);
-      if (!newPassword.trim()) throw new ApiError("invalid", "请输入新密码");
-      return update(id, (record) => {
+    async changePassword(token, newPassword, currentPassword) {
+      const caller = resolveSessionUser(ctx, token);
+      const forced = caller.mustChangePassword;
+      if (!forced) requireSessionUser(ctx, token);
+      return update(caller.id, (record) => {
+        if (!forced && !currentPassword) throw new ApiError("invalid", "请输入当前密码");
+        if (!forced && record.password !== currentPassword) throw new ApiError("invalid", "当前密码不正确");
+        if (!newPassword.trim()) throw new ApiError("invalid", "请输入新密码");
         if (record.password === newPassword) throw new ApiError("invalid", "新密码不能与当前密码相同");
         return { ...record, password: newPassword, mustChangePassword: undefined };
       });

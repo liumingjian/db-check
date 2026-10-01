@@ -2,7 +2,8 @@
 
 import { DialogHost } from "@/components/console/dialog-host";
 import { Rail, RAIL_WIDTH } from "@/components/console/rail";
-import { SessionGuard, type RouteAccess } from "@/components/console/session-guard";
+import type { RouteAccess } from "@/components/console/route-access";
+import { SessionGuard } from "@/components/console/session-guard";
 import type { SectionKey } from "@/components/console/sections";
 
 /** Every signed-in screen: the session guard, the left rail, and the dialog host. */

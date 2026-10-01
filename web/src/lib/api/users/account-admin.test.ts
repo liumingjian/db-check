@@ -145,6 +145,37 @@ describe.each(contractImplementations)("%s users contract: account administratio
     });
   });
 
+  describe("voluntary password change", () => {
+    it("changes an active user's password given the current one, keeping the session", async () => {
+      const api = makeApi();
+      const { token } = await api.auth.signIn("admin", "admin");
+
+      await api.users.changePassword(token, "my-new-pass", "admin");
+
+      await expect(api.releases.list(token)).resolves.toBeDefined();
+      await expect(api.auth.signIn("admin", "admin")).rejects.toMatchObject({ code: "unauthorized" });
+      await expect(api.auth.signIn("admin", "my-new-pass")).resolves.toMatchObject({ user: { username: "admin" } });
+    });
+
+    it.each([
+      ["no current password", "my-new-pass", undefined, "请输入当前密码"],
+      ["a wrong current password", "my-new-pass", "wrong", "当前密码不正确"],
+      ["a blank new password", "  ", "user", "请输入新密码"],
+      ["the current password again", "user", "user", "新密码不能与当前密码相同"],
+    ])("refuses %s", async (_case, next, current, message) => {
+      const api = makeApi();
+      const { token } = await api.auth.signIn("user", "user");
+      await expect(api.users.changePassword(token, next, current)).rejects.toMatchObject({ code: "invalid", message });
+      await expect(api.auth.signIn("user", "user")).resolves.toMatchObject({ user: { username: "user" } });
+    });
+
+    it("refuses an applicant", async () => {
+      const api = makeApi();
+      const { token } = await api.auth.signIn("lisi", "lisi");
+      await expect(api.users.changePassword(token, "my-new-pass", "lisi")).rejects.toMatchObject({ code: "forbidden" });
+    });
+  });
+
   describe("admin guards", () => {
     it.each([
       ["demote", (api: DbCheckApi, token: string, id: string) => api.users.demote(token, id)],

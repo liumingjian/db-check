@@ -108,11 +108,11 @@ Priority, by frequency and importance: 生成报告 (Generate report) first, the
 Routes:
 
 - `/login`, `/register`, `/pending` (waiting page and rejection/resubmit)
-- `/change-password`: every route redirects here while a forced password change is due; completing it returns to `/`
+- `/change-password`: every route redirects here while a forced password change is due; completing it returns to `/`. Active users also open it from the account menu (修改密码) to change their password voluntarily, which requires the current password
 - `/` (default after sign-in): one long page with three sections in priority order, anchored `#new-report`, `#collectors`, `#reports`
 - `/admin/users`, `/admin/downloads`, `/admin/reports`: the 管理 view, with tabs 用户 (Users) / 下载记录 / 全部报告
 
-A slim fixed left rail carries the nav: the brand mark at the top, the section labels 生成报告 / 采集器 / 我的报告 set vertically in the middle (they scroll to their section; the current one is marked), 管理 for admins with the pending badge, and the account menu at the bottom. There is no top bar. UI text is Chinese only, with no i18n framework.
+A slim fixed left rail carries the nav: the brand mark at the top, the section labels 生成报告 / 采集器 / 我的报告 set vertically in the middle (they scroll to their section; the current one is marked), 管理 for admins with the pending badge, and the account menu at the bottom (avatar with a 账号 caption; it holds 修改密码 and 退出登录). There is no top bar. UI text is Chinese only, with no i18n framework.
 
 ## UI
 
@@ -124,7 +124,7 @@ Chosen in a throwaway UI prototype: branch `worktree-ui-prototype-console`, verd
 - 我的报告: a plain hairline list (time, file name, re-download), plus the markers from [Report tasks](#report-tasks) on rows that need them.
 - 管理: a separate view in the same language. The headline states the pending count; each applicant is a card with a yellow 批准 and a text 拒绝… link; lists use hairline rows with chip filters for people.
 - `/pending`: same language. Pending shows a large waiting headline; rejected shows the reason and the resubmit form.
-- `/change-password`: same language, a single form.
+- `/change-password`: same language, a single form. A voluntary change adds a 当前密码 field and a 返回 link; a forced one offers only 退出登录.
 - Motion follows Emil Kowalski's rules: nothing animates on frequent navigation; popovers and dialogs take 150–200 ms with `cubic-bezier(0.23, 1, 0.32, 1)` and scale from 0.95; buttons scale to 0.97 when pressed; transitions name their properties.
 
 ## Phase 1: frontend on mock data

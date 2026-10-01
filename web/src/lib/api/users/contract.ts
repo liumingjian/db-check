@@ -76,10 +76,13 @@ export interface UsersApi {
    */
   resetPassword(token: string, userId: string): Promise<PasswordReset>;
   /**
-   * The caller's own new password; ends a forced password change. Rejects with
-   * `invalid` when blank or equal to the current one.
+   * The caller's own new password. A forced change (`mustChangePassword`) needs
+   * no current password and ends with this call; otherwise only an active user
+   * may change it (`forbidden`), and only with the right `currentPassword`
+   * (`invalid` when missing or wrong). Rejects with `invalid` when the new
+   * password is blank or equal to the current one.
    */
-  changePassword(token: string, newPassword: string): Promise<UserProfile>;
+  changePassword(token: string, newPassword: string, currentPassword?: string): Promise<UserProfile>;
 }
 
 export interface PasswordReset {
