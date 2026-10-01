@@ -130,7 +130,7 @@ function Palette({ state, screen, setScreen }: VariantProps) {
   const { toast, ask } = useContext(Ui);
   const flow = useReportFlow(state);
   const [query, setQuery] = useState("");
-  const [local, setLocal] = useState<{ screen: Screen; id: string }>({ screen, id: "gen" });
+  const [local, setLocal] = useState<{ screen: Screen; id: string }>({ screen, id: "" });
   const [drag, setDrag] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { me } = state;
@@ -236,7 +236,7 @@ function Palette({ state, screen, setScreen }: VariantProps) {
 
   const q = query.trim().toLowerCase();
   const shown = q ? items.filter((it) => `${it.label} ${it.keywords ?? ""} ${it.group}`.toLowerCase().includes(q)) : items;
-  const preferred = local.screen === screen ? local.id : items.find((it) => it.screen === screen)?.id;
+  const preferred = local.screen === screen && local.id ? local.id : items.find((it) => it.screen === screen)?.id;
   const current = shown.find((it) => it.id === preferred) ?? shown[0];
 
   function select(it: Item) {
@@ -342,7 +342,7 @@ function Palette({ state, screen, setScreen }: VariantProps) {
 
           <div className="min-w-0 flex-1 overflow-y-auto p-6">
             {current && (
-              <div key={current.id} className={cn("transition-[opacity,transform] duration-200 starting:translate-y-1 starting:opacity-0", EASE_OUT)}>
+              <div key={current.id} className={cn("h-full transition-[opacity,transform] duration-200 starting:translate-y-1 starting:opacity-0", EASE_OUT)}>
                 {current.detail()}
               </div>
             )}

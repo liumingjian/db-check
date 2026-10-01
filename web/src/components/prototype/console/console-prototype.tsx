@@ -60,8 +60,8 @@ export function ConsolePrototype() {
   const pathname = usePathname();
   const params = useSearchParams();
   const current = Math.max(0, VARIANTS.findIndex((v) => v.key === (params.get("variant") ?? "D1")));
-  const [persona, setPersona] = useState<Persona>("engineer");
-  const [screen, setScreen] = useState<Screen>("new-report");
+  const [persona, setPersona] = useState<Persona>((params.get("as") as Persona) ?? "engineer");
+  const [screen, setScreen] = useState<Screen>((params.get("screen") as Screen) ?? "new-report");
   const state = useConsoleState(persona);
 
   const variant = VARIANTS[current];
@@ -92,7 +92,7 @@ export function ConsolePrototype() {
       <Component state={state} screen={shownScreen} setScreen={setScreen} />
 
       {process.env.NODE_ENV !== "production" && (
-        <div className="fixed bottom-4 left-4 z-[100] flex flex-col items-start gap-1.5 font-sans">
+        <div className="fixed bottom-4 left-1/2 z-[100] flex -translate-x-1/2 flex-col items-center gap-1.5 font-sans">
           <div className="max-w-[60vw] truncate rounded-full bg-white/90 px-3 py-1 text-[11px] text-slate-700 shadow">
             最新：{state.latest?.version ?? "无"} · 待审批：{state.pendingCount} · 下载记录：{state.downloads.length} · 当前身份：
             {state.me.displayName}（{state.me.role === "admin" ? "管理员" : "普通用户"} / {state.me.status}）· 最近操作：{state.lastEvent}

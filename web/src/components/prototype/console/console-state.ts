@@ -82,6 +82,7 @@ const PLATFORMS = [
 
 function fakeSha(seed: string): string {
   let h = 2166136261;
+  for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
   let out = "";
   for (let i = 0; out.length < 64; i++) {
     h ^= seed.charCodeAt(i % seed.length) + i;

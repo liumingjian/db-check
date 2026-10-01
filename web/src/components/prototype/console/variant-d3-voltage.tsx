@@ -45,8 +45,10 @@ export function VariantD3({ state, screen, setScreen }: VariantProps) {
   const refs = useRef<Partial<Record<Screen, HTMLElement | null>>>({});
   const anchors = me.role === "admin" ? [...ANCHORS, { key: "users" as Screen, label: "管理" }] : ANCHORS;
 
+  const mounted = useRef(false);
   useEffect(() => {
-    refs.current[screen]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    refs.current[screen]?.scrollIntoView({ behavior: mounted.current ? "smooth" : "instant", block: "start" });
+    mounted.current = true;
   }, [screen]);
 
   return (
@@ -154,8 +156,8 @@ function Hero({ state }: { state: ConsoleState }) {
 
   if (flow.doneId) {
     return (
-      <div className="min-h-[calc(100vh-64px)] text-[#0a0a0a]" style={{ background: Y }}>
-        <div className="mx-auto flex min-h-[calc(100vh-64px)] max-w-[1240px] flex-col justify-center px-8">
+      <div className="min-h-[min(calc(100vh-64px),860px)] text-[#0a0a0a]" style={{ background: Y }}>
+        <div className="mx-auto flex min-h-[min(calc(100vh-64px),860px)] max-w-[1240px] flex-col justify-center px-8">
           <p className="text-[12px] font-semibold uppercase tracking-[1.5px] text-[#0a0a0a]/60">{flow.doneId}</p>
           <h1 className="mt-4 text-[96px] leading-[1] font-bold tracking-[-3.5px]">报告好了。</h1>
           <p className="mt-6 text-lg text-[#0a0a0a]/70">
@@ -183,7 +185,7 @@ function Hero({ state }: { state: ConsoleState }) {
   return (
     <div
       {...dropProps}
-      className={cn("min-h-[calc(100vh-64px)] transition-[background-color,color] duration-200", drag ? "text-[#0a0a0a]" : "")}
+      className={cn("min-h-[min(calc(100vh-64px),860px)] transition-[background-color,color] duration-200", drag ? "text-[#0a0a0a]" : "")}
       style={drag ? { background: Y } : undefined}
     >
       <input
@@ -194,7 +196,7 @@ function Hero({ state }: { state: ConsoleState }) {
         className="hidden"
         onChange={(e) => flow.add([...(e.target.files ?? [])].map((f) => ({ name: f.name, size: f.size })))}
       />
-      <div className="mx-auto grid min-h-[calc(100vh-64px)] max-w-[1240px] grid-cols-[1.3fr_1fr] items-center gap-16 px-8 py-16">
+      <div className="mx-auto grid min-h-[min(calc(100vh-64px),860px)] max-w-[1240px] grid-cols-[1.3fr_1fr] items-center gap-16 px-8 py-16">
         <div>
           {drag ? (
             <h1 className="text-[120px] leading-[1] font-bold tracking-[-4px]">松手。</h1>
