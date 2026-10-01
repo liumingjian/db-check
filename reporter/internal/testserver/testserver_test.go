@@ -107,6 +107,32 @@ func TestResetRestoresTheSeed(t *testing.T) {
 	c.signIn("admin")
 }
 
+func TestResetLoadsTheAccountActionHistory(t *testing.T) {
+	c := newTestServer(t)
+	c.expect(c.do(http.MethodPost, "/test/reset", "", map[string]string{"now": seedNow}), http.StatusNoContent)
+
+	rec := c.do(http.MethodGet, "/api/users", c.signIn("admin"), nil)
+	c.expect(rec, http.StatusOK)
+	var list []struct {
+		Username string
+		Actions  []struct{ Action, By, At string }
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	for _, u := range list {
+		if u.Username != "wangwu" {
+			continue
+		}
+		if len(u.Actions) != 2 || u.Actions[0].Action != "approve" || u.Actions[1].Action != "disable" ||
+			u.Actions[1].By != "admin" || u.Actions[1].At != "2026-09-10T10:00:00.000Z" {
+			t.Fatalf("wangwu's actions = %+v", u.Actions)
+		}
+		return
+	}
+	t.Fatal("wangwu is not listed")
+}
+
 func TestClockStaysPinnedUntilMoved(t *testing.T) {
 	c := newTestServer(t)
 	c.expect(c.do(http.MethodPost, "/test/reset", "", map[string]string{"now": seedNow}), http.StatusNoContent)

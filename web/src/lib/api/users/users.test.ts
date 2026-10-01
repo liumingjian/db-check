@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DbCheckApi } from "@/lib/api/contract";
-import { contractImplementations } from "@/lib/api/testing";
+import { contractImplementationsWithReal } from "@/lib/api/testing";
 import type { Registration } from "@/lib/api/users/contract";
 
 const applicant: Registration = {
@@ -12,7 +12,7 @@ const applicant: Registration = {
   note: "需要 GaussDB 巡检",
 };
 
-describe.each(contractImplementations)("%s users contract", (_name, makeApi) => {
+describe.each(contractImplementationsWithReal)("%s users contract", (_name, makeApi) => {
   it("registers a pending engineer who is signed in straight away", async () => {
     const api = makeApi();
     const session = await api.users.register(applicant);
