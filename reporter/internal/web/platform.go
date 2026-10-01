@@ -36,6 +36,7 @@ func (p Platform) withDefaults() Platform {
 func (h *apiHandler) registerPlatformRoutes(mux *http.ServeMux) {
 	h.registerAuthRoutes(mux)
 	h.registerUsersRoutes(mux)
+	h.registerReleaseRoutes(mux)
 }
 
 // writeAPIError answers with the error envelope (package apierr). Errors

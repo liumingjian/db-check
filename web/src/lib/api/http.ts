@@ -17,7 +17,7 @@ export function createHttpApi({ baseUrl }: HttpApiOptions = {}): DbCheckApi {
   return {
     auth: createHttpAuth(client),
     users: createHttpUsers(client),
-    releases: createHttpReleases(),
+    releases: createHttpReleases(client),
     downloads: createHttpDownloads(),
     reports: createHttpReports(client),
   };

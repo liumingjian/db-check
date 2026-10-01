@@ -5,7 +5,7 @@ info:
   description: |
     Web service for generating db-check reports from uploaded collector ZIP packages.
 
-    Platform routes (`/api/auth`, `/api/users`, and later `/api/releases`,
+    Platform routes (`/api/auth`, `/api/users`, `/api/releases`, and later
     `/api/downloads`) authenticate with a session token from sign-in
     (`Authorization: Bearer <token>`) and answer errors with `ApiError`
     (`{"code", "message"}`): 401 `unauthorized`, 403 `forbidden`,
@@ -15,6 +15,9 @@ info:
     Access levels: most operations need an active user with no forced
     password change due (otherwise 403); current user accepts any account
     status except disabled. A disabled user's session answers 401.
+
+    The publish API (`/api/ci/releases`) takes no session: it authenticates
+    the CI machine credential `DBCHECK_PUBLISH_TOKEN` (ADR 0002).
 
     The `/api/reports` routes still check the shared `DBCHECK_API_TOKEN` and
     answer `ErrorResponse` until they move to sessions.
@@ -289,6 +292,193 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /api/releases:
+    get:
+      summary: The collector releases the user may see, newest first
+      description: |
+        Engineers get latest and deprecated releases; admins get every
+        status. Needs an active user.
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Releases, newest publish time first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CollectorRelease"
+        "401":
+          description: No live session (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: The account is not active, or a password change is due (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/releases/{version}/{action}:
+    post:
+      summary: Change a release's status (admins only)
+      description: |
+        Applies one row of the release status table
+        (docs/specs/collector-and-user-management.md):
+
+        | action | from | to |
+        |---|---|---|
+        | promote | pre-release, deprecated | latest; the previous latest becomes deprecated |
+        | deprecate | latest, deprecated, pre-release | deprecated |
+        | revoke | pre-release, latest, deprecated | revoked; `reason` required |
+        | restore | revoked | deprecated; the revocation reason is dropped |
+
+        Deprecating or revoking the latest release leaves no latest release.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 1.3.0-rc1
+        - name: action
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [promote, deprecate, revoke, restore]
+      requestBody:
+        description: Only for `revoke`; other actions send no body.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  description: Trimmed; blank is refused.
+      responses:
+        "204":
+          description: Status changed.
+        "400":
+          description: The table does not allow the action from the current status, or a revoke has no reason (`invalid`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: No live session (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not an active admin (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Unknown version or action (`not_found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/ci/releases:
+    post:
+      summary: Publish a collector release with its four packages (CI only)
+      description: |
+        The publish script's API (ADR 0002). One multipart request carries
+        the metadata and exactly four `.zip` package files. The server checks
+        each file's size and SHA256 against the metadata, stores the files
+        under `<data dir>/releases/<version>/`, and inserts the release in
+        one transaction, so a refused or interrupted publish leaves nothing
+        visible.
+
+        A `vX.Y.Z` tag publishes as latest and the previous latest becomes
+        deprecated; a `vX.Y.Z-rcN` tag publishes as a pre-release.
+
+        Re-publishing a version with the same tag, commit, and package files
+        answers 200 and changes nothing; any other difference answers 409.
+        User sessions are never accepted.
+      security:
+        - publishAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [metadata, linux-amd64, linux-arm64, windows-amd64, windows-arm64]
+              properties:
+                metadata:
+                  $ref: "#/components/schemas/PublishMetadata"
+                linux-amd64:
+                  type: string
+                  format: binary
+                  description: The package file; its file name must end in `.zip` and it must be a zip.
+                linux-arm64:
+                  type: string
+                  format: binary
+                windows-amd64:
+                  type: string
+                  format: binary
+                windows-arm64:
+                  type: string
+                  format: binary
+            encoding:
+              metadata:
+                contentType: application/json
+      responses:
+        "200":
+          description: Identical re-publish; the stored release, unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CollectorRelease"
+        "201":
+          description: Published.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CollectorRelease"
+        "400":
+          description: |
+            `invalid`: malformed request or metadata; a version that is not
+            `X.Y.Z` or `X.Y.Z-rcN`; a tag other than `v<version>`; an unknown
+            database type; a missing, repeated, or unknown platform; a
+            package that is not a `.zip`; a size or SHA256 mismatch; a body
+            over `--max-upload-bytes`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Missing or wrong publish credential (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Publishing is disabled because `DBCHECK_PUBLISH_TOKEN` is not set (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The version is already published with different content (`invalid`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /api/reports/generate:
     post:
       summary: Generate reports from uploaded ZIP packages
@@ -451,6 +641,11 @@ components:
       scheme: bearer
       bearerFormat: session token
       description: The token from sign-in. WebSockets pass it as the subprotocol.
+    publishAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: DBCHECK_PUBLISH_TOKEN
+      description: The CI machine credential, compared in constant time. Publish API only.
 
   schemas:
     ApiError:
@@ -563,6 +758,106 @@ components:
               description: Every admin action on the account, oldest first; append-only.
               items:
                 $ref: "#/components/schemas/AccountAction"
+
+    Platform:
+      type: string
+      enum: [linux-amd64, linux-arm64, windows-amd64, windows-arm64]
+
+    ReleasePackage:
+      type: object
+      required: [platform, os, arch, fileName, size, sha256]
+      properties:
+        platform:
+          $ref: "#/components/schemas/Platform"
+        os:
+          type: string
+          example: Linux
+        arch:
+          type: string
+          example: ARM64
+        fileName:
+          type: string
+          example: db-collector-1.2.0-linux-arm64.zip
+        size:
+          type: integer
+          format: int64
+          description: Bytes.
+        sha256:
+          type: string
+          description: Lowercase hex.
+
+    CollectorRelease:
+      type: object
+      required: [version, tag, commit, publishedAt, status, notes, dbTypes, packages]
+      properties:
+        version:
+          type: string
+          example: 1.2.0
+        tag:
+          type: string
+          example: v1.2.0
+        commit:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [pre-release, latest, deprecated, revoked]
+        revokeReason:
+          type: string
+          description: Present exactly when `status` is `revoked`.
+        notes:
+          type: string
+        dbTypes:
+          type: array
+          items:
+            type: string
+            enum: [mysql, oracle, gaussdb]
+        packages:
+          type: array
+          description: In platform order.
+          items:
+            $ref: "#/components/schemas/ReleasePackage"
+
+    PublishMetadata:
+      type: object
+      required: [version, tag, commit, publishedAt, dbTypes, packages]
+      properties:
+        version:
+          type: string
+          description: "`X.Y.Z` or `X.Y.Z-rcN`."
+        tag:
+          type: string
+          description: Must be `v<version>`.
+        commit:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+          description: RFC 3339.
+        notes:
+          type: string
+          description: "`- ` bullet lines from the tag annotation."
+        dbTypes:
+          type: array
+          items:
+            type: string
+            enum: [mysql, oracle, gaussdb]
+        packages:
+          type: array
+          description: Exactly one per platform, all four.
+          items:
+            type: object
+            required: [platform, size, sha256]
+            properties:
+              platform:
+                $ref: "#/components/schemas/Platform"
+              size:
+                type: integer
+                format: int64
+              sha256:
+                type: string
 
     GenerateResponse:
       type: object

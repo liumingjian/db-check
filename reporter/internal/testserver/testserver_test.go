@@ -1,13 +1,19 @@
 package testserver
 
 import (
+	"archive/zip"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"dbcheck/reporter/internal/releases"
 )
 
 func TestSeedTimeMirrorsTheFixtureGrammar(t *testing.T) {
@@ -148,4 +154,55 @@ func TestClockStaysPinnedUntilMoved(t *testing.T) {
 func TestResetRefusesAMissingTime(t *testing.T) {
 	c := newTestServer(t)
 	c.expect(c.do(http.MethodPost, "/test/reset", "", map[string]string{}), http.StatusBadRequest)
+}
+
+func TestResetSeedsReleasesAndTheirPackageFiles(t *testing.T) {
+	c := newTestServer(t)
+	c.expect(c.do(http.MethodPost, "/test/reset", "", map[string]string{"now": seedNow}), http.StatusNoContent)
+
+	rec := c.do(http.MethodGet, "/api/releases", c.signIn("admin"), nil)
+	c.expect(rec, http.StatusOK)
+	var list []releases.Release
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 4 || list[0].Version != "1.3.0-rc1" || list[3].RevokeReason == "" {
+		t.Fatalf("seed releases = %+v", list)
+	}
+	if list[0].PublishedAt != "2026-09-28T12:11:00.000Z" {
+		t.Fatalf("1.3.0-rc1 publishedAt = %s", list[0].PublishedAt)
+	}
+
+	// Package files survive a second reset, and each is a real zip with
+	// the size and SHA256 the fixture lists.
+	c.expect(c.do(http.MethodPost, "/test/reset", "", map[string]string{"now": seedNow}), http.StatusNoContent)
+	dataDir := c.server.(*Server).dataDir
+	for _, r := range list {
+		for _, p := range r.Packages {
+			raw, err := os.ReadFile(releases.PackagePath(dataDir, r.Version, p.Platform))
+			if err != nil {
+				t.Fatal(err)
+			}
+			sum := sha256.Sum256(raw)
+			if got := hex.EncodeToString(sum[:]); int64(len(raw)) != p.Size || got != p.SHA256 {
+				t.Errorf("%s: size %d sha256 %s; the fixture says %d %s", p.FileName, len(raw), got, p.Size, p.SHA256)
+			}
+			if _, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw))); err != nil {
+				t.Errorf("%s is not a zip: %v", p.FileName, err)
+			}
+		}
+	}
+}
+
+func TestResetRemovesPackageFilesOutsideTheSeed(t *testing.T) {
+	c := newTestServer(t)
+	c.expect(c.do(http.MethodPost, "/test/reset", "", map[string]string{"now": seedNow}), http.StatusNoContent)
+	stray := filepath.Join(releases.Dir(c.server.(*Server).dataDir), "9.9.9")
+	if err := os.MkdirAll(stray, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c.expect(c.do(http.MethodPost, "/test/reset", "", map[string]string{"now": seedNow}), http.StatusNoContent)
+	if _, err := os.Stat(stray); !os.IsNotExist(err) {
+		t.Fatalf("reset kept %s: %v", stray, err)
+	}
 }
