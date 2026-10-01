@@ -70,6 +70,7 @@ func TestResetPasswordIsForAdminsOnly(t *testing.T) {
 var gatedEndpoints = []struct{ domain, method, path string }{
 	{"users", http.MethodGet, "/api/users"},
 	{"releases", http.MethodGet, "/api/releases"},
+	{"downloads", http.MethodGet, "/api/downloads"},
 }
 
 // openEndpoints are what a user with a forced password change can still
