@@ -1,5 +1,6 @@
 "use client";
 
+import { Download } from "lucide-react";
 import { useState } from "react";
 import { Menu, type MenuItem } from "@/components/console/kit";
 import type { CollectorRelease, ReleasePackage, ReleaseStatus } from "@/lib/api";
@@ -39,20 +40,21 @@ export function OlderReleases({
           {releases.map((r) => {
             const status = r.status === "latest" ? null : HISTORY_STATUS[r.status];
             return (
-              <div key={r.version} className="flex items-center gap-6 py-3 text-sm">
-                <span className="w-28 font-semibold tabular-nums">v{r.version}</span>
-                <span className={cn("w-64 truncate text-xs", status?.className)} title={r.revokeReason}>
+              <div key={r.version} className="flex items-center gap-6 py-4 text-sm">
+                <span className="w-28 text-base font-semibold tabular-nums">v{r.version}</span>
+                <span className={cn("w-80 truncate text-sm", status?.className)} title={r.revokeReason}>
                   {status?.label}
                   {r.revokeReason && ` · ${r.revokeReason}`}
                 </span>
-                <span className="flex flex-1 gap-4 text-xs">
+                <span className="flex flex-1 flex-wrap gap-x-5 gap-y-2 text-sm">
                   {r.packages.map((pkg) => (
                     <button
                       key={pkg.platform}
                       type="button"
                       onClick={() => onDownload(r, pkg)}
-                      className="cursor-pointer text-muted-foreground hover:text-foreground"
+                      className="inline-flex cursor-pointer items-center gap-1.5 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                     >
+                      <Download className="size-3.5" aria-hidden />
                       {pkg.os} {pkg.arch}
                     </button>
                   ))}
