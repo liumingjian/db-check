@@ -19,8 +19,8 @@ The platform-specific artifact (OS and architecture) inside a collector release,
 _Avoid_: Release, installer, tool
 
 **Release status**:
-The standing of a collector release: **latest** (the one recommended release), **deprecated** (downloadable with a warning), or **revoked** (blocked for engineers).
-_Avoid_: Enabled, published, archived
+The standing of a collector release: **pre-release** (visible to admins only), **latest** (the one recommended release; the previous latest becomes deprecated), **deprecated** (downloadable with a warning), or **revoked** (blocked for engineers, always with a revocation reason).
+_Avoid_: Enabled, published, archived, beta
 
 **Download record**:
 An audit entry stating which user downloaded which release package and when.
