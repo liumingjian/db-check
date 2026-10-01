@@ -13,5 +13,11 @@ export function createHttpUsers(): UsersApi {
     list: unavailable,
     approve: unavailable,
     reject: unavailable,
+    disable: unavailable,
+    enable: unavailable,
+    promote: unavailable,
+    demote: unavailable,
+    resetPassword: unavailable,
+    changePassword: unavailable,
   };
 }

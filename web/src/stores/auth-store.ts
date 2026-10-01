@@ -16,6 +16,8 @@ interface AuthStore {
   login: (username: string, password: string) => Promise<string | null>;
   /** Registers and signs in the new, pending applicant. Resolves to an error message, or null on success. */
   register: (registration: Registration) => Promise<string | null>;
+  /** Sets the caller's own password, ending a forced change. Resolves to an error message, or null on success. */
+  changePassword: (newPassword: string) => Promise<string | null>;
   /** Mock mode only: signs in with the seed account of a role. */
   quickLogin: (role: UserRole) => Promise<void>;
   logout: () => Promise<void>;
@@ -65,6 +67,19 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     login: (username, password) => attempt(() => api.auth.signIn(username, password)),
 
     register: (registration) => attempt(() => api.users.register(registration)),
+
+    changePassword: async (newPassword) => {
+      const { token } = get();
+      if (!token) return null;
+      try {
+        await api.users.changePassword(token, newPassword);
+      } catch (e) {
+        if (e instanceof ApiError) return e.message;
+        throw e;
+      }
+      await resolve(token);
+      return null;
+    },
 
     // Seed accounts use the role name as username and password.
     quickLogin: async (role) => {

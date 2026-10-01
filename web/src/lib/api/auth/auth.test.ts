@@ -37,6 +37,29 @@ describe.each(contractImplementations)("%s auth contract", (_name, makeApi) => {
     await expect(api.auth.currentUser("no-such-session")).rejects.toMatchObject({ code: "unauthorized" });
   });
 
+  it("refuses a disabled user at sign-in with a message", async () => {
+    const api = makeApi();
+    await expect(api.auth.signIn("wangwu", "wangwu")).rejects.toMatchObject({ code: "forbidden", message: expect.stringContaining("禁用") });
+  });
+
+  it("answers a wrong password for a disabled user as a wrong password", async () => {
+    const api = makeApi();
+    await expect(api.auth.signIn("wangwu", "nope")).rejects.toMatchObject({ code: "unauthorized" });
+  });
+
+  it.each([
+    ["pending", "lisi"],
+    ["rejected", "zhaoliu"],
+  ])("answers current-user and own-account for a %s applicant but refuses the console", async (status, username) => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn(username, username);
+    await expect(api.auth.currentUser(token)).resolves.toMatchObject({ status });
+    await expect(api.users.myAccount(token)).resolves.toMatchObject({ status });
+    await expect(api.releases.list(token)).rejects.toMatchObject({ code: "forbidden" });
+    await expect(api.downloads.records(token)).rejects.toMatchObject({ code: "forbidden" });
+    await expect(api.reports.download(token, "t-any")).rejects.toMatchObject({ code: "forbidden" });
+  });
+
   it("ends the session on sign-out", async () => {
     const api = makeApi();
     const { token } = await api.auth.signIn("user", "user");
