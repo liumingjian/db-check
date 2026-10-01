@@ -2,6 +2,8 @@
 status: accepted
 ---
 
+> [ADR 0003](0003-persistent-platform-data.md) (proposed) replaces the storage and retention parts once accepted. The single-writer lifecycle below still holds.
+
 # Keep web task coordination in one writer over file storage
 
 The web deployment currently runs one API process, and its report inputs and outputs already live in task directories. Keep this deployment scope and give one lifecycle module ownership of admission, scheduling, state persistence, recovery, and notification ordering while retaining Pipeline execution. Accepted tasks must remain recoverable from stored task data rather than depending on the contents of an in-memory channel.
