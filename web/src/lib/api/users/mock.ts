@@ -7,7 +7,7 @@ import { seedUsers, type MockUser } from "@/lib/api/users/seed";
 
 /** The user records every mock domain reads, e.g. auth to check passwords. */
 export function mockUserRecords(ctx: MockContext) {
-  return mockCollection<MockUser[]>(ctx.storage, "users", seedUsers);
+  return mockCollection<MockUser[]>(ctx.storage, "users", () => seedUsers(ctx.now()));
 }
 
 /** Strips the mock-only password before a record leaves the mock. */
