@@ -1,17 +1,30 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowRight, Check, X } from "lucide-react";
+import { ArrowDown, ArrowRight, Check, FileText, X } from "lucide-react";
 import { ConsoleSection } from "@/components/console/console-shell";
 import { useDialogs } from "@/components/console/dialog-host";
 import { CAPTION, PRESS, YellowButton } from "@/components/console/kit";
 import { api } from "@/lib/api";
-import { inspectDrop, toTaskInput, type InspectedZip } from "@/lib/report-input/inspect";
+import {
+  collectUnpaired,
+  fileKey,
+  inspectDrop,
+  pairDiagnostic,
+  toTaskInput,
+  type InspectedZip,
+} from "@/lib/report-input/inspect";
 import type { DbType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 
 const DB_LABEL: Record<DbType, string> = { mysql: "MySQL", oracle: "Oracle", gaussdb: "GaussDB" };
+
+/** The HTML a row's slot takes, by database type; mysql rows have no slot. */
+const SLOT_LABEL: Partial<Record<DbType, string>> = { oracle: "AWR", gaussdb: "WDR" };
+
+/** Drag type for an HTML moved from 待配对 onto a row; the payload is its `fileKey`. */
+const DIAGNOSTIC_DRAG = "application/x-dbcheck-diagnostic";
 
 const STATS = [
   ["3", "种数据库", "MySQL · Oracle · GaussDB"],
@@ -47,6 +60,7 @@ export function GenerateSection() {
   const token = useAuthStore((s) => s.token);
   const { toast } = useDialogs();
   const [items, setItems] = useState<InspectedZip[]>([]);
+  const [unpaired, setUnpaired] = useState<File[]>([]);
   const [inspecting, setInspecting] = useState(0);
   const [run, setRun] = useState<Run | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -59,10 +73,11 @@ export function GenerateSection() {
   useEffect(() => () => stopWatching.current?.(), []);
 
   const busy = run !== null;
-  const taskInput = toTaskInput(items);
+  const taskInput = toTaskInput(items, unpaired);
 
   async function add(files: File[]) {
     if (busy || files.length === 0) return;
+    setUnpaired((current) => [...current, ...collectUnpaired(files, items, current)]);
     setInspecting((n) => n + 1);
     try {
       const fresh = await inspectDrop(files, items);
@@ -71,6 +86,29 @@ export function GenerateSection() {
     } finally {
       setInspecting((n) => n - 1);
     }
+  }
+
+  /** Pairs the 待配对 file with this key onto the row, or toasts why the row refuses it. */
+  function pair(item: InspectedZip, key: string) {
+    const file = unpaired.find((f) => fileKey(f) === key);
+    if (!file) return;
+    const outcome = pairDiagnostic(item, file);
+    if (!outcome.ok) {
+      toast(outcome.reason);
+      return;
+    }
+    setItems((current) => current.map((c) => (c === item ? outcome.item : c)));
+    setUnpaired((current) => current.filter((f) => f !== file));
+  }
+
+  function unpair(item: InspectedZip, file: File) {
+    setItems((current) => current.map((c) => (c === item ? { ...c, diagnostics: c.diagnostics.filter((d) => d !== file) } : c)));
+    setUnpaired((current) => [...current, file]);
+  }
+
+  function removeItem(item: InspectedZip) {
+    setItems((current) => current.filter((c) => c !== item));
+    setUnpaired((current) => [...current, ...item.diagnostics]);
   }
 
   async function submit() {
@@ -112,6 +150,7 @@ export function GenerateSection() {
     stopWatching.current = null;
     setRun(null);
     setItems([]);
+    setUnpaired([]);
   }
 
   const carriesFiles = (e: React.DragEvent) => e.dataTransfer.types.includes("Files");
@@ -183,7 +222,7 @@ export function GenerateSection() {
           ref={picker}
           type="file"
           multiple
-          accept=".zip"
+          accept=".zip,.html,.htm"
           className="hidden"
           onChange={(e) => {
             void add(Array.from(e.target.files ?? []));
@@ -227,7 +266,8 @@ export function GenerateSection() {
                   <span className="text-primary">拿走报告。</span>
                 </h1>
                 <p className="mt-8 max-w-md text-lg leading-relaxed text-[#ccc]">
-                  把采集器生成的 ZIP 拖到这一屏任意位置。数据库类型自动识别，一次可以放多台主机。
+                  把采集器生成的 ZIP 拖到这一屏任意位置。数据库类型自动识别，一次可以放多台主机。Oracle 的 AWR、GaussDB
+                  的 WDR 报告可以一起拖进来，再配对到对应的采集包。
                 </p>
                 <div className="mt-10">
                   <YellowButton onClick={() => picker.current?.click()}>
@@ -239,16 +279,21 @@ export function GenerateSection() {
           </div>
 
           <div className={cn(dragging && "invisible")}>
-            {items.length > 0 ? (
+            {items.length > 0 || unpaired.length > 0 ? (
               <div className="rounded-2xl bg-card p-2">
                 {items.map((item, index) => (
                   <ItemRow
                     key={item.file.name}
                     item={item}
                     stage={run ? (index < run.completed ? "done" : index === run.completed ? "current" : "queued") : null}
-                    onRemove={() => setItems((current) => current.filter((c) => c !== item))}
+                    onRemove={() => removeItem(item)}
+                    onPair={(key) => pair(item, key)}
+                    onUnpair={(file) => unpair(item, file)}
                   />
                 ))}
+                {!run && unpaired.length > 0 && (
+                  <Unpaired files={unpaired} onRemove={(file) => setUnpaired((current) => current.filter((f) => f !== file))} />
+                )}
                 {inspecting > 0 && <p className="px-4 py-3.5 text-xs text-muted-foreground">正在读取 manifest…</p>}
                 {!run && (
                   <>
@@ -261,6 +306,9 @@ export function GenerateSection() {
                     </YellowButton>
                     {items.some((i) => !i.inspection.ok) && (
                       <p className="px-4 pt-3 pb-1 text-xs text-destructive">移除标红的采集包后才能生成。</p>
+                    )}
+                    {unpaired.length > 0 && (
+                      <p className="px-4 pt-3 pb-1 text-xs text-muted-foreground">把待配对的文件拖到对应的采集包上，或移除它们，才能生成。</p>
                     )}
                   </>
                 )}
@@ -285,18 +333,54 @@ export function GenerateSection() {
   );
 }
 
-/** One report item: file name, what its manifest says, and its progress once submitted. */
+/**
+ * One report item: file name, what its manifest says, its paired AWR/WDR files,
+ * and its progress once submitted. Before submission it takes drops from 待配对.
+ */
 function ItemRow({
-  item: { file, inspection },
+  item: { file, inspection, diagnostics },
   stage,
   onRemove,
+  onPair,
+  onUnpair,
 }: {
   item: InspectedZip;
   stage: "done" | "current" | "queued" | null;
   onRemove: () => void;
+  onPair: (key: string) => void;
+  onUnpair: (file: File) => void;
 }) {
+  const [target, setTarget] = useState(false);
+  const carriesDiagnostic = (e: React.DragEvent) => e.dataTransfer.types.includes(DIAGNOSTIC_DRAG);
+  const pairProps =
+    stage === null
+      ? {
+          onDragOver: (e: React.DragEvent) => {
+            if (!carriesDiagnostic(e)) return;
+            e.preventDefault();
+            setTarget(true);
+          },
+          onDragLeave: () => setTarget(false),
+          onDrop: (e: React.DragEvent) => {
+            if (!carriesDiagnostic(e)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            setTarget(false);
+            onPair(e.dataTransfer.getData(DIAGNOSTIC_DRAG));
+          },
+        }
+      : {};
+  const slot = inspection.ok ? SLOT_LABEL[inspection.dbType] : undefined;
+
   return (
-    <div className={cn("rounded-xl px-4 py-3.5 hover:bg-muted", !inspection.ok && "ring-1 ring-destructive ring-inset")}>
+    <div
+      {...pairProps}
+      className={cn(
+        "rounded-xl px-4 py-3.5 hover:bg-muted",
+        !inspection.ok && "ring-1 ring-destructive ring-inset",
+        target && "bg-muted ring-1 ring-primary ring-inset",
+      )}
+    >
       <div className="flex items-center gap-3">
         <span className="min-w-0 flex-1">
           <span className={cn("block truncate font-mono text-sm", !inspection.ok && "text-destructive")}>{file.name}</span>
@@ -318,11 +402,68 @@ function ItemRow({
           <span className="text-xs text-muted-foreground">{stage === "current" ? "生成中" : "排队中"}</span>
         )}
       </div>
+      {slot && (diagnostics.length > 0 || stage === null) && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {diagnostics.map((d) => (
+            <span key={fileKey(d)} className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-border px-2 py-1 text-xs">
+              <span className="text-muted-foreground">{slot}</span>
+              <span className="truncate font-mono">{d.name}</span>
+              {stage === null && (
+                <button
+                  type="button"
+                  aria-label={`取消配对 ${d.name}`}
+                  onClick={() => onUnpair(d)}
+                  className="cursor-pointer text-[#5a5a5a] hover:text-foreground"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </span>
+          ))}
+          {stage === null && (slot === "WDR" || diagnostics.length === 0) && (
+            <span className="text-xs text-[#5a5a5a]">{slot === "WDR" ? "可拖入多份 WDR（可选）" : "可拖入一份 AWR（可选）"}</span>
+          )}
+        </div>
+      )}
       {stage !== null && (
         <div className="mt-2.5 h-[3px] overflow-hidden rounded-full bg-border">
           <div className={cn("h-full bg-primary", stage === "done" ? "w-full" : stage === "current" ? "w-1/3 animate-pulse" : "w-0")} />
         </div>
       )}
+    </div>
+  );
+}
+
+/** 待配对 (Unpaired): dropped HTML files waiting to be dragged onto a report item row. */
+function Unpaired({ files, onRemove }: { files: File[]; onRemove: (file: File) => void }) {
+  return (
+    <div className="mt-2 rounded-xl border border-dashed border-border px-4 py-3.5">
+      <p className={CAPTION}>待配对 · {files.length}</p>
+      <p className="mt-1 text-xs text-muted-foreground">把 AWR 拖到 Oracle 采集包上，WDR 拖到 GaussDB 采集包上。</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {files.map((file) => (
+          <span
+            key={fileKey(file)}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData(DIAGNOSTIC_DRAG, fileKey(file));
+              e.dataTransfer.effectAllowed = "move";
+            }}
+            className="inline-flex max-w-full cursor-grab items-center gap-1.5 rounded-md bg-muted px-2.5 py-1.5 text-xs active:cursor-grabbing"
+          >
+            <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span className="truncate font-mono">{file.name}</span>
+            <button
+              type="button"
+              aria-label={`移除 ${file.name}`}
+              onClick={() => onRemove(file)}
+              className="cursor-pointer text-[#5a5a5a] hover:text-foreground"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

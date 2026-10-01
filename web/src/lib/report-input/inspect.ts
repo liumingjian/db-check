@@ -1,6 +1,7 @@
 /**
  * Report input inspection (spec #19, seam 2): pure browser-side reading of
- * dropped collector ZIPs, before anything crosses the API.
+ * dropped collector ZIPs and pairing of AWR/WDR HTML files onto them, before
+ * anything crosses the API.
  */
 import { strFromU8, unzipSync } from "fflate";
 import type { ReportItemInput, ReportTaskInput } from "@/lib/api/reports/contract";
@@ -17,10 +18,11 @@ export type ZipInspection =
   | { ok: true; dbType: DbType; collectorVersion: string | null }
   | { ok: false; problem: ZipProblem; reason: string };
 
-/** One dropped ZIP, as a row of the generate section shows it. */
+/** One dropped ZIP, as a row of the generate section shows it, with the AWR/WDR HTML files paired onto it. */
 export interface InspectedZip {
   file: File;
   inspection: ZipInspection;
+  diagnostics: File[];
 }
 
 /**
@@ -35,15 +37,64 @@ export async function inspectDrop(files: File[], existing: InspectedZip[] = []):
     seen.add(file.name);
     fresh.push(file);
   }
-  return Promise.all(fresh.map(async (file) => ({ file, inspection: await inspectReportZip(file) })));
+  return Promise.all(fresh.map(async (file) => ({ file, inspection: await inspectReportZip(file), diagnostics: [] })));
 }
 
-/** The report task input for these rows, or `null` while submission is blocked: no rows, or any red row. */
-export function toTaskInput(items: InspectedZip[]): ReportTaskInput | null {
+/**
+ * The AWR/WDR HTML files of a drop, in drop order, that go to 待配对 (Unpaired).
+ * Skips a file already waiting in `unpaired` or paired onto one of `items`.
+ */
+export function collectUnpaired(files: File[], items: InspectedZip[] = [], unpaired: File[] = []): File[] {
+  const seen = new Set([...unpaired, ...items.flatMap((item) => item.diagnostics)].map(fileKey));
+  const fresh: File[] = [];
+  for (const file of files) {
+    if (!isDiagnosticFile(file) || seen.has(fileKey(file))) continue;
+    seen.add(fileKey(file));
+    fresh.push(file);
+  }
+  return fresh;
+}
+
+/**
+ * Identifies a dropped HTML across drops. Not the name alone: AWR files of two
+ * hosts often share one (`awrrpt_1_100_101.html`).
+ */
+export function fileKey(file: File): string {
+  return `${file.name}\u0000${file.size}\u0000${file.lastModified}`;
+}
+
+export type PairProblem = "unreadable_item" | "no_slot" | "slot_full" | "already_paired";
+
+export type PairOutcome = { ok: true; item: InspectedZip } | { ok: false; problem: PairProblem; reason: string };
+
+/**
+ * Pairs an AWR/WDR HTML onto a report item row, returning the new row. An
+ * oracle row takes at most one AWR, a gaussdb row any number of WDRs, and a
+ * mysql row or a red row none.
+ */
+export function pairDiagnostic(item: InspectedZip, file: File): PairOutcome {
+  const { inspection, diagnostics } = item;
+  if (!inspection.ok) return refuse("unreadable_item", "采集包无法识别，不能配对");
+  if (inspection.dbType === "mysql") return refuse("no_slot", "MySQL 采集包不需要 AWR 或 WDR 报告");
+  if (diagnostics.some((paired) => fileKey(paired) === fileKey(file))) {
+    return refuse("already_paired", `${file.name} 已配对到这个采集包`);
+  }
+  if (inspection.dbType === "oracle" && diagnostics.length > 0) {
+    return refuse("slot_full", "Oracle 采集包只能配对一份 AWR 报告");
+  }
+  return { ok: true, item: { ...item, diagnostics: [...diagnostics, file] } };
+}
+
+/**
+ * The report task input for these rows, or `null` while submission is
+ * blocked: no rows, any red row, or any HTML still waiting in `unpaired`.
+ */
+export function toTaskInput(items: InspectedZip[], unpaired: File[] = []): ReportTaskInput | null {
+  if (unpaired.length > 0) return null;
   const inputs: ReportItemInput[] = [];
-  for (const { file, inspection } of items) {
+  for (const { file, inspection, diagnostics } of items) {
     if (!inspection.ok) return null;
-    inputs.push({ zip: file, dbType: inspection.dbType, collectorVersion: inspection.collectorVersion, diagnostics: [] });
+    inputs.push({ zip: file, dbType: inspection.dbType, collectorVersion: inspection.collectorVersion, diagnostics });
   }
   return inputs.length > 0 ? { items: inputs } : null;
 }
@@ -89,6 +140,11 @@ function readCollectorVersion(data: Uint8Array, runDir: string, manifest: JsonOb
 }
 
 const fail = (problem: ZipProblem, reason: string): ZipInspection => ({ ok: false, problem, reason });
+const refuse = (problem: PairProblem, reason: string): PairOutcome => ({ ok: false, problem, reason });
+
+function isDiagnosticFile(file: File): boolean {
+  return /\.html?$/i.test(file.name);
+}
 
 /** Decompresses only the entries whose cleaned path passes `want`. Throws on a corrupt ZIP. */
 function readEntries(data: Uint8Array, want: (path: string) => boolean): Map<string, Uint8Array> {
