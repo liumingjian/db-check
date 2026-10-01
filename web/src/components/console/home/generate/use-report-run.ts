@@ -19,13 +19,6 @@ export interface Run {
   noticesError?: string;
 }
 
-function applyEvent(run: Run, event: ReportEvent): Run {
-  if (event.type === "progress") return { ...run, completed: event.completed, total: event.total };
-  if (event.type === "done") return { ...run, completed: run.total, outcome: "done" };
-  if (event.type === "error") return { ...run, outcome: "error", error: event.message };
-  return run;
-}
-
 /**
  * One report task from submission to download: submits, reads the task back
  * for its collector notices, follows its events, and downloads the result.
@@ -77,4 +70,11 @@ export function useReportRun() {
   }
 
   return { run, submitting, downloading, submit, download, reset };
+}
+
+function applyEvent(run: Run, event: ReportEvent): Run {
+  if (event.type === "progress") return { ...run, completed: event.completed, total: event.total };
+  if (event.type === "done") return { ...run, completed: run.total, outcome: "done" };
+  if (event.type === "error") return { ...run, outcome: "error", error: event.message };
+  return run;
 }

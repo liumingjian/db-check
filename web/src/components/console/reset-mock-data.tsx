@@ -1,15 +1,6 @@
 "use client";
 
 import { resetMockData } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { PRESS } from "@/components/console/kit";
-
-/** Restarts from the seed: mock data and this tab's session both go. */
-function resetToSeed() {
-  resetMockData?.();
-  sessionStorage.clear();
-  window.location.assign("/login");
-}
 
 /**
  * 重置 Mock 数据, mock mode only: renders nothing in real mode. Offered in the
@@ -25,5 +16,9 @@ export function ResetMockDataButton({ className }: { className?: string }) {
   );
 }
 
-/** The plain text-button look of the top bars outside the console. */
-export const TOP_BAR_ACTION = cn("cursor-pointer text-sm font-semibold text-muted-foreground hover:text-foreground", PRESS);
+/** Restarts from the seed: mock data and this tab's session both go. */
+function resetToSeed() {
+  resetMockData?.();
+  sessionStorage.clear();
+  window.location.assign("/login");
+}

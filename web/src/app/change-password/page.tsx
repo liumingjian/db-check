@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useAuthStore } from "@/stores/auth-store";
 import { FormError, INPUT } from "@/components/console/account/form";
-import { Brand, CAPTION, YellowButton } from "@/components/console/kit";
-import { ResetMockDataButton, TOP_BAR_ACTION } from "@/components/console/reset-mock-data";
+import { Brand, CAPTION, TOP_BAR_ACTION, YellowButton } from "@/components/console/kit";
+import { ResetMockDataButton } from "@/components/console/reset-mock-data";
 import { SessionGuard } from "@/components/console/session-guard";
 
 function ChangePasswordForm() {

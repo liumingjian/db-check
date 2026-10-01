@@ -16,6 +16,9 @@ export const POP_IN = `transition-[opacity,transform] duration-150 starting:scal
 /** Small uppercase English section word above a headline (Collector, My reports, Admin, ...). */
 export const CAPTION = "text-[12px] font-semibold uppercase tracking-[1.5px] text-muted-foreground";
 
+/** The plain text button of the top bars outside the console (退出登录, 重置 Mock 数据). */
+export const TOP_BAR_ACTION = `cursor-pointer text-sm font-semibold text-muted-foreground hover:text-foreground ${PRESS}`;
+
 /** The brand mark: three yellow bars. */
 export function Bars({ size = 20 }: { size?: number }) {
   const s = size / 20;

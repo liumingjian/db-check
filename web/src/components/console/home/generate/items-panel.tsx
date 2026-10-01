@@ -16,11 +16,6 @@ const STATS = [
 
 const READING = "正在读取 manifest…";
 
-function stageOf(run: Run | null, index: number): Stage {
-  if (!run) return null;
-  return index < run.completed ? "done" : index === run.completed ? "current" : "queued";
-}
-
 /**
  * The section's right column: the platform stats while empty, then one row per
  * report item, 待配对, and the submit button until a task runs.
@@ -97,4 +92,9 @@ function Stats() {
       ))}
     </div>
   );
+}
+
+function stageOf(run: Run | null, index: number): Stage {
+  if (!run) return null;
+  return index < run.completed ? "done" : index === run.completed ? "current" : "queued";
 }

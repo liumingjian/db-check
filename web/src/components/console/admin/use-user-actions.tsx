@@ -6,20 +6,6 @@ import { useUsersStore } from "@/stores/users-store";
 import { useDialogs, type AskOptions } from "@/components/console/dialog-host";
 import { CopyText, type MenuItem } from "@/components/console/kit";
 
-/** Shows a reset's temporary password once, for the admin to hand over in person. */
-function temporaryPasswordNotice(u: UserProfile, temporaryPassword: string): AskOptions {
-  return {
-    title: `${u.displayName} 的临时密码`,
-    body: (
-      <div className="mt-2 flex flex-col gap-3">
-        <CopyText text={temporaryPassword} className="text-lg text-foreground" />
-        <p>这个密码只显示这一次。</p>
-      </div>
-    ),
-    confirm: "我已记下",
-  };
-}
-
 /**
  * The `···` account actions an admin may take on an approved user. Failures
  * from the API show as a toast; anything else is rethrown.
@@ -72,5 +58,19 @@ export function useUserActions(): (user: UserProfile) => MenuItem[] {
       reset,
       { label: "禁用…", onSelect: () => askDisable(token, u), danger: true },
     ];
+  };
+}
+
+/** Shows a reset's temporary password once, for the admin to hand over in person. */
+function temporaryPasswordNotice(u: UserProfile, temporaryPassword: string): AskOptions {
+  return {
+    title: `${u.displayName} 的临时密码`,
+    body: (
+      <div className="mt-2 flex flex-col gap-3">
+        <CopyText text={temporaryPassword} className="text-lg text-foreground" />
+        <p>这个密码只显示这一次。</p>
+      </div>
+    ),
+    confirm: "我已记下",
   };
 }
