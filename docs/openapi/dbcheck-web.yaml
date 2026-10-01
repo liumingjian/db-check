@@ -5,7 +5,7 @@ info:
   description: |
     Web service for generating db-check reports from uploaded collector ZIP packages.
 
-    Platform routes (`/api/auth`, and later `/api/users`, `/api/releases`,
+    Platform routes (`/api/auth`, `/api/users`, and later `/api/releases`,
     `/api/downloads`) authenticate with a session token from sign-in
     (`Authorization: Bearer <token>`) and answer errors with `ApiError`
     (`{"code", "message"}`): 401 `unauthorized`, 403 `forbidden`,
@@ -98,6 +98,192 @@ paths:
                 $ref: "#/components/schemas/User"
         "401":
           description: No live session, or the user is disabled (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/auth/register:
+    post:
+      summary: Register as a pending engineer
+      description: |
+        Creates a pending engineer and signs them in, so they land on the
+        waiting page. Nobody can register as admin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Registration"
+      responses:
+        "200":
+          description: Registered and signed in.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          description: |
+            A blank field, a taken username, or a taken email (compared
+            regardless of case) (`invalid`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/auth/resubmit:
+    post:
+      summary: Resubmit a rejected application
+      description: |
+        Rejected → pending, with the same username and email. Answers any
+        account status except disabled; only a rejected user succeeds.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resubmission"
+      responses:
+        "200":
+          description: Back to pending; the rejection reason is cleared.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "400":
+          description: Blank display name or team, or the user is not rejected (`invalid`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: No live session, or the user is disabled (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/users/me:
+    get:
+      summary: The signed-in user's own profile
+      description: Answers any account status except disabled, e.g. for the waiting page and the rejection reason.
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: The caller's profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: No live session, or the user is disabled (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/users:
+    get:
+      summary: Every account (admin only)
+      description: Newest application first, each with its account action history.
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: All profiles.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: No live session, or the user is disabled (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not an active admin (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/users/{id}/{action}:
+    post:
+      summary: An admin's account action (admin only)
+      description: |
+        Role and account status are read from the store on every request, so
+        the change applies to the user's next request. Every action appends
+        to the user's account action history with the acting admin and time.
+
+        - `approve`: pending → active.
+        - `reject`: pending → rejected; `reason` required.
+        - `disable`: active → disabled; `reason` required. Ends every session of the user.
+        - `enable`: disabled → active; clears the reason.
+        - `promote`: an active engineer becomes admin.
+        - `demote`: an active admin becomes engineer.
+
+        An admin can neither disable nor demote themselves, and neither
+        action may leave the platform without an active admin.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: action
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [approve, reject, disable, enable, promote, demote]
+      requestBody:
+        description: Only `reject` and `disable` take a body.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  description: Trimmed; shown to the user.
+      responses:
+        "200":
+          description: The account after the action.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "400":
+          description: |
+            A blank reason, the account is not in the status the action
+            starts from, or an admin guard refuses (`invalid`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: No live session, or the user is disabled (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not an active admin (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No such user (`not_found`).
           content:
             application/json:
               schema:
@@ -308,6 +494,75 @@ components:
           description: Opaque; only its hash is stored on the server.
         user:
           $ref: "#/components/schemas/User"
+
+    Registration:
+      type: object
+      required: [username, password, displayName, email, team, note]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+        team:
+          type: string
+        note:
+          type: string
+          description: Application note (申请说明); may be empty.
+
+    Resubmission:
+      type: object
+      required: [displayName, team, note]
+      properties:
+        displayName:
+          type: string
+        team:
+          type: string
+        note:
+          type: string
+
+    AccountAction:
+      type: object
+      required: [action, by, at]
+      properties:
+        action:
+          type: string
+          enum: [approve, reject, disable, enable, promote, demote, reset]
+        by:
+          type: string
+          description: The acting admin's username.
+        at:
+          type: string
+          format: date-time
+
+    UserProfile:
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+          required: [email, team, note, appliedAt, actions]
+          properties:
+            email:
+              type: string
+              description: Empty for an admin created by `db-web admin create`.
+            team:
+              type: string
+            note:
+              type: string
+            appliedAt:
+              type: string
+              format: date-time
+              description: The latest application (registration or resubmission).
+            reason:
+              type: string
+              description: The admin's reason; present only while rejected or disabled.
+            actions:
+              type: array
+              description: Every admin action on the account, oldest first; append-only.
+              items:
+                $ref: "#/components/schemas/AccountAction"
 
     GenerateResponse:
       type: object

@@ -35,6 +35,7 @@ func (p Platform) withDefaults() Platform {
 // Patterns use Go 1.22 method syntax ("GET /api/users/{id}").
 func (h *apiHandler) registerPlatformRoutes(mux *http.ServeMux) {
 	h.registerAuthRoutes(mux)
+	h.registerUsersRoutes(mux)
 }
 
 // writeAPIError answers with the error envelope (package apierr). Errors
