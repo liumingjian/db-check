@@ -9,4 +9,10 @@ export interface User {
   displayName: string;
   role: UserRole;
   status: AccountStatus;
+  /**
+   * True after an admin reset the password: until the user sets their own, the
+   * console holds them at `/change-password` and only the session and own-account
+   * calls answer them.
+   */
+  mustChangePassword?: boolean;
 }

@@ -31,5 +31,5 @@ export type {
   ReportTaskStatus,
   SubmittedReportTask,
 } from "@/lib/api/reports/contract";
-export type { Account, Registration, Resubmission } from "@/lib/api/users/contract";
+export type { Account, PasswordReset, Registration, Resubmission } from "@/lib/api/users/contract";
 export { ApiError, type ApiErrorCode } from "@/lib/api/errors";
