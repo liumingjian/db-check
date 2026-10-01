@@ -28,7 +28,7 @@ _Avoid_: Download log, access log
 
 ### Reports
 
-**Report task**:
+**Report task (报告)**:
 A submitted batch of report items with a collective outcome and, when report generation succeeds, a downloadable collection of reports. A task belongs to the user who submitted it. A task can contain both successful and failed items.
 _Avoid_: Report item when referring to the whole submission
 
@@ -36,15 +36,15 @@ _Avoid_: Report item when referring to the whole submission
 One report-generation unit consisting of a primary diagnostic ZIP and its paired optional AWR or WDR inputs. Each item has its own outcome and can produce one report document.
 _Avoid_: Report task when referring to one unit within a submission
 
-**Submitter**:
+**Submitter (提交人)**:
 The user who submitted a report task. Engineers see only tasks they submitted; admins see all tasks.
 _Avoid_: Owner, creator
 
 ### Users
 
-**User**:
+**User (用户)**:
 A person with an account on the platform, holding exactly one role and one account status.
-_Avoid_: Account when the person is meant, member
+_Avoid_: Account when the person is meant, member (成员)
 
 **Engineer (普通用户)**:
 The role for users who download collectors and generate reports.
