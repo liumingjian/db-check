@@ -2,7 +2,7 @@
 status: accepted
 ---
 
-> [ADR 0003](0003-persistent-platform-data.md) (proposed) replaces the storage and retention parts once accepted. The single-writer lifecycle below still holds.
+> [ADR 0003](0003-persistent-platform-data.md) replaces the storage and retention parts. The single-writer lifecycle below still holds.
 
 # Keep web task coordination in one writer over file storage
 
