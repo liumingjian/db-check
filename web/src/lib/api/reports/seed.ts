@@ -75,6 +75,14 @@ export function seedReportTasks(now: number): MockReportTask[] {
       createdAt: ago(20 * DAY_MS),
     },
     {
+      // A disabled user's tasks are kept and stay visible to admins.
+      id: "task-seed-009",
+      submitterId: "u-disabled-001",
+      items: [done("oracle-ops-01.zip", "oracle")],
+      status: "done",
+      createdAt: ago(25 * DAY_MS),
+    },
+    {
       id: "task-seed-008",
       submitterId: "u-admin-001",
       items: [done("mysql-dw-01.zip", "mysql", "1.1.0")],
