@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { appliedAtLabel } from "@/components/console/account/form";
 import { Chip } from "@/components/console/kit";
-import { api, ApiError, type Account, type CollectorRelease, type DownloadRecord, type ReleaseStatus } from "@/lib/api";
+import { api, errorMessage, type Account, type CollectorRelease, type DownloadRecord, type ReleaseStatus } from "@/lib/api";
 import type { DownloadRecordFilter } from "@/lib/api/downloads/contract";
 import { DAY_MS } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -58,7 +58,7 @@ export function DownloadRecords({ now = Date.now }: { now?: () => number }) {
 
   useEffect(() => {
     if (!token) return;
-    const fail = (e: unknown) => setError(errorText(e));
+    const fail = (e: unknown) => setError(errorMessage(e));
     api.users.list(token).then(setAccounts, fail);
     api.releases.list(token).then(setReleases, fail);
   }, [token]);
@@ -66,7 +66,7 @@ export function DownloadRecords({ now = Date.now }: { now?: () => number }) {
   const { user, release, days } = query;
   useEffect(() => {
     if (!token) return;
-    api.downloads.records(token, toFilter({ user, release, days }, now())).then(setRecords, (e: unknown) => setError(errorText(e)));
+    api.downloads.records(token, toFilter({ user, release, days }, now())).then(setRecords, (e: unknown) => setError(errorMessage(e)));
   }, [token, user, release, days, now]);
 
   // Replace, not push: flipping chips shouldn't fill the back button's history.
@@ -132,10 +132,6 @@ export function DownloadRecords({ now = Date.now }: { now?: () => number }) {
       )}
     </>
   );
-}
-
-function errorText(e: unknown): string {
-  return e instanceof ApiError ? e.message : String(e);
 }
 
 function toFilter(query: DownloadRecordsQuery, now: number): DownloadRecordFilter {

@@ -10,3 +10,8 @@ export class ApiError extends Error {
     this.name = "ApiError";
   }
 }
+
+/** The message of any thrown value, for showing to the user. */
+export function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}

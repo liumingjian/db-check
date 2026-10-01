@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { ArrowDown, ChevronDown, TriangleAlert } from "lucide-react";
-import { useDialogs } from "@/components/console/dialog-host";
 import { failedItems, MARKER_LABEL, markersFor } from "@/components/console/reports/markers";
-import { api, ApiError, type ReportTask } from "@/lib/api";
+import { useBlobDownload } from "@/components/console/use-blob-download";
+import { api, type ReportTask } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -17,25 +17,12 @@ import { useAuthStore } from "@/stores/auth-store";
  */
 export function ReportRow({ task, showSubmitter = false }: { task: ReportTask; showSubmitter?: boolean }) {
   const token = useAuthStore((s) => s.token);
-  const { toast } = useDialogs();
+  const { download, downloading } = useBlobDownload();
   const [open, setOpen] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const markers = markersFor(task);
   const failures = failedItems(task);
   const expandable = failures.length > 0;
   const downloadable = task.status === "done" && !task.expired;
-
-  async function download() {
-    if (!token) return;
-    setDownloading(true);
-    try {
-      saveBlob(await api.reports.download(token, task.id), `reports-${task.id}.zip`);
-    } catch (e) {
-      toast(e instanceof ApiError ? e.message : `下载失败：${String(e)}`);
-    } finally {
-      setDownloading(false);
-    }
-  }
 
   return (
     <div className="py-4">
@@ -68,7 +55,7 @@ export function ReportRow({ task, showSubmitter = false }: { task: ReportTask; s
           <button
             type="button"
             disabled={downloading}
-            onClick={download}
+            onClick={() => token && void download(() => api.reports.download(token, task.id), `reports-${task.id}.zip`)}
             className="flex cursor-pointer items-center gap-1 text-sm font-semibold text-primary hover:underline disabled:cursor-wait disabled:opacity-60"
           >
             下载 <ArrowDown className="h-4 w-4" />
@@ -120,14 +107,5 @@ function when(iso: string): string {
   if (sameDay(at, yesterday)) return `昨天 ${time}`;
   const year = at.getFullYear() === today.getFullYear() ? "" : `${at.getFullYear()}年`;
   return `${year}${at.getMonth() + 1}月${at.getDate()}日 ${time}`;
-}
-
-function saveBlob(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 

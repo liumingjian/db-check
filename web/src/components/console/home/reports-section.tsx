@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ConsoleSection } from "@/components/console/console-shell";
 import { CAPTION } from "@/components/console/kit";
 import { ReportRow } from "@/components/console/reports/report-row";
-import { api, REPORT_RETENTION_DAYS, type ReportTask } from "@/lib/api";
+import { api, errorMessage, REPORT_RETENTION_DAYS, type ReportTask } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 
 /** While a listed task is still 生成中, re-read the list this often. */
@@ -44,7 +44,7 @@ export function ReportsSection() {
           if (list.some((t) => t.status === "processing")) timer = setTimeout(load, POLL_MS);
         },
         (e: unknown) => {
-          if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+          if (!cancelled) setError(errorMessage(e));
         },
       );
     load();

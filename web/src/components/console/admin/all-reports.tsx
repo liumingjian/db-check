@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Chip } from "@/components/console/kit";
 import { ReportRow } from "@/components/console/reports/report-row";
-import { api, ApiError, type Account, type ReportTask } from "@/lib/api";
+import { api, errorMessage, type Account, type ReportTask } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 
 /**
@@ -21,11 +21,11 @@ export function AllReports() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (token) api.users.list(token).then(setAccounts, (e: unknown) => setError(errorText(e)));
+    if (token) api.users.list(token).then(setAccounts, (e: unknown) => setError(errorMessage(e)));
   }, [token]);
 
   useEffect(() => {
-    if (token) api.reports.listAll(token, { submitterId: user }).then(setTasks, (e: unknown) => setError(errorText(e)));
+    if (token) api.reports.listAll(token, { submitterId: user }).then(setTasks, (e: unknown) => setError(errorMessage(e)));
   }, [token, user]);
 
   // Replace, not push: flipping chips shouldn't fill the back button's history.
@@ -63,8 +63,4 @@ export function AllReports() {
       )}
     </>
   );
-}
-
-function errorText(e: unknown): string {
-  return e instanceof ApiError ? e.message : String(e);
 }

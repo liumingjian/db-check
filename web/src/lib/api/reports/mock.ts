@@ -1,5 +1,5 @@
 import { requireSessionUser } from "@/lib/api/auth/mock";
-import { ApiError } from "@/lib/api/errors";
+import { ApiError, errorMessage } from "@/lib/api/errors";
 import { delay, mockCollection, mockId, type MockContext } from "@/lib/api/mock-storage";
 import { mockReleaseRecords } from "@/lib/api/releases/mock";
 import {
@@ -163,7 +163,7 @@ export function createMockReports(ctx: MockContext): ReportsApi {
         try {
           await simulate(requireVisibleTask(requireSessionUser(ctx, token), taskId), emit, () => stopped);
         } catch (e) {
-          emit({ type: "error", seq: 0, message: e instanceof Error ? e.message : String(e) });
+          emit({ type: "error", seq: 0, message: errorMessage(e) });
         }
       })();
       return () => {
