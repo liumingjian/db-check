@@ -12,7 +12,7 @@ import { seedReleases } from "@/lib/api/releases/seed";
 
 /** The release records every mock domain reads, e.g. downloads to find a package. */
 export function mockReleaseRecords(ctx: MockContext) {
-  return mockCollection<CollectorRelease[]>(ctx.storage, "releases", seedReleases);
+  return mockCollection<CollectorRelease[]>(ctx.storage, "releases", () => seedReleases(ctx.now()));
 }
 
 /** Engineers see latest and deprecated releases; admins see every status. */

@@ -25,8 +25,14 @@ export interface ContractOptions {
   now?: () => number;
 }
 
+/**
+ * The suites' default clock. The seed fixture's times are offsets from now,
+ * so pinning it here gives the seed records fixed dates the suites can name.
+ */
+export const SEED_NOW = Date.parse("2026-10-01T08:00:00Z");
+
 export const contractImplementations: Array<[name: string, makeApi: (options?: ContractOptions) => DbCheckApi]> = [
-  ["mock", (options) => createMockApi({ storage: memoryStorage(), stepDelayMs: 0, ...options })],
+  ["mock", (options) => createMockApi({ storage: memoryStorage(), stepDelayMs: 0, now: () => SEED_NOW, ...options })],
 ];
 
 /** Collects a task's events until it ends with `done` or `error`. */

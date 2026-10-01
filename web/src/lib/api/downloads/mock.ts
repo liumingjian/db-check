@@ -6,7 +6,7 @@ import { mockCollection, mockId, type MockContext } from "@/lib/api/mock-storage
 import { canSeeRelease, mockReleaseRecords } from "@/lib/api/releases/mock";
 
 function mockDownloadRecords(ctx: MockContext) {
-  return mockCollection<DownloadRecord[]>(ctx.storage, "downloads", seedDownloadRecords);
+  return mockCollection<DownloadRecord[]>(ctx.storage, "downloads", () => seedDownloadRecords(ctx.now()));
 }
 
 function matches(record: DownloadRecord, filter: DownloadRecordFilter): boolean {

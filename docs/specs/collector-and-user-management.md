@@ -139,6 +139,10 @@ Scope: every screen above, running on mock data. No backend, CI, or runner chang
   - releases: `1.3.0-rc1` pre-release, `1.2.0` latest, `1.1.0` deprecated, `1.0.0` revoked (with reason);
   - download records across those users;
   - report tasks from several submitters, including one processing, one partly failed, one with expired files, and one item from a revoked collector version.
+- **Seed fixture** (Phase 2): the seed lives in one JSON file, `tests/fixtures/console-seed.json`, read by the mock (`web/src/lib/api/seed-fixture.ts`) and later by the Go test server, so both start from identical data.
+  - Top-level keys: `users` (with mock passwords), `releases` (with their packages), `downloadRecords`, `reportTasks`.
+  - Every time is an offset from "now": `now`, or `now-` followed by days, hours, and minutes in that order, each optional (`now-1d2h3m`, `now-45m`). Readers resolve offsets against their clock when they seed.
+  - The contract suites pin that clock to `2026-10-01T08:00:00Z` (`SEED_NOW` in `web/src/lib/api/testing.ts`), so seed records get fixed dates the suites can name.
 - The existing mocks (`lib/mock/mock-auth.ts`, `lib/mock/mock-tools.ts`, `lib/mock-api.ts`) and the tab store (`stores/nav-store.ts`) are replaced by the contract and the routes. The admin "publish release" form is removed (ADR 0002).
 
 Done when every row of the role table, every account transition, and every release transition can be exercised in the browser in mock mode, and the web build and lint pass.
