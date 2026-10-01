@@ -51,6 +51,7 @@ type seeder func(ctx context.Context, tx store.Querier, f fixture, now time.Time
 var seeders = []seeder{
 	seedUsers,
 	seedReleases,
+	seedDownloads,
 }
 
 var offsetPattern = regexp.MustCompile(`^now(?:-(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?)?$`)

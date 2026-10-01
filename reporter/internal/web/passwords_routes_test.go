@@ -71,6 +71,7 @@ var gatedEndpoints = []struct{ domain, method, path string }{
 	{"users", http.MethodGet, "/api/users"},
 	{"releases", http.MethodGet, "/api/releases"},
 	{"reports", http.MethodGet, "/api/reports/status/any-task"},
+	{"downloads", http.MethodGet, "/api/downloads"},
 }
 
 // openEndpoints are what a user with a forced password change can still
