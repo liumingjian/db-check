@@ -25,3 +25,8 @@ project. Note genuine glossary gaps for `/domain-modeling`.
 
 Explicitly flag any proposal that contradicts an existing ADR.
 Identify the ADR and explain why its decision should be reconsidered.
+
+ADRs follow requirements, not the other way round:
+
+- While gathering requirements (for example in `/grilling`), start from the requirement. When it conflicts with an ADR, settle the requirement first, then amend or supersede the ADR to match.
+- Once requirements are settled and implementation starts, treat the ADRs as binding.
