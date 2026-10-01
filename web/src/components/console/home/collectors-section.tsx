@@ -11,18 +11,16 @@ import {
   api,
   ApiError,
   type CollectorRelease,
-  type ReleaseDbType,
   type ReleasePackage,
   type ReleaseStatus,
 } from "@/lib/api";
 import { releaseActionsFor, type ReleaseAction } from "@/lib/api/releases/contract";
+import { DB_LABEL, type DbType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 
-const DB_LABEL: Record<ReleaseDbType, string> = { mysql: "MySQL", oracle: "Oracle", gaussdb: "GaussDB" };
-
 /** The QUICKSTART commands shipped in each package (`scripts/build_release_packages.sh`). */
-const USAGE: Record<ReleaseDbType, string> = {
+const USAGE: Record<DbType, string> = {
   mysql: "./db-collector --db-type mysql --db-host 127.0.0.1 --db-port 3306 --db-username root --db-password '***' --dbname dbcheck",
   oracle: "./db-collector --db-type oracle --db-host 127.0.0.1 --db-port 1521 --db-username system --db-password '***' --dbname ORCL",
   gaussdb: "./db-collector --db-type gaussdb --db-host 10.0.0.10 --db-port 8000 --db-username root --db-password '***' --dbname postgres",
@@ -217,8 +215,8 @@ function ReleaseNotes({ notes }: { notes: string }) {
   );
 }
 
-function UsageGuide({ dbTypes }: { dbTypes: ReleaseDbType[] }) {
-  const [picked, setPicked] = useState<ReleaseDbType | null>(null);
+function UsageGuide({ dbTypes }: { dbTypes: DbType[] }) {
+  const [picked, setPicked] = useState<DbType | null>(null);
   // A pick the shown release doesn't support falls back to its first type.
   const db = picked && dbTypes.includes(picked) ? picked : dbTypes[0];
   if (!db) return null;

@@ -26,11 +26,21 @@ export type ReportTaskStatus = "processing" | "done" | "failed";
 /** Each report item's own outcome; a failed item always carries its reason. */
 export type ReportItemOutcome = { status: "processing" } | { status: "done" } | { status: "failed"; reason: string };
 
+/**
+ * What the item's collector release currently calls for: a notice for a
+ * deprecated release, a warning with the reason for a revoked one. Joined
+ * with the release's status at read time, so revoking a release later also
+ * flags tasks already delivered. `null` for latest, pre-release, unknown, or
+ * missing versions.
+ */
+export type CollectorNotice = { status: "deprecated" } | { status: "revoked"; reason: string };
+
 /** A report item as recorded on its task. */
 export interface ReportItem {
   fileName: string;
   dbType: DbType;
   collectorVersion: string | null;
+  collectorNotice: CollectorNotice | null;
   outcome: ReportItemOutcome;
 }
 

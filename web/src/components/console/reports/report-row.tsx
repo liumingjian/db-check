@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDown, ChevronDown } from "lucide-react";
+import { ArrowDown, ChevronDown, TriangleAlert } from "lucide-react";
 import { useDialogs } from "@/components/console/dialog-host";
 import { api, ApiError, type ReportTask } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,8 @@ import { useAuthStore } from "@/stores/auth-store";
 /**
  * One report task as a hairline row: time, file name, one-click re-download,
  * and a marker only when something is off. 部分失败 and 失败 expand to each
- * failed item's reason. Shared by 我的报告 and 管理 → 全部报告
+ * failed item's reason. A revoked collector version adds a yellow warning
+ * line. Shared by 我的报告 and 管理 → 全部报告
  * (`showSubmitter`).
  */
 export function ReportRow({ task, showSubmitter = false }: { task: ReportTask; showSubmitter?: boolean }) {
@@ -69,6 +70,14 @@ export function ReportRow({ task, showSubmitter = false }: { task: ReportTask; s
           </button>
         )}
       </div>
+      {revokedVersions(task).map(({ version, reason }) => (
+        <p key={version} className={cn("mt-1.5 flex items-start gap-1.5 text-sm text-primary", showSubmitter ? "pl-60" : "pl-34")}>
+          <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            采集器 v{version} 已撤回：{reason}
+          </span>
+        </p>
+      ))}
       {expandable && open && (
         <ul className="mt-3 space-y-1 pl-34 text-xs">
           {failures.map((f) => (
@@ -105,6 +114,18 @@ function failedItems(task: ReportTask): Array<{ fileName: string; reason: string
   return task.items.flatMap((item) =>
     item.outcome.status === "failed" ? [{ fileName: item.fileName, reason: item.outcome.reason }] : [],
   );
+}
+
+/**
+ * Report lists repeat only the revoked warning, never the deprecated notice
+ * (spec #19). One line per revoked version, however many items used it.
+ */
+function revokedVersions(task: ReportTask): Array<{ version: string; reason: string }> {
+  const revoked = new Map<string, string>();
+  for (const { collectorVersion, collectorNotice } of task.items) {
+    if (collectorVersion && collectorNotice?.status === "revoked") revoked.set(collectorVersion, collectorNotice.reason);
+  }
+  return Array.from(revoked, ([version, reason]) => ({ version, reason }));
 }
 
 /** 今天 14:32, 昨天 09:15, 9月20日 14:32; the year shows only when it isn't this year. */

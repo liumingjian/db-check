@@ -1,7 +1,8 @@
 import { requireSessionUser } from "@/lib/api/auth/mock";
 import { ApiError } from "@/lib/api/errors";
 import { delay, mockCollection, mockId, type MockContext } from "@/lib/api/mock-storage";
-import type { ReportEvent, ReportsApi, ReportTask } from "@/lib/api/reports/contract";
+import { mockReleaseRecords } from "@/lib/api/releases/mock";
+import type { CollectorNotice, ReportEvent, ReportsApi, ReportTask } from "@/lib/api/reports/contract";
 import { seedReportTasks, type MockReportTask } from "@/lib/api/reports/seed";
 import { mockUserRecords } from "@/lib/api/users/mock";
 import type { User } from "@/lib/auth-types";
@@ -48,7 +49,18 @@ export function createMockReports(ctx: MockContext): ReportsApi {
       ...task,
       submitter: { id: submitterId, displayName: submitter?.displayName ?? submitterId },
       expired: isExpired(task),
+      items: task.items.map((item) => ({ ...item, collectorNotice: collectorNotice(item.collectorVersion) })),
     };
+  }
+
+  /** Follows the release's current status, whoever reads: engineers see revoked warnings too. */
+  function collectorNotice(version: string | null): CollectorNotice | null {
+    const release = mockReleaseRecords(ctx)
+      .read()
+      .find((r) => r.version === version);
+    if (release?.status === "deprecated") return { status: "deprecated" };
+    if (release?.status === "revoked") return { status: "revoked", reason: release.revokeReason ?? "" };
+    return null;
   }
 
   function isExpired({ createdAt }: { createdAt: string }): boolean {

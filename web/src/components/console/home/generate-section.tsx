@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowRight, Check, FileText, X } from "lucide-react";
+import { ArrowDown, ArrowRight, Check, FileText, TriangleAlert, X } from "lucide-react";
 import { ConsoleSection } from "@/components/console/console-shell";
 import { useDialogs } from "@/components/console/dialog-host";
 import { CAPTION, PRESS, YellowButton } from "@/components/console/kit";
-import { api } from "@/lib/api";
+import { api, type CollectorNotice } from "@/lib/api";
 import {
   collectUnpaired,
   fileKey,
@@ -14,11 +14,9 @@ import {
   toTaskInput,
   type InspectedZip,
 } from "@/lib/report-input/inspect";
-import type { DbType } from "@/lib/types";
+import { DB_LABEL, type DbType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
-
-const DB_LABEL: Record<DbType, string> = { mysql: "MySQL", oracle: "Oracle", gaussdb: "GaussDB" };
 
 /** The HTML a row's slot takes, by database type; mysql rows have no slot. */
 const SLOT_LABEL: Partial<Record<DbType, string>> = { oracle: "AWR", gaussdb: "WDR" };
@@ -39,6 +37,8 @@ interface Run {
   completed: number;
   outcome: "running" | "done" | "error";
   error?: string;
+  /** Per item, in row order; empty until the task is read back. */
+  notices: Array<CollectorNotice | null>;
 }
 
 function formatSize(bytes: number): string {
@@ -116,7 +116,15 @@ export function GenerateSection() {
     setSubmitting(true);
     try {
       const { taskId, total } = await api.reports.generate(token, taskInput);
-      setRun({ taskId, total, completed: 0, outcome: "running" });
+      setRun({ taskId, total, completed: 0, outcome: "running", notices: [] });
+      // The notices come from the recorded task, joined with each release's current status.
+      api.reports
+        .getTask(token, taskId)
+        .then((task) =>
+          setRun((r) => (r?.taskId === taskId ? { ...r, notices: task.items.map((i) => i.collectorNotice) } : r)),
+        )
+        // Without the read-back the rows just show no notice; generation goes on.
+        .catch(() => {});
       stopWatching.current = api.reports.watch(token, taskId, (event) => {
         if (event.type === "progress") {
           setRun((r) => r && { ...r, completed: event.completed, total: event.total });
@@ -286,6 +294,7 @@ export function GenerateSection() {
                     key={item.file.name}
                     item={item}
                     stage={run ? (index < run.completed ? "done" : index === run.completed ? "current" : "queued") : null}
+                    notice={run?.notices[index] ?? null}
                     onRemove={() => removeItem(item)}
                     onPair={(key) => pair(item, key)}
                     onUnpair={(file) => unpair(item, file)}
@@ -340,12 +349,15 @@ export function GenerateSection() {
 function ItemRow({
   item: { file, inspection, diagnostics },
   stage,
+  notice,
   onRemove,
   onPair,
   onUnpair,
 }: {
   item: InspectedZip;
   stage: "done" | "current" | "queued" | null;
+  /** Shown only while generating; report lists repeat only the revoked warning. */
+  notice: CollectorNotice | null;
   onRemove: () => void;
   onPair: (key: string) => void;
   onUnpair: (file: File) => void;
@@ -425,12 +437,28 @@ function ItemRow({
           )}
         </div>
       )}
+      {notice && inspection.ok && <VersionNotice version={inspection.collectorVersion} notice={notice} />}
       {stage !== null && (
         <div className="mt-2.5 h-[3px] overflow-hidden rounded-full bg-border">
           <div className={cn("h-full bg-primary", stage === "done" ? "w-full" : stage === "current" ? "w-1/3 animate-pulse" : "w-0")} />
         </div>
       )}
     </div>
+  );
+}
+
+/** Deprecated: a quiet notice. Revoked: a prominent warning with the revocation reason. */
+function VersionNotice({ version, notice }: { version: string | null; notice: CollectorNotice }) {
+  if (notice.status === "deprecated") {
+    return <p className="mt-2 text-xs text-warning">采集器 v{version} 已弃用，建议下载最新版本重新采集。</p>;
+  }
+  return (
+    <p className="mt-2 flex items-start gap-1.5 rounded-md bg-destructive/10 px-2.5 py-2 text-sm font-semibold text-destructive">
+      <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+      <span>
+        采集器 v{version} 已撤回：{notice.reason}
+      </span>
+    </p>
   );
 }
 

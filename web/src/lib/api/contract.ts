@@ -20,9 +20,10 @@ export interface DbCheckApi {
 }
 
 export type { Session } from "@/lib/api/auth/contract";
-export type { CollectorRelease, Platform, ReleaseDbType, ReleasePackage, ReleaseStatus } from "@/lib/api/releases/contract";
+export type { CollectorRelease, Platform, ReleasePackage, ReleaseStatus } from "@/lib/api/releases/contract";
 export type { DownloadRecord } from "@/lib/api/downloads/contract";
 export type {
+  CollectorNotice,
   ReportEvent,
   ReportItem,
   ReportItemInput,
