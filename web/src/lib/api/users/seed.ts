@@ -5,7 +5,7 @@ export interface MockUser extends Account {
   password: string;
 }
 
-/** Spec seed: one admin, one active engineer, one pending, one rejected (with reason). */
+/** Spec seed: one admin, one active engineer, one pending, one rejected and one disabled (both with a reason). */
 export function seedUsers(): MockUser[] {
   return [
     {
@@ -58,6 +58,20 @@ export function seedUsers(): MockUser[] {
       appliedAt: "2026-09-20T14:05:00.000Z",
       reason: "外部合作方账号需由项目经理邮件确认后再申请",
       lastAction: { action: "reject", by: "admin", at: "2026-09-21T09:30:00.000Z" },
+    },
+    {
+      id: "u-disabled-001",
+      username: "wangwu",
+      password: "wangwu",
+      displayName: "王五",
+      role: "user",
+      status: "disabled",
+      email: "wangwu@example.com",
+      team: "华北交付三部",
+      note: "MySQL 巡检",
+      appliedAt: "2026-08-05T08:20:00.000Z",
+      reason: "已离职",
+      lastAction: { action: "disable", by: "admin", at: "2026-09-10T10:00:00.000Z" },
     },
   ];
 }

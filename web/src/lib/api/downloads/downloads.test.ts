@@ -73,4 +73,67 @@ describe.each(contractImplementations)("%s downloads contract", (_name, makeApi)
       code: "unauthorized",
     });
   });
+
+  describe("filters", () => {
+    async function seeded() {
+      const api = makeApi();
+      const admin = await api.auth.signIn("admin", "admin");
+      return { api, admin };
+    }
+
+    it("narrows the records to one user", async () => {
+      const { api, admin } = await seeded();
+      const records = await api.downloads.records(admin.token, { userId: "u-admin-001" });
+      expect(records.map((r) => r.id)).toEqual(["d-seed-006", "d-seed-005"]);
+    });
+
+    it("narrows the records to one release", async () => {
+      const { api, admin } = await seeded();
+      const records = await api.downloads.records(admin.token, { version: "1.2.0" });
+      expect(records.map((r) => r.id)).toEqual(["d-seed-005", "d-seed-004", "d-seed-003"]);
+    });
+
+    it("narrows the records to a time range, start inclusive and end exclusive", async () => {
+      const { api, admin } = await seeded();
+      const records = await api.downloads.records(admin.token, {
+        from: "2026-08-22T06:00:00Z",
+        to: "2026-09-12T08:30:00Z",
+      });
+      expect(records.map((r) => r.id)).toEqual(["d-seed-003", "d-seed-002"]);
+    });
+
+    it("accepts an open-ended time range", async () => {
+      const { api, admin } = await seeded();
+      const since = await api.downloads.records(admin.token, { from: "2026-09-15T00:00:00Z" });
+      expect(since.map((r) => r.id)).toEqual(["d-seed-006", "d-seed-005"]);
+      const until = await api.downloads.records(admin.token, { to: "2026-08-03T00:00:00Z" });
+      expect(until.map((r) => r.id)).toEqual(["d-seed-001"]);
+    });
+
+    it("combines filters", async () => {
+      const { api, admin } = await seeded();
+      const records = await api.downloads.records(admin.token, {
+        userId: "u-user-001",
+        version: "1.2.0",
+        from: "2026-09-12T00:00:00Z",
+      });
+      expect(records.map((r) => r.id)).toEqual(["d-seed-004"]);
+    });
+
+    it("includes a fresh download in a filtered list", async () => {
+      const { api, admin } = await seeded();
+      const engineer = await api.auth.signIn("user", "user");
+      await api.downloads.download(engineer.token, "1.1.0", "windows-amd64");
+      const records = await api.downloads.records(admin.token, { userId: engineer.user.id, version: "1.1.0" });
+      expect(records.map((r) => r.platform)).toEqual(["windows-amd64", "linux-arm64"]);
+    });
+
+    it("keeps filtered records from engineers", async () => {
+      const api = makeApi();
+      const engineer = await api.auth.signIn("user", "user");
+      await expect(api.downloads.records(engineer.token, { userId: engineer.user.id })).rejects.toMatchObject({
+        code: "forbidden",
+      });
+    });
+  });
 });

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowDown } from "lucide-react";
+import { downloadRecordsHref } from "@/components/console/admin/download-records";
 import { ConsoleSection } from "@/components/console/console-shell";
 import { useDialogs } from "@/components/console/dialog-host";
 import { CAPTION, Chip, CopyText, EASE_OUT, Menu, type MenuItem } from "@/components/console/kit";
@@ -46,7 +48,8 @@ export function CollectorsSection() {
   const token = useAuthStore((s) => s.token);
   const isAdmin = useAuthStore((s) => s.user?.role === "admin");
   const { toast, ask } = useDialogs();
-  const [releases, setReleases] = useState<CollectorRelease[] | null>(null);
+  const router = useRouter();
+  const [releases,setReleases] = useState<CollectorRelease[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Bumped after a status change; the list lives here, so it must be re-fetched.
   const [reloads, setReloads] = useState(0);
@@ -70,7 +73,7 @@ export function CollectorsSection() {
 
   function releaseMenu(release: CollectorRelease): MenuItem[] {
     if (!isAdmin) return [];
-    return releaseActionsFor(release.status).map((action) => ({
+    const actions: MenuItem[] = releaseActionsFor(release.status).map((action) => ({
       label: action === "revoke" ? "撤回…" : ACTION_LABEL[action],
       danger: action === "revoke",
       onSelect: () => {
@@ -96,6 +99,7 @@ export function CollectorsSection() {
         }
       },
     }));
+    return [...actions, { label: "查看下载记录", onSelect: () => router.push(downloadRecordsHref({ release: release.version })) }];
   }
 
   async function download(release: CollectorRelease, pkg: ReleasePackage) {

@@ -15,7 +15,7 @@ export interface Registration {
 /** A rejected user's new application; username and email stay as registered. */
 export type Resubmission = Pick<Registration, "displayName" | "team" | "note">;
 
-export type AccountActionKind = "approve" | "reject";
+export type AccountActionKind = "approve" | "reject" | "disable" | "enable" | "promote" | "demote" | "reset";
 
 /** The audit stamp of the latest admin action on an account. */
 export interface AccountAction {
@@ -33,7 +33,7 @@ export interface Account extends User {
   note: string;
   /** ISO timestamp of the latest application (registration or resubmission). */
   appliedAt: string;
-  /** The rejection reason while `status` is `rejected`. */
+  /** The admin's reason while `status` is `rejected` or `disabled`. */
   reason?: string;
   lastAction?: AccountAction;
 }
@@ -54,4 +54,34 @@ export interface UsersApi {
   approve(token: string, userId: string): Promise<Account>;
   /** Admin only: pending → rejected; the reason is required (`invalid` when blank) and shown to the user. */
   reject(token: string, userId: string, reason: string): Promise<Account>;
+
+  /*
+   * Account administration, admin only. Every action stamps `lastAction`. An admin
+   * can neither disable nor demote themselves, and neither action may leave the
+   * platform without an active admin (`invalid` in all those cases).
+   */
+
+  /** Active → disabled; the reason is required. The user's sign-in is refused, their report tasks are kept. */
+  disable(token: string, userId: string, reason: string): Promise<Account>;
+  /** Disabled → active. */
+  enable(token: string, userId: string): Promise<Account>;
+  /** An active engineer becomes an admin. */
+  promote(token: string, userId: string): Promise<Account>;
+  /** An active admin becomes an engineer. */
+  demote(token: string, userId: string): Promise<Account>;
+  /**
+   * Sets a temporary password for the admin to hand over in person. The user's
+   * next session is held at `/change-password` (`mustChangePassword`) until they change it.
+   */
+  resetPassword(token: string, userId: string): Promise<PasswordReset>;
+  /**
+   * The caller's own new password; ends a forced password change. Rejects with
+   * `invalid` when blank or equal to the current one.
+   */
+  changePassword(token: string, newPassword: string): Promise<Account>;
+}
+
+export interface PasswordReset {
+  account: Account;
+  temporaryPassword: string;
 }

@@ -11,6 +11,17 @@ export interface DownloadRecord {
   at: string;
 }
 
+/** Narrows `records`; every set field must match. Omitted fields don't filter. */
+export interface DownloadRecordFilter {
+  userId?: string;
+  /** Release version, e.g. `1.2.0`. */
+  version?: string;
+  /** ISO timestamp; keeps records at or after it. */
+  from?: string;
+  /** ISO timestamp; keeps records strictly before it. */
+  to?: string;
+}
+
 export interface DownloadsApi {
   /**
    * Downloads one release package (a `.zip`) and writes one download record
@@ -18,6 +29,6 @@ export interface DownloadsApi {
    * may not see (engineers: pre-release and revoked releases).
    */
   download(token: string, version: string, platform: Platform): Promise<Blob>;
-  /** Every download record, newest first. Admins only; others get `forbidden`. */
-  records(token: string): Promise<DownloadRecord[]>;
+  /** Download records matching `filter`, newest first. Admins only; others get `forbidden`. */
+  records(token: string, filter?: DownloadRecordFilter): Promise<DownloadRecord[]>;
 }

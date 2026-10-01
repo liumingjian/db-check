@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { pendingAccounts, useAccountsStore } from "@/stores/accounts-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { appliedAtLabel } from "@/components/console/account/form";
+import { MemberList } from "@/components/console/admin/member-list";
 import { useDialogs } from "@/components/console/dialog-host";
 import { PRESS, YellowButton } from "@/components/console/kit";
 
@@ -31,7 +32,7 @@ function ApplicantCard({ applicant, onApprove, onReject }: { applicant: Account;
   );
 }
 
-/** 管理 → 用户: the pending count as headline and one card per applicant. #23 adds the member list. */
+/** 管理 → 用户: the pending count as headline, one card per applicant, then the member list. */
 export default function AdminUsersPage() {
   const token = useAuthStore((s) => s.token);
   const accounts = useAccountsStore((s) => s.accounts);
@@ -47,7 +48,7 @@ export default function AdminUsersPage() {
   if (!token || accounts === null) return null;
   const pending = pendingAccounts(accounts);
 
-  async function decide(action: Promise<void>, done: string) {
+  async function decide(action: Promise<unknown>, done: string) {
     try {
       await action;
       toast(done);
@@ -91,6 +92,7 @@ export default function AdminUsersPage() {
           ))}
         </div>
       )}
+      <MemberList accounts={accounts} />
     </div>
   );
 }
