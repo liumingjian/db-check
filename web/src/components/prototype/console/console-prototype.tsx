@@ -1,28 +1,23 @@
 // PROTOTYPE — throwaway. Switcher for the console layout variants.
-// Round 1 (A sidebar, C master-detail) lost to B; they remain on this
-// branch's first commit. Round 2 refined B into B2/B3; dark won but the
-// layout felt unchanged. Round 3 (D1-D3) drops that layout for three dark
-// directions borrowed from getdesign.md (Raycast, Vercel, ClickHouse).
+// Round 1 (A sidebar, C master-detail) lost to B; round 2 refined B into
+// B2/B3; round 3 (D1 Raycast, D2 Vercel, D3 ClickHouse) left the old layout.
+// D3 won (commit d689d58 has every earlier variant). Round 4 compares three
+// head treatments of D3.
 "use client";
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  SCREEN_LABEL,
-  screensFor,
-  useConsoleState,
-  type ConsoleState,
-  type Persona,
-  type Role,
-  type Screen,
-} from "./console-state";
-import { VariantB } from "./variant-b";
-import { B2_SCREENS, VariantB2 } from "./variant-b2";
-import { VariantD1 } from "./variant-d1-palette";
-import { VariantD2 } from "./variant-d2-pipeline";
+import { useConsoleState, type ConsoleState, type Persona, type Role, type Screen } from "./console-state";
 import { VariantD3 } from "./variant-d3-voltage";
+
+const SCREENS = (role: Role): { key: Screen; label: string }[] => [
+  { key: "new-report", label: "生成报告" },
+  { key: "collectors", label: "采集器" },
+  { key: "reports", label: "我的报告" },
+  ...(role === "admin" ? [{ key: "users" as Screen, label: "管理" }] : []),
+];
 
 export interface VariantProps {
   state: ConsoleState;
@@ -36,16 +31,9 @@ const VARIANTS: {
   Component: (p: VariantProps) => React.ReactNode;
   screens: (role: Role) => { key: Screen; label: string }[];
 }[] = [
-  { key: "D1", name: "指令台 · Raycast", Component: VariantD1, screens: B2_SCREENS },
-  { key: "D2", name: "流水线 · Vercel", Component: VariantD2, screens: B2_SCREENS },
-  { key: "D3", name: "电压 · ClickHouse", Component: VariantD3, screens: B2_SCREENS },
-  { key: "B3", name: "第二轮深色（对照）", Component: (p) => <VariantB2 {...p} tone="dark" />, screens: B2_SCREENS },
-  {
-    key: "B",
-    name: "第一轮 B（对照）",
-    Component: VariantB,
-    screens: (r) => screensFor(r).map((k) => ({ key: k, label: SCREEN_LABEL[k] })),
-  },
+  { key: "D3a", name: "无头部 · 右侧索引", Component: (p) => <VariantD3 {...p} head="none" />, screens: SCREENS },
+  { key: "D3b", name: "竖排侧栏", Component: (p) => <VariantD3 {...p} head="rail" />, screens: SCREENS },
+  { key: "D3", name: "顶栏（第三轮对照）", Component: (p) => <VariantD3 {...p} head="bar" />, screens: SCREENS },
 ];
 
 const PERSONAS: { key: Persona; label: string }[] = [
@@ -59,7 +47,7 @@ export function ConsolePrototype() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const current = Math.max(0, VARIANTS.findIndex((v) => v.key === (params.get("variant") ?? "D1")));
+  const current = Math.max(0, VARIANTS.findIndex((v) => v.key === (params.get("variant") ?? "D3a")));
   const [persona, setPersona] = useState<Persona>((params.get("as") as Persona) ?? "engineer");
   const [screen, setScreen] = useState<Screen>((params.get("screen") as Screen) ?? "new-report");
   const state = useConsoleState(persona);
