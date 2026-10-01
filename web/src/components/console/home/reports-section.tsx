@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ConsoleSection } from "@/components/console/console-shell";
 import { CAPTION } from "@/components/console/kit";
 import { ReportRow } from "@/components/console/reports/report-row";
-import { api, type ReportTask } from "@/lib/api";
+import { api, REPORT_RETENTION_DAYS, type ReportTask } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 
 /** While a listed task is still 生成中, re-read the list this often. */
@@ -64,7 +64,7 @@ export function ReportsSection() {
             <br />
             都在这里。
           </h2>
-          <p className="mt-4 text-base text-muted-foreground">报告保留 30 天。</p>
+          <p className="mt-4 text-base text-muted-foreground">报告保留 {REPORT_RETENTION_DAYS} 天。</p>
         </div>
         <div className="divide-y divide-border border-y border-border">
           {error && <p className="py-10 text-sm text-destructive">{error}</p>}

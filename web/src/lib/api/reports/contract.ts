@@ -1,4 +1,9 @@
+import { DAY_MS } from "@/lib/time";
 import type { DbType, WsMessage } from "@/lib/types";
+
+/** Uploaded ZIPs and generated reports are deleted this many days after submission (ADR 0003). */
+export const REPORT_RETENTION_DAYS = 30;
+export const REPORT_RETENTION_MS = REPORT_RETENTION_DAYS * DAY_MS;
 
 /**
  * One report item as submitted: a collector ZIP, what the browser read from
@@ -51,8 +56,8 @@ export interface ReportTask {
   status: ReportTaskStatus;
   createdAt: string;
   /**
-   * The uploaded ZIPs and generated reports are deleted 30 days after
-   * submission (ADR 0003); the task record itself stays.
+   * The uploaded ZIPs and generated reports are deleted `REPORT_RETENTION_DAYS`
+   * after submission (ADR 0003); the task record itself stays.
    */
   expired: boolean;
   /** In submission order. */

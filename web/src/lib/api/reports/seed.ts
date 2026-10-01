@@ -1,4 +1,5 @@
 import type { ReportItem, ReportTaskStatus } from "@/lib/api/reports/contract";
+import { DAY_MS, MINUTE_MS } from "@/lib/time";
 import type { DbType } from "@/lib/types";
 
 /** A stored item; its `collectorNotice` is joined from the releases on every read. */
@@ -18,8 +19,6 @@ export interface MockReportTask {
   finishesAt?: string;
 }
 
-const MINUTE_MS = 60 * 1000;
-const DAY_MS = 24 * 60 * MINUTE_MS;
 
 function done(fileName: string, dbType: DbType, collectorVersion: string | null = "1.2.0"): MockReportItem {
   return { fileName, dbType, collectorVersion, outcome: { status: "done" } };

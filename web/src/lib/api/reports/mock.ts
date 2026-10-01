@@ -2,7 +2,14 @@ import { requireSessionUser } from "@/lib/api/auth/mock";
 import { ApiError } from "@/lib/api/errors";
 import { delay, mockCollection, mockId, type MockContext } from "@/lib/api/mock-storage";
 import { mockReleaseRecords } from "@/lib/api/releases/mock";
-import type { CollectorNotice, ReportEvent, ReportsApi, ReportTask } from "@/lib/api/reports/contract";
+import {
+  REPORT_RETENTION_DAYS,
+  REPORT_RETENTION_MS,
+  type CollectorNotice,
+  type ReportEvent,
+  type ReportsApi,
+  type ReportTask,
+} from "@/lib/api/reports/contract";
 import { seedReportTasks, type MockReportTask } from "@/lib/api/reports/seed";
 import { mockUserRecords } from "@/lib/api/users/mock";
 import type { User } from "@/lib/auth-types";
@@ -19,9 +26,6 @@ const SIMULATED_ITEM_LOGS: Array<{ level: LogLevel; message: string }> = [
   { level: "info", message: "渲染 report.docx..." },
   { level: "success", message: "报告生成完成 ✓" },
 ];
-
-/** Uploaded ZIPs and generated reports are deleted after 30 days (ADR 0003). */
-const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
  * How long the simulated backend takes per report item. It bounds the watched
@@ -82,7 +86,7 @@ export function createMockReports(ctx: MockContext): ReportsApi {
   }
 
   function isExpired({ createdAt }: { createdAt: string }): boolean {
-    return ctx.now() - Date.parse(createdAt) >= RETENTION_MS;
+    return ctx.now() - Date.parse(createdAt) >= REPORT_RETENTION_MS;
   }
 
   function markDone(taskId: string): void {
@@ -170,7 +174,7 @@ export function createMockReports(ctx: MockContext): ReportsApi {
     async download(token, taskId) {
       const task = requireVisibleTask(requireSessionUser(ctx, token), taskId);
       if (task.status !== "done") throw new ApiError("invalid", "报告尚未生成完成");
-      if (isExpired(task)) throw new ApiError("invalid", "报告已超过 30 天保留期，文件已清理");
+      if (isExpired(task)) throw new ApiError("invalid", `报告已超过 ${REPORT_RETENTION_DAYS} 天保留期，文件已清理`);
       const content = [
         "DB-Check 巡检诊断报告集合 (mock)",
         `任务编号: ${task.id}`,

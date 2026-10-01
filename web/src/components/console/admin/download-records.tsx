@@ -6,6 +6,7 @@ import { appliedAtLabel } from "@/components/console/account/form";
 import { Chip } from "@/components/console/kit";
 import { api, ApiError, type Account, type CollectorRelease, type DownloadRecord, type ReleaseStatus } from "@/lib/api";
 import type { DownloadRecordFilter } from "@/lib/api/downloads/contract";
+import { DAY_MS } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -37,8 +38,11 @@ export function downloadRecordsHref(query: DownloadRecordsQuery): string {
   return search ? `/admin/downloads?${search}` : "/admin/downloads";
 }
 
-/** 管理 → 下载记录: every download record, filtered by user, release, and time through the URL query. */
-export function DownloadRecords() {
+/**
+ * 管理 → 下载记录: every download record, filtered by user, release, and time
+ * through the URL query. `now` (epoch ms) anchors the 近 N 天 filters.
+ */
+export function DownloadRecords({ now = Date.now }: { now?: () => number }) {
   const token = useAuthStore((s) => s.token);
   const router = useRouter();
   const params = useSearchParams();
@@ -62,8 +66,8 @@ export function DownloadRecords() {
   const { user, release, days } = query;
   useEffect(() => {
     if (!token) return;
-    api.downloads.records(token, toFilter({ user, release, days })).then(setRecords, (e: unknown) => setError(errorText(e)));
-  }, [token, user, release, days]);
+    api.downloads.records(token, toFilter({ user, release, days }, now())).then(setRecords, (e: unknown) => setError(errorText(e)));
+  }, [token, user, release, days, now]);
 
   // Replace, not push: flipping chips shouldn't fill the back button's history.
   const set = (change: DownloadRecordsQuery) => router.replace(downloadRecordsHref({ ...query, ...change }));
@@ -134,12 +138,12 @@ function errorText(e: unknown): string {
   return e instanceof ApiError ? e.message : String(e);
 }
 
-function toFilter(query: DownloadRecordsQuery): DownloadRecordFilter {
+function toFilter(query: DownloadRecordsQuery, now: number): DownloadRecordFilter {
   const days = Number(query.days);
   return {
     userId: query.user,
     version: query.release,
-    from: days > 0 ? new Date(Date.now() - days * 86_400_000).toISOString() : undefined,
+    from: days > 0 ? new Date(now - days * DAY_MS).toISOString() : undefined,
   };
 }
 

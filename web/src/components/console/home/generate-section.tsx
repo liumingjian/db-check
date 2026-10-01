@@ -5,7 +5,7 @@ import { ArrowDown, ArrowRight, Check, FileText, TriangleAlert, X } from "lucide
 import { ConsoleSection } from "@/components/console/console-shell";
 import { useDialogs } from "@/components/console/dialog-host";
 import { CAPTION, PRESS, YellowButton } from "@/components/console/kit";
-import { api, type CollectorNotice } from "@/lib/api";
+import { api, REPORT_RETENTION_DAYS, type CollectorNotice } from "@/lib/api";
 import {
   collectUnpaired,
   fileKey,
@@ -27,7 +27,7 @@ const DIAGNOSTIC_DRAG = "application/x-dbcheck-diagnostic";
 const STATS = [
   ["3", "种数据库", "MySQL · Oracle · GaussDB"],
   ["4", "个平台", "Linux / Windows · x86 / ARM"],
-  ["30", "天保留", "在「我的报告」随时重新下载"],
+  [String(REPORT_RETENTION_DAYS), "天保留", "在「我的报告」随时重新下载"],
 ] as const;
 
 /** A submitted task while it generates, and how it ended. */
@@ -192,7 +192,7 @@ export function GenerateSection() {
           <div className="mx-auto flex w-full max-w-[1240px] flex-1 flex-col justify-center px-8 py-16">
             <p className="text-[12px] font-semibold tracking-[1.5px] uppercase opacity-60">{run.taskId}</p>
             <h1 className="mt-4 text-[96px] leading-[1] font-bold tracking-[-3.5px]">报告好了。</h1>
-            <p className="mt-6 text-lg opacity-70">{run.total} 份报告 · 30 天内可在「我的报告」重新下载</p>
+            <p className="mt-6 text-lg opacity-70">{run.total} 份报告 · {REPORT_RETENTION_DAYS} 天内可在「我的报告」重新下载</p>
             <div className="mt-12 flex items-center gap-6">
               <button
                 type="button"
