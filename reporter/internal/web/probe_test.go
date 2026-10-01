@@ -14,7 +14,7 @@ func TestDefaultAPITokenAuthorizesStatusProbe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseConfig failed: %v", err)
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}

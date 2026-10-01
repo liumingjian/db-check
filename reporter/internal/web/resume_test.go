@@ -12,7 +12,7 @@ func TestResumeTasksEnqueuesQueuedOrProcessing(t *testing.T) {
 		AllowedOrigins: []string{"http://example.com"},
 		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}

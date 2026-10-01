@@ -17,7 +17,7 @@ func TestCORSPreflightAllowsConfiguredOrigin(t *testing.T) {
 		AllowedOrigins: []string{"http://example.com"},
 		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestCORSPreflightAllowsWildcardOrigin(t *testing.T) {
 		AllowedOrigins: []string{"*"},
 		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestCORSPreflightAllowsTrailingSlashInConfig(t *testing.T) {
 		AllowedOrigins: []string{"http://example.com/"},
 		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestCORSPreflightAllowsHostOnlyEntry(t *testing.T) {
 		AllowedOrigins: []string{"localhost:3000"},
 		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestCORSPreflightAllowsLocalhostAlias(t *testing.T) {
 		AllowedOrigins: []string{"http://localhost:3000"},
 		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestCORSRejectsUnknownOrigin(t *testing.T) {
 		AllowedOrigins: []string{"http://example.com"},
 		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestAuthIsRequired(t *testing.T) {
 		AllowedOrigins: []string{"http://example.com"},
 		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestGenerateCreatesTaskRecord(t *testing.T) {
 		MaxUploadBytes: 0,
 		PythonBin:      "python3",
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -242,7 +242,7 @@ func TestGenerateAcceptsMultipleIndexedWDRUploads(t *testing.T) {
 		MaxUploadBytes: 0,
 		PythonBin:      "python3",
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -282,7 +282,7 @@ func TestGenerateAcceptsBulkWDRUpload(t *testing.T) {
 		MaxUploadBytes: 0,
 		PythonBin:      "python3",
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -306,7 +306,7 @@ func TestGenerateRejectsMultipleIndexedAWRUploads(t *testing.T) {
 		MaxUploadBytes: 0,
 		PythonBin:      "python3",
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -330,7 +330,7 @@ func TestGenerateEnforcesUploadLimit(t *testing.T) {
 		APIToken:       defaultAPIToken,
 		MaxUploadBytes: 64, // tiny
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}

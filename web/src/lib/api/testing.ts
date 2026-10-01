@@ -1,10 +1,11 @@
 /**
  * Shared fixtures for the contract behaviour suites. Every suite runs against
- * each entry of `contractImplementations`; add the real implementation here
- * once a test backend exists.
+ * each entry of an implementations list: the mock, plus the real backend
+ * once the suite's domain opts in (`contractImplementationsWithReal`).
  */
 import type { DbCheckApi, ReportEvent } from "@/lib/api/contract";
 import { createMockApi } from "@/lib/api/mock";
+import { createTestServerApi } from "@/lib/api/test-server";
 
 export function memoryStorage(): Storage {
   const data = new Map<string, string>();
@@ -31,9 +32,25 @@ export interface ContractOptions {
  */
 export const SEED_NOW = Date.parse("2026-10-01T08:00:00Z");
 
-export const contractImplementations: Array<[name: string, makeApi: (options?: ContractOptions) => DbCheckApi]> = [
-  ["mock", (options) => createMockApi({ storage: memoryStorage(), stepDelayMs: 0, now: () => SEED_NOW, ...options })],
+export type ContractImplementation = [name: string, makeApi: (options?: ContractOptions) => DbCheckApi];
+
+const mock: ContractImplementation = [
+  "mock",
+  (options) => createMockApi({ storage: memoryStorage(), stepDelayMs: 0, now: () => SEED_NOW, ...options }),
 ];
+
+/** db-web itself, as the Go contract test server (see test-server.ts). */
+const real: ContractImplementation = ["real", (options) => createTestServerApi({ now: () => SEED_NOW, ...options })];
+
+/** For suites whose domain db-web does not serve yet: the mock only. */
+export const contractImplementations: ContractImplementation[] = [mock];
+
+/**
+ * For suites whose domain db-web serves: the mock and the real backend. A
+ * suite opts in by running `describe.each(contractImplementationsWithReal)`
+ * instead of `contractImplementations`, once its domain's routes exist.
+ */
+export const contractImplementationsWithReal: ContractImplementation[] = [mock, real];
 
 /** Collects a task's events until it ends with `done` or `error`. */
 export function watchToEnd(api: DbCheckApi, token: string, taskId: string): Promise<ReportEvent[]> {

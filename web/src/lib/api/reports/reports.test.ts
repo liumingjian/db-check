@@ -150,6 +150,12 @@ describe.each(contractImplementations)("%s reports contract", (_name, makeApi) =
     expect(await api.reports.listAll(admin.token, { submitterId: "no-such-user" })).toEqual([]);
   });
 
+  it.each(["lisi", "zhaoliu"])("refuses report downloads to applicant %s", async (username) => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn(username, username);
+    await expect(api.reports.download(token, "t-any")).rejects.toMatchObject({ code: "forbidden" });
+  });
+
   it("lists all tasks to admins only", async () => {
     const api = makeApi();
     const engineer = await api.auth.signIn("user", "user");

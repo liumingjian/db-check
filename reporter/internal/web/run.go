@@ -7,13 +7,20 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"dbcheck/reporter/internal/store"
 )
 
 func Run(cfg Config) error {
 	if err := ensureDir(cfg.DataDir); err != nil {
 		return err
 	}
-	handler, err := NewHandler(cfg)
+	db, err := store.Open(cfg.DataDir)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	handler, err := NewHandler(cfg, Platform{DB: db})
 	if err != nil {
 		return err
 	}

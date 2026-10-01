@@ -14,10 +14,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"dbcheck/reporter/internal/apierr"
 )
 
 type apiHandler struct {
-	cfg Config
+	cfg      Config
+	platform Platform
 
 	store *TaskStore
 	hub   *taskHub
@@ -31,25 +34,28 @@ type queuedTask struct {
 	Items  []ItemInput
 }
 
-func NewHandler(cfg Config) (http.Handler, error) {
-	h, err := newAPIHandler(cfg, true)
+// NewHandler builds every API route over the given platform and starts the
+// report worker.
+func NewHandler(cfg Config, p Platform) (http.Handler, error) {
+	h, err := newAPIHandler(cfg, p, true)
 	if err != nil {
 		return nil, err
 	}
 	return h.handler(), nil
 }
 
-func newAPIHandler(cfg Config, startWorker bool) (*apiHandler, error) {
+func newAPIHandler(cfg Config, p Platform, startWorker bool) (*apiHandler, error) {
 	store, err := NewTaskStore(cfg.DataDir)
 	if err != nil {
 		return nil, err
 	}
 
 	h := &apiHandler{
-		cfg:   cfg,
-		store: store,
-		hub:   newTaskHub(cfg.LogReplayLines),
-		queue: make(chan queuedTask, 32),
+		cfg:      cfg,
+		platform: p.withDefaults(),
+		store:    store,
+		hub:      newTaskHub(cfg.LogReplayLines),
+		queue:    make(chan queuedTask, 32),
 	}
 	if startWorker {
 		h.startWorker()
@@ -64,8 +70,9 @@ func (h *apiHandler) handler() http.Handler {
 	mux.HandleFunc("/api/reports/status/", h.handleStatus)
 	mux.HandleFunc("/api/reports/download/", h.handleDownload)
 	mux.HandleFunc("/api/reports/ws/", h.handleWS)
+	h.registerPlatformRoutes(mux)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.NotFound(w, r)
+		h.writeAPIError(w, apierr.NotFound("接口不存在"))
 	})
 
 	return withCORS(h.cfg.AllowedOrigins, mux)
@@ -82,7 +89,7 @@ func withCORS(allowedOrigins []string, next http.Handler) http.Handler {
 			}
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
-			w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization,Content-Type")
 			w.Header().Set("Access-Control-Max-Age", "600")
 		}
