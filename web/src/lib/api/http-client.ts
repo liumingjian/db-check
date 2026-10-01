@@ -115,6 +115,14 @@ function errorMessageFor(action: string, status: number, body: string): string {
   return `${action}: HTTP ${status}${body ? ` ${body}` : ""}`;
 }
 
+/** A POST to db-web: what it does (`action`, for fallback messages), where, as whom, and its JSON body, if any. */
+export interface JsonPost {
+  action: string;
+  path: string;
+  token: string | null;
+  body?: unknown;
+}
+
 /** How each domain's HTTP implementation reaches db-web. */
 export interface HttpClient {
   /**
@@ -123,8 +131,8 @@ export interface HttpClient {
    * operation in fallback messages.
    */
   request(action: string, path: string, token: string | null, init?: RequestInit): Promise<Response>;
-  /** Like `request`, sending `body` (if any) as JSON. */
-  send(action: string, method: string, path: string, token: string | null, body?: unknown): Promise<Response>;
+  /** Like `request`, as a POST sending `body` (if any) as JSON. */
+  post(req: JsonPost): Promise<Response>;
   /** The WebSocket URL for an API path. */
   wsUrl(path: string): string;
 }
@@ -153,10 +161,10 @@ export function createHttpClient(baseUrl?: string): HttpClient {
   return {
     request,
 
-    send(action, method, path, token, body) {
-      if (body === undefined) return request(action, path, token, { method });
+    post({ action, path, token, body }) {
+      if (body === undefined) return request(action, path, token, { method: "POST" });
       return request(action, path, token, {
-        method,
+        method: "POST",
         body: JSON.stringify(body),
         headers: { "Content-Type": "application/json" },
       });

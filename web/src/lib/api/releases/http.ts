@@ -4,7 +4,8 @@ import type { CollectorRelease, ReleaseAction, ReleasesApi } from "@/lib/api/rel
 /** Collector releases on db-web: `/api/releases`. */
 export function createHttpReleases(client: HttpClient): ReleasesApi {
   const act = async (token: string, version: string, action: ReleaseAction, body?: { reason: string }) => {
-    await client.send("修改版本状态失败", "POST", `/api/releases/${encodeURIComponent(version)}/${action}`, token, body);
+    const path = `/api/releases/${encodeURIComponent(version)}/${action}`;
+    await client.post({ action: "修改版本状态失败", path, token, body });
   };
   return {
     async list(token) {

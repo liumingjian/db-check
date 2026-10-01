@@ -35,7 +35,8 @@ export interface WsProgressMessage {
 export interface WsDoneMessage {
   type: "done";
   seq: number;
-  download_url: string;
+  /** Absent once the task has expired and its reports are deleted. */
+  download_url?: string;
 }
 
 export interface WsErrorMessage {
