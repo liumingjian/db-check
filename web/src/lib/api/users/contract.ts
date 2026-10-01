@@ -71,8 +71,9 @@ export interface UsersApi {
   /** An active admin becomes an engineer. */
   demote(token: string, userId: string): Promise<UserProfile>;
   /**
-   * Sets a temporary password for the admin to hand over in person. The user's
-   * next session is held at `/change-password` (`mustChangePassword`) until they change it.
+   * Sets a temporary password for the admin to hand over in person and ends
+   * all of the user's sessions. Their next session is held at
+   * `/change-password` (`mustChangePassword`) until they change it.
    */
   resetPassword(token: string, userId: string): Promise<PasswordReset>;
   /**

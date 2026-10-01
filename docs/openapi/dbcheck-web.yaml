@@ -13,8 +13,9 @@ info:
     message is Chinese and shown to the user as-is.
 
     Access levels: most operations need an active user with no forced
-    password change due (otherwise 403); current user accepts any account
-    status except disabled. A disabled user's session answers 401.
+    password change due (otherwise 403); current user, own profile,
+    resubmit, and the forced password change accept any account status
+    except disabled. A disabled user's session answers 401.
 
     The publish API (`/api/ci/releases`) takes no session: it authenticates
     the CI machine credential `DBCHECK_PUBLISH_TOKEN` (ADR 0002).
@@ -287,6 +288,101 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "404":
           description: No such user (`not_found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/users/{id}/reset-password:
+    post:
+      summary: Reset a user's password (admin only)
+      description: |
+        Sets a generated temporary password that the user must change at the
+        next sign-in (`mustChangePassword`), ends every session of the user,
+        and appends `reset` to their account action history. The temporary
+        password appears in this response only, for the admin to hand over
+        in person.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The account after the reset, and the temporary password.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordReset"
+        "401":
+          description: No live session, or the user is disabled (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not an active admin (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No such user (`not_found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/users/me/password:
+    post:
+      summary: Change the signed-in user's own password
+      description: |
+        A forced change (`mustChangePassword`, after a reset or `db-web admin
+        create`) needs no current password and lifts the forced-change gate.
+        Otherwise only an active user may change their password, and only
+        with the right current password. The session stays signed in.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newPassword]
+              properties:
+                newPassword:
+                  type: string
+                currentPassword:
+                  type: string
+                  description: Required unless the change is forced.
+      responses:
+        "200":
+          description: The caller's profile after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "400":
+          description: |
+            (`invalid`) A missing current password (请输入当前密码), a wrong
+            one (当前密码不正确), a blank new password (请输入新密码), or a
+            new password equal to the current one (新密码不能与当前密码相同).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: No live session, or the user is disabled (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: A voluntary change by a user who is not active (`forbidden`).
           content:
             application/json:
               schema:
@@ -876,6 +972,16 @@ components:
               description: Every admin action on the account, oldest first; append-only.
               items:
                 $ref: "#/components/schemas/AccountAction"
+
+    PasswordReset:
+      type: object
+      required: [profile, temporaryPassword]
+      properties:
+        profile:
+          $ref: "#/components/schemas/UserProfile"
+        temporaryPassword:
+          type: string
+          description: Shown once; the user must change it at the next sign-in.
 
     Platform:
       type: string

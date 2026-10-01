@@ -1,7 +1,6 @@
-import { ApiError } from "@/lib/api/errors";
 import type { Session } from "@/lib/api/auth/contract";
 import type { HttpClient } from "@/lib/api/http-client";
-import type { UserProfile, UsersApi } from "@/lib/api/users/contract";
+import type { PasswordReset, UserProfile, UsersApi } from "@/lib/api/users/contract";
 
 /** Accounts on db-web: registration and resubmission under `/api/auth`, the rest under `/api/users`. */
 export function createHttpUsers(client: HttpClient): UsersApi {
@@ -11,11 +10,6 @@ export function createHttpUsers(client: HttpClient): UsersApi {
   }
 
   const account = (id: string, operation: string) => `/api/users/${encodeURIComponent(id)}/${operation}`;
-
-  // db-web does not serve password reset and change yet (#38).
-  const passwordsUnavailable = async (): Promise<never> => {
-    throw new ApiError("failed", "后端暂未提供密码管理");
-  };
 
   return {
     async register(registration) {
@@ -41,7 +35,13 @@ export function createHttpUsers(client: HttpClient): UsersApi {
     enable: (token, userId) => profile("启用账号失败", account(userId, "enable"), token),
     promote: (token, userId) => profile("设为管理员失败", account(userId, "promote"), token),
     demote: (token, userId) => profile("取消管理员失败", account(userId, "demote"), token),
-    resetPassword: passwordsUnavailable,
-    changePassword: passwordsUnavailable,
+
+    async resetPassword(token, userId) {
+      const resp = await client.send("重置密码失败", "POST", account(userId, "reset-password"), token);
+      return (await resp.json()) as PasswordReset;
+    },
+
+    changePassword: (token, newPassword, currentPassword) =>
+      profile("修改密码失败", "/api/users/me/password", token, { newPassword, currentPassword }),
   };
 }
