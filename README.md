@@ -311,7 +311,7 @@ zip -j /tmp/mysql-e2e.zip "$RUN_DIR/manifest.json" "$RUN_DIR/result.json"
   - 完整 Origin：`http://127.0.0.1:3000`（推荐）
   - Host（含端口）：`127.0.0.1:3000` / `localhost:3000`（更宽松，适合本地联调）
   - `*`：允许任意 Origin（仅建议本地联调临时使用；生产环境不要用）
-- `DBCHECK_API_TOKEN`：固定 Bearer token（默认 `ATI`，前端会默认填入该值）
+- `DBCHECK_API_TOKEN`：固定 Bearer token（默认 `ATI`；前端 real 模式下登录时把它填作密码，前端不再内置默认值）
 
 说明：
 - 当 `ALLOWED_ORIGINS` 配置里包含 `localhost` / `127.0.0.1`（带端口）时，`db-web` 会自动放行同端口的本机局域网地址（例如 `http://192.168.x.x:3000`），避免你用 Next dev server 的 Network 地址打开前端时触发 CORS。
@@ -331,25 +331,24 @@ go run ./reporter/cmd/db-web --addr 127.0.0.1:8080 --python-bin "$VIRTUAL_ENV/bi
 
 ### 5. 启动前端（web/）
 
-前端通过 `NEXT_PUBLIC_API_BASE`（完整 Origin）指向后端（推荐）：
+前端用构建期开关 `NEXT_PUBLIC_API_MODE` 选择数据来源：`mock`（默认，数据存于浏览器 localStorage，可在用户菜单“重置 Mock 数据”）或 `real`（连接 db-web）。两者之间没有自动回退。real 模式通过 `NEXT_PUBLIC_API_BASE`（完整 Origin）指向后端（推荐）：
 
 ```bash
 cd web
 npm install
-NEXT_PUBLIC_API_BASE=http://127.0.0.1:8080 npm run dev
+NEXT_PUBLIC_API_MODE=real NEXT_PUBLIC_API_BASE=http://127.0.0.1:8080 npm run dev
 ```
 
 访问：`http://127.0.0.1:3000`
 
 说明：
 - 如果你忘了设置 `NEXT_PUBLIC_API_BASE`，前端会在运行时做一个本地开发推断：当页面在 `:3000` 时，默认后端为 `:8080`；否则默认同源。
-- 也可以在生成页手动填写“后端 API 地址”，无需重启前端。
 
 ### 6. 手动验证流程（MySQL）
 
 1. 页面选择 MySQL
 2. 上传 `/tmp/mysql-run.zip`（或 `/tmp/mysql-e2e.zip`）
-3. 点击“生成报告”，生成页默认填入 Token `ATI`；如覆盖了 `DBCHECK_API_TOKEN`，则改成对应值
+3. 登录时用户名任填、密码填 `DBCHECK_API_TOKEN` 的值（默认 `ATI`），然后点击“生成报告”
 4. 观察 WS 日志与进度，完成后点击下载，得到 `reports-<task_id>.zip`
 
 ### 7. 仅用 curl 验证 HTTP（可选）

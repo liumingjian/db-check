@@ -7,8 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  /* Avoid external font fetches (offline/intranet friendly). */
+  /* System stacks only: no font is fetched at build or run time, so builds
+     work on intranet machines. Inter / JetBrains Mono apply where installed. */
+  --font-sans: "Inter", "PingFang SC", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
     Consolas, "Liberation Mono", "Courier New", monospace;
   --color-sidebar-ring: var(--sidebar-ring);
@@ -51,42 +53,42 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Dark-first — the app is always dark */
+/* D3b (spec #19, UI): dark only, one electric-yellow accent. */
 :root {
-  --background: #020617;
-  --foreground: #F8FAFC;
-  --card: #0F172A;
-  --card-foreground: #F8FAFC;
-  --popover: #0F172A;
-  --popover-foreground: #F8FAFC;
-  --primary: #22C55E;
-  --primary-foreground: #020617;
-  --secondary: #1E293B;
-  --secondary-foreground: #F8FAFC;
-  --muted: #1E293B;
-  --muted-foreground: #94A3B8;
-  --accent: #3B82F6;
-  --accent-foreground: #F8FAFC;
-  --destructive: #EF4444;
-  --warning: #F59E0B;
-  --success: #22C55E;
-  --border: #334155;
-  --input: #334155;
-  --ring: #22C55E;
-  --chart-1: #22C55E;
-  --chart-2: #3B82F6;
-  --chart-3: #F59E0B;
-  --chart-4: #EF4444;
-  --chart-5: #8B5CF6;
+  --background: #0a0a0a;
+  --foreground: #ffffff;
+  --card: #1a1a1a;
+  --card-foreground: #ffffff;
+  --popover: #1a1a1a;
+  --popover-foreground: #ffffff;
+  --primary: #faff69;
+  --primary-foreground: #0a0a0a;
+  --secondary: #242424;
+  --secondary-foreground: #ffffff;
+  --muted: #242424;
+  --muted-foreground: #888888;
+  --accent: #242424;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+  --warning: #f59e0b;
+  --success: #22c55e;
+  --border: #2a2a2a;
+  --input: #2a2a2a;
+  --ring: #faff69;
+  --chart-1: #faff69;
+  --chart-2: #22c55e;
+  --chart-3: #f59e0b;
+  --chart-4: #ef4444;
+  --chart-5: #888888;
   --radius: 0.625rem;
-  --sidebar: #0F172A;
-  --sidebar-foreground: #F8FAFC;
-  --sidebar-primary: #22C55E;
-  --sidebar-primary-foreground: #020617;
-  --sidebar-accent: #1E293B;
-  --sidebar-accent-foreground: #F8FAFC;
-  --sidebar-border: #334155;
-  --sidebar-ring: #22C55E;
+  --sidebar: #0a0a0a;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #faff69;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #242424;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #1c1c1c;
+  --sidebar-ring: #faff69;
 }
 
 @layer base {
@@ -126,13 +128,3 @@
     scroll-behavior: auto;
   }
 }
-
-/* Nav tab active indicator entrance */
-@keyframes nav-indicator-in {
-  from { transform: scaleX(0); opacity: 1; }
-  to { transform: scaleX(1); opacity: 1; }
-}
-.nav-active-indicator {
-  animation: nav-indicator-in 0.2s ease-out;
-}
-
