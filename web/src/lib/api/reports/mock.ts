@@ -1,0 +1,106 @@
+import { requireSessionUser } from "@/lib/api/auth/mock";
+import { ApiError } from "@/lib/api/errors";
+import { delay, mockCollection, mockId, type MockContext } from "@/lib/api/mock-storage";
+import type { ReportEvent, ReportsApi } from "@/lib/api/reports/contract";
+import { seedReportTasks, type MockReportTask } from "@/lib/api/reports/seed";
+import type { LogLevel } from "@/lib/types";
+
+const SIMULATED_ITEM_LOGS: Array<{ level: LogLevel; message: string }> = [
+  { level: "info", message: "解析 manifest.json..." },
+  { level: "info", message: "校验 result.json schema..." },
+  { level: "success", message: "Schema 校验通过" },
+  { level: "info", message: "加载规则文件 rule.json..." },
+  { level: "info", message: "执行规则分析..." },
+  { level: "success", message: "生成 summary.json ✓" },
+  { level: "info", message: "构建 ReportView..." },
+  { level: "info", message: "渲染 report.docx..." },
+  { level: "success", message: "报告生成完成 ✓" },
+];
+
+export function createMockReports(ctx: MockContext): ReportsApi {
+  const tasks = mockReportTasks(ctx);
+
+  function requireTask(taskId: string): MockReportTask {
+    const task = tasks.read().find((t) => t.id === taskId);
+    if (!task) throw new ApiError("not_found", `报告任务不存在: ${taskId}`);
+    return task;
+  }
+
+  function markDone(taskId: string): void {
+    tasks.write(tasks.read().map((t) => (t.id === taskId ? { ...t, status: "done" } : t)));
+  }
+
+  /** Plays the backend's event stream for a task, then records it as done. */
+  async function simulate(task: MockReportTask, emit: (event: ReportEvent) => void, stopped: () => boolean) {
+    let seq = 0;
+    const total = task.fileNames.length;
+    const log = (level: LogLevel, message: string) =>
+      emit({ type: "log", seq: ++seq, timestamp: new Date().toISOString(), level, message });
+
+    for (const [index, fileName] of task.fileNames.entries()) {
+      log("info", `开始处理 ${fileName}`);
+      for (const step of SIMULATED_ITEM_LOGS) {
+        await delay(ctx.stepDelayMs);
+        if (stopped()) return;
+        log(step.level, `[${fileName}] ${step.message}`);
+      }
+      emit({ type: "progress", seq: ++seq, completed: index + 1, total, current_file: fileName });
+    }
+    log("success", total > 1 ? `全部 ${total} 份报告生成完成，正在打包...` : "报告生成完成");
+    await delay(ctx.stepDelayMs);
+    if (stopped()) return;
+    markDone(task.id);
+    emit({ type: "done", seq: ++seq, download_url: `/api/reports/download/${task.id}` });
+  }
+
+  return {
+    async generate(token, input) {
+      const submitter = requireSessionUser(ctx, token);
+      if (input.items.length === 0) throw new ApiError("invalid", "请至少上传一个 ZIP 文件");
+      const task: MockReportTask = {
+        id: mockId("mock-task"),
+        submitterId: submitter.id,
+        dbType: input.dbType,
+        fileNames: input.items.map((item) => item.zip.name),
+        status: "processing",
+        createdAt: new Date().toISOString(),
+      };
+      tasks.write([task, ...tasks.read()]);
+      return { taskId: task.id, total: task.fileNames.length };
+    },
+
+    watch(token, taskId, onEvent) {
+      let stopped = false;
+      const emit = (event: ReportEvent) => {
+        if (!stopped) onEvent(event);
+      };
+      (async () => {
+        try {
+          requireSessionUser(ctx, token);
+          await simulate(requireTask(taskId), emit, () => stopped);
+        } catch (e) {
+          emit({ type: "error", seq: 0, message: e instanceof Error ? e.message : String(e) });
+        }
+      })();
+      return () => {
+        stopped = true;
+      };
+    },
+
+    async download(token, taskId) {
+      requireSessionUser(ctx, token);
+      const task = requireTask(taskId);
+      if (task.status !== "done") throw new ApiError("invalid", "报告尚未生成完成");
+      const content = [
+        "DB-Check 巡检诊断报告集合 (mock)",
+        `任务编号: ${task.id}`,
+        `包含报告: ${task.fileNames.join(", ")}`,
+      ].join("\n");
+      return new Blob([content], { type: "application/zip" });
+    },
+  };
+}
+
+function mockReportTasks(ctx: MockContext) {
+  return mockCollection<MockReportTask[]>(ctx.storage, "report_tasks", seedReportTasks);
+}

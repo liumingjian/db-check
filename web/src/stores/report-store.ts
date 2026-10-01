@@ -9,9 +9,6 @@ import type {
 const MAX_LOG_LINES = 1000;
 
 interface ReportStore {
-  token: string | null;
-  setToken: (token: string | null) => void;
-
   /* Step 1 */
   dbType: DbType | null;
   setDbType: (type: DbType) => void;
@@ -55,7 +52,6 @@ function generateId(): string {
 }
 
 const INITIAL_STATE = {
-  token: null,
   dbType: null,
   zipFiles: [],
   awrFiles: {},
@@ -71,8 +67,6 @@ const INITIAL_STATE = {
 
 export const useReportStore = create<ReportStore>((set) => ({
   ...INITIAL_STATE,
-
-  setToken: (token) => set({ token }),
 
   setDbType: (type) => set({ dbType: type }),
 
@@ -140,5 +134,5 @@ export const useReportStore = create<ReportStore>((set) => ({
   setComplete: (v) => set({ isComplete: v }),
   setHasError: (v) => set({ hasError: v }),
 
-  reset: () => set((state) => ({ ...INITIAL_STATE, token: state.token })),
+  reset: () => set(INITIAL_STATE),
 }));

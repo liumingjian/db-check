@@ -1,3 +1,5 @@
+import { ApiError, type ApiErrorCode } from "@/lib/api/errors";
+
 const ENV_API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").trim();
 const ENV_API_PORT = (process.env.NEXT_PUBLIC_API_PORT ?? "8080").trim() || "8080";
 const API_BASE_STORAGE_KEY = "dbcheck_api_base";
@@ -86,4 +88,51 @@ export function wsUrl(path: string): string {
   u.search = "";
   u.hash = "";
   return u.toString();
+}
+
+function currentOrigin(): string {
+  if (typeof window === "undefined") return "unknown";
+  return window.location.origin;
+}
+
+function networkErrorMessage(action: string, cause: unknown): string {
+  return [
+    `${action}: 浏览器无法连接 db-web API。`,
+    `当前 API 地址: ${getApiBase() || "未配置"}`,
+    `当前页面 Origin: ${currentOrigin()}`,
+    "请确认 db-web 已启动、API Base 指向后端、ALLOWED_ORIGINS 包含当前页面 Origin。",
+    `原始错误: ${String(cause)}`,
+  ].join(" ");
+}
+
+function errorCodeFor(status: number): ApiErrorCode {
+  if (status === 401) return "unauthorized";
+  if (status === 403) return "forbidden";
+  if (status === 404) return "not_found";
+  if (status === 400 || status === 409 || status === 413) return "invalid";
+  return "failed";
+}
+
+/**
+ * Sends one request to db-web carrying the session token and maps transport
+ * and HTTP failures onto `ApiError`. `action` names the operation in messages.
+ */
+export async function httpRequest(
+  action: string,
+  path: string,
+  token: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  let resp: Response;
+  try {
+    resp = await fetch(apiUrl(path), {
+      ...init,
+      headers: { ...init.headers, Authorization: `Bearer ${token}` },
+    });
+  } catch (e) {
+    throw new ApiError("failed", networkErrorMessage(action, e));
+  }
+  if (resp.ok) return resp;
+  const text = (await resp.text().catch(() => "")).trim();
+  throw new ApiError(errorCodeFor(resp.status), `${action}: HTTP ${resp.status}${text ? ` ${text}` : ""}`);
 }

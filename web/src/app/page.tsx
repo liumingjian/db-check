@@ -10,7 +10,9 @@ import {
   User,
   LogOut,
   ChevronDown,
+  RotateCcw,
 } from "lucide-react";
+import { apiMode, resetMockData } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 import { useNavStore, type NavTab } from "@/stores/nav-store";
@@ -90,21 +92,38 @@ function UserMenu() {
                 {isAdmin ? "管理员" : "普通用户"}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                quickLogin(isAdmin ? "user" : "admin");
-                setOpen(false);
-              }}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors cursor-pointer mt-1"
-            >
-              {isAdmin ? (
-                <User className="h-3.5 w-3.5" />
-              ) : (
-                <Shield className="h-3.5 w-3.5" />
-              )}
-              切换为{isAdmin ? "普通用户" : "管理员"}
-            </button>
+            {apiMode === "mock" && (
+              <button
+                type="button"
+                onClick={() => {
+                  void quickLogin(isAdmin ? "user" : "admin");
+                  setOpen(false);
+                }}
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors cursor-pointer mt-1"
+              >
+                {isAdmin ? (
+                  <User className="h-3.5 w-3.5" />
+                ) : (
+                  <Shield className="h-3.5 w-3.5" />
+                )}
+                切换为{isAdmin ? "普通用户" : "管理员"}
+              </button>
+            )}
+            {resetMockData && (
+              <button
+                type="button"
+                onClick={() => {
+                  // Restart from the seed: mock data, the session and this tab's history all go.
+                  resetMockData?.();
+                  sessionStorage.clear();
+                  window.location.reload();
+                }}
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors cursor-pointer"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                重置 Mock 数据
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -178,9 +197,11 @@ export default function Home() {
 
           {/* Right: Mock badge + User */}
           <div className="flex items-center gap-3">
-            <span className="rounded-md bg-warning/10 px-2 py-0.5 text-[10px] font-semibold text-warning">
-              Mock
-            </span>
+            {apiMode === "mock" && (
+              <span className="rounded-md bg-warning/10 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                Mock
+              </span>
+            )}
             <UserMenu />
           </div>
         </div>

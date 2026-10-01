@@ -14,6 +14,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useHistoryStore, type HistoryTask } from "@/stores/history-store";
 import { useNavStore } from "@/stores/nav-store";
+import { useAuthStore } from "@/stores/auth-store";
+import { api } from "@/lib/api";
 
 function formatDate(iso: string): string {
   try {
@@ -33,7 +35,9 @@ export function HistoryPage() {
   const tasks = useHistoryStore((s) => s.tasks);
   const removeTask = useHistoryStore((s) => s.removeTask);
   const setActiveTab = useNavStore((s) => s.setActiveTab);
+  const token = useAuthStore((s) => s.token);
   const [search, setSearch] = useState("");
+  const [downloadError, setDownloadError] = useState("");
 
   const filtered = tasks.filter((t) => {
     if (!search.trim()) return true;
@@ -44,16 +48,20 @@ export function HistoryPage() {
     );
   });
 
-  function handleDownload(task: HistoryTask) {
-    // Generate a mock report download blob
-    const content = `DB-Check 巡检报告归档包\n任务ID: ${task.id}\n生成时间: ${task.createdAt}\n包含文件: ${task.fileNames.join(", ")}\n状态: ${task.status}\n`;
-    const blob = new Blob([content], { type: "application/zip" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `reports-${task.id}.zip`;
-    a.click();
-    URL.revokeObjectURL(url);
+  async function handleDownload(task: HistoryTask) {
+    if (!token) return;
+    setDownloadError("");
+    try {
+      const blob = await api.reports.download(token, task.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `reports-${task.id}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setDownloadError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   return (
@@ -75,6 +83,8 @@ export function HistoryPage() {
           新建巡检任务
         </button>
       </div>
+
+      {downloadError && <p className="text-sm text-destructive">{downloadError}</p>}
 
       {/* Filter bar */}
       <div className="flex items-center gap-3">

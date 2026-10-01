@@ -92,6 +92,8 @@ module.exports = {
           envOr("ALLOWED_ORIGINS", ""),
         ),
         // Used by Next.js in dev (and at build-time in prod if you run `npm run build` with it set).
+        // PM2 runs the web UI next to db-web, so it talks to the real backend.
+        NEXT_PUBLIC_API_MODE: envOr("NEXT_PUBLIC_API_MODE", "real"),
         NEXT_PUBLIC_API_BASE: envOr(
           "NEXT_PUBLIC_API_BASE",
           "",

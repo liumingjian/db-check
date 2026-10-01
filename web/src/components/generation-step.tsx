@@ -6,11 +6,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useHistoryStore } from "@/stores/history-store";
 import { useNavStore } from "@/stores/nav-store";
 import { GenerationProgress } from "@/components/generation-progress";
-import { wsUrl } from "@/lib/api";
-import { downloadReportBlob, generateReportTask } from "@/lib/report-api";
-import { mockGenerate, mockWebSocket } from "@/lib/mock-api";
-import { DEFAULT_API_TOKEN } from "@/lib/web-defaults";
-import type { WsMessage } from "@/lib/types";
+import { api, type ReportEvent } from "@/lib/api";
 import { ArrowRight, ClipboardList } from "lucide-react";
 
 function generateLogId(): string {
@@ -37,186 +33,96 @@ export function GenerationStep() {
   const setHasError = useReportStore((s) => s.setHasError);
   const reset = useReportStore((s) => s.reset);
 
-  const user = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.token);
   const addTask = useHistoryStore((s) => s.addTask);
   const setActiveTab = useNavStore((s) => s.setActiveTab);
 
   const startedRef = useRef(false);
-  const wsRef = useRef<WebSocket | null>(null);
   const lastLogSeqRef = useRef<number>(0);
   const [isDownloading, setDownloading] = useState(false);
 
   useEffect(() => {
-    if (startedRef.current) return;
+    if (startedRef.current || !token) return;
     startedRef.current = true;
 
-    const total = zipFiles.length || 1;
+    const total = zipFiles.length;
     const fileNames = zipFiles.map((z) => z.name);
     setGenerating(true);
     setProgress({ completed: 0, total, currentFile: "" });
 
-    const activeToken = user?.token || DEFAULT_API_TOKEN;
     let cancelled = false;
-    let mockCleanup: (() => void) | null = null;
+    let stopWatching: (() => void) | null = null;
 
-    function runMockEngine(reason?: string) {
-      if (cancelled) return;
-      if (reason) {
-        addLog({
-          id: generateLogId(),
-          timestamp: new Date().toISOString(),
-          level: "info",
-          message: `[自动切换] ${reason}，启用全流程模拟引擎`,
-        });
-      }
-
-      mockGenerate(total).then((resp) => {
-        if (cancelled) return;
-        setTaskId(resp.task_id);
-
-        mockCleanup = mockWebSocket(total, fileNames, (msg) => {
-          if (cancelled) return;
-          handleMessage(msg, resp.task_id);
-        });
-      });
+    function fail(message: string, taskId: string) {
+      addLog({ id: generateLogId(), timestamp: new Date().toISOString(), level: "error", message });
+      setGenerating(false);
+      setHasError(true);
+      setComplete(true);
+      addTask({ id: taskId, createdAt: new Date().toISOString(), totalFiles: total, fileNames, status: "failed" });
     }
 
-    function handleMessage(msg: WsMessage, currentTaskId: string) {
-      switch (msg.type) {
+    function handleEvent(event: ReportEvent, taskId: string) {
+      switch (event.type) {
         case "log":
-          if (msg.seq <= lastLogSeqRef.current) return;
-          lastLogSeqRef.current = msg.seq;
-          addLog({
-            id: generateLogId(),
-            timestamp: msg.timestamp,
-            level: msg.level,
-            message: msg.message,
-          });
+          if (event.seq <= lastLogSeqRef.current) return;
+          lastLogSeqRef.current = event.seq;
+          addLog({ id: generateLogId(), timestamp: event.timestamp, level: event.level, message: event.message });
           break;
         case "progress":
-          setProgress({
-            completed: msg.completed,
-            total: msg.total,
-            currentFile: msg.current_file,
-          });
+          setProgress({ completed: event.completed, total: event.total, currentFile: event.current_file });
           break;
         case "done":
-          setDownloadUrl(msg.download_url);
+          setDownloadUrl(event.download_url);
           setGenerating(false);
           setComplete(true);
-          // Auto record into history
-          addTask({
-            id: currentTaskId,
-            createdAt: new Date().toISOString(),
-            totalFiles: total,
-            fileNames: fileNames.length > 0 ? fileNames : ["metric-package.zip"],
-            status: "success",
-            downloadUrl: msg.download_url,
-          });
+          addTask({ id: taskId, createdAt: new Date().toISOString(), totalFiles: total, fileNames, status: "success" });
           break;
         case "error":
-          addLog({
-            id: generateLogId(),
-            timestamp: new Date().toISOString(),
-            level: "error",
-            message: msg.message,
-          });
-          setGenerating(false);
-          setHasError(true);
-          setComplete(true);
-          addTask({
-            id: currentTaskId,
-            createdAt: new Date().toISOString(),
-            totalFiles: total,
-            fileNames: fileNames.length > 0 ? fileNames : ["metric-package.zip"],
-            status: "failed",
-          });
+          fail(event.message, taskId);
           break;
       }
     }
 
-    // Try real backend first; seamlessly fallback to mock on error.
-    (async () => {
-      try {
-        if (zipFiles.length === 0) {
-          runMockEngine("未上传本地文件");
-          return;
-        }
-
-        const resp = await generateReportTask(activeToken, dbType, zipFiles, awrFiles);
-        if (cancelled) return;
-
-        setTaskId(resp.task_id);
-        connectWS(activeToken, resp.ws_url, resp.task_id);
-      } catch {
-        runMockEngine("后端服务未连接");
-      }
-    })();
-
-    function connectWS(tokenValue: string, wsPath: string, currentTaskId: string) {
-      try {
-        if (wsRef.current) wsRef.current.close();
-        const ws = new WebSocket(wsUrl(wsPath), [tokenValue]);
-        wsRef.current = ws;
-
-        ws.onmessage = (ev) => {
-          try {
-            const msg = JSON.parse(String(ev.data)) as WsMessage;
-            handleMessage(msg, currentTaskId);
-          } catch {
-            // Ignore parse err
-          }
-        };
-
-        ws.onerror = () => {
-          if (!cancelled) runMockEngine("WebSocket 连接中断");
-        };
-      } catch {
-        runMockEngine("WebSocket 初始化失败");
-      }
-    }
+    api.reports
+      .generate(token, {
+        dbType,
+        items: zipFiles.map((z) => ({ zip: z.file, diagnostics: awrFiles[z.id] ?? [] })),
+      })
+      .then(
+        ({ taskId: id }) => {
+          if (cancelled) return;
+          setTaskId(id);
+          stopWatching = api.reports.watch(token, id, (event) => handleEvent(event, id));
+        },
+        (e: unknown) => {
+          if (!cancelled) fail(e instanceof Error ? e.message : String(e), `failed-${Date.now()}`);
+        },
+      );
 
     return () => {
       cancelled = true;
-      if (mockCleanup) mockCleanup();
-      wsRef.current?.close();
+      stopWatching?.();
     };
-  }, [addTask, awrFiles, dbType, setComplete, setDownloadUrl, setGenerating, setHasError, setProgress, setTaskId, user?.token, zipFiles, addLog]);
+  }, [addTask, awrFiles, dbType, setComplete, setDownloadUrl, setGenerating, setHasError, setProgress, setTaskId, token, zipFiles, addLog]);
 
   async function onDownload() {
-    if (!downloadUrl) return;
+    if (!token || !taskId) return;
     setDownloading(true);
-
     try {
-      const activeToken = user?.token || DEFAULT_API_TOKEN;
-      if (downloadUrl.includes("mock")) {
-        // Mock download: generate valid zip blob
-        const mockContent = `DB-Check 巡检诊断报告集合\n任务编号: ${taskId || "mock-task"}\n生成时间: ${new Date().toISOString()}\n包含分析报告: report.docx, summary.json\n`;
-        const blob = new Blob([mockContent], { type: "application/zip" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `reports-${taskId || "result"}.zip`;
-        a.click();
-        URL.revokeObjectURL(url);
-      } else {
-        const blob = await downloadReportBlob(activeToken, downloadUrl);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `reports-${taskId || "result"}.zip`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-    } catch {
-      // Fallback
-      const fallbackBlob = new Blob(["DB-Check 报告集合"], { type: "application/zip" });
-      const url = URL.createObjectURL(fallbackBlob);
+      const blob = await api.reports.download(token, taskId);
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `reports-${taskId || "result"}.zip`;
+      a.download = `reports-${taskId}.zip`;
       a.click();
       URL.revokeObjectURL(url);
+    } catch (e) {
+      addLog({
+        id: generateLogId(),
+        timestamp: new Date().toISOString(),
+        level: "error",
+        message: e instanceof Error ? e.message : String(e),
+      });
     } finally {
       setDownloading(false);
     }

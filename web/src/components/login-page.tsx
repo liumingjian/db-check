@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Database, Shield, User } from "lucide-react";
+import { apiMode } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -13,14 +14,14 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  function handleLogin() {
+  async function handleLogin() {
     setError("");
     if (!username.trim() || !password.trim()) {
       setError("请输入用户名和密码");
       return;
     }
-    const ok = login(username.trim(), password.trim());
-    if (!ok) setError("用户名或密码错误");
+    const failure = await login(username.trim(), password.trim());
+    if (failure) setError(failure);
   }
 
   return (
@@ -94,45 +95,53 @@ export function LoginPage() {
           </button>
         </div>
 
-        {/* Quick login */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">快速进入</span>
-            <div className="h-px flex-1 bg-border" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => quickLogin("admin")}
-              className={cn(
-                "flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium",
-                "hover:bg-primary/10 hover:border-primary/40 transition-colors duration-200",
-                "cursor-pointer",
-              )}
-            >
-              <Shield className="h-4 w-4 text-primary" />
-              管理员
-            </button>
-            <button
-              type="button"
-              onClick={() => quickLogin("user")}
-              className={cn(
-                "flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium",
-                "hover:bg-accent/10 hover:border-accent/40 transition-colors duration-200",
-                "cursor-pointer",
-              )}
-            >
-              <User className="h-4 w-4 text-accent" />
-              普通用户
-            </button>
-          </div>
-
+        {apiMode === "real" && (
           <p className="text-center text-xs text-muted-foreground">
-            当前为 Mock 数据模式，快速进入使用预设账号
+            后端暂未提供账号体系，密码处请填写 db-web 的 API Token（DBCHECK_API_TOKEN）
           </p>
-        </div>
+        )}
+
+        {/* Quick login */}
+        {apiMode === "mock" && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs text-muted-foreground">快速进入</span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => quickLogin("admin")}
+                className={cn(
+                  "flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium",
+                  "hover:bg-primary/10 hover:border-primary/40 transition-colors duration-200",
+                  "cursor-pointer",
+                )}
+              >
+                <Shield className="h-4 w-4 text-primary" />
+                管理员
+              </button>
+              <button
+                type="button"
+                onClick={() => quickLogin("user")}
+                className={cn(
+                  "flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium",
+                  "hover:bg-accent/10 hover:border-accent/40 transition-colors duration-200",
+                  "cursor-pointer",
+                )}
+              >
+                <User className="h-4 w-4 text-accent" />
+                普通用户
+              </button>
+            </div>
+
+            <p className="text-center text-xs text-muted-foreground">
+              当前为 Mock 数据模式，快速进入使用预设账号
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

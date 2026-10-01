@@ -5,6 +5,5 @@ export interface User {
   username: string;
   displayName: string;
   role: UserRole;
-  token?: string;
 }
 

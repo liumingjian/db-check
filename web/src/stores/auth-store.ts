@@ -1,55 +1,57 @@
 import { create } from "zustand";
 import type { User, UserRole } from "@/lib/auth-types";
-import {
-  mockLogin,
-  mockGetCurrentUser,
-  mockQuickLogin,
-} from "@/lib/mock/mock-auth";
+import { api, ApiError, type Session } from "@/lib/api";
 
-const AUTH_TOKEN_KEY = "dbcheck_auth_token";
+const SESSION_KEY = "dbcheck_session";
 
 interface AuthStore {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
 
-  login: (username: string, password: string) => boolean;
-  quickLogin: (role: UserRole) => void;
+  /** Resolves to an error message, or null on success. */
+  login: (username: string, password: string) => Promise<string | null>;
+  /** Mock mode only: signs in with the seed account of a role. */
+  quickLogin: (role: UserRole) => Promise<void>;
   logout: () => void;
   hydrate: () => void;
 }
 
-export const useAuthStore = create<AuthStore>((set) => ({
-  user: null,
-  token: null,
-  isAuthenticated: false,
+export const useAuthStore = create<AuthStore>((set) => {
+  function start(session: Session) {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    set({ user: session.user, token: session.token, isAuthenticated: true });
+  }
 
-  login: (username, password) => {
-    const result = mockLogin(username, password);
-    if (!result) return false;
-    sessionStorage.setItem(AUTH_TOKEN_KEY, result.token);
-    set({ user: result.user, token: result.token, isAuthenticated: true });
-    return true;
-  },
+  return {
+    user: null,
+    token: null,
+    isAuthenticated: false,
 
-  quickLogin: (role) => {
-    const result = mockQuickLogin(role);
-    sessionStorage.setItem(AUTH_TOKEN_KEY, result.token);
-    set({ user: result.user, token: result.token, isAuthenticated: true });
-  },
+    login: async (username, password) => {
+      try {
+        start(await api.auth.signIn(username, password));
+        return null;
+      } catch (e) {
+        if (e instanceof ApiError) return e.message;
+        throw e;
+      }
+    },
 
-  logout: () => {
-    sessionStorage.removeItem(AUTH_TOKEN_KEY);
-    set({ user: null, token: null, isAuthenticated: false });
-  },
+    // Seed accounts use the role name as username and password.
+    quickLogin: async (role) => start(await api.auth.signIn(role, role)),
 
-  hydrate: () => {
-    if (typeof window === "undefined") return;
-    const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
-    if (!token) return;
-    const user = mockGetCurrentUser(token);
-    if (user) {
-      set({ user, token, isAuthenticated: true });
-    }
-  },
-}));
+    logout: () => {
+      sessionStorage.removeItem(SESSION_KEY);
+      set({ user: null, token: null, isAuthenticated: false });
+    },
+
+    hydrate: () => {
+      if (typeof window === "undefined") return;
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (!raw) return;
+      const session = JSON.parse(raw) as Session;
+      set({ user: session.user, token: session.token, isAuthenticated: true });
+    },
+  };
+});
