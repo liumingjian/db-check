@@ -64,6 +64,21 @@ type Task struct {
 	Items     []Item
 }
 
+// RetentionDays is how long a report task keeps its files (ADR 0003):
+// that many days after its creation the task expires (已过期). Its uploaded
+// inputs, extracted data, and generated reports are deleted; its record
+// stays forever.
+const RetentionDays = 30
+
+// Retention is RetentionDays as a duration.
+const Retention = RetentionDays * 24 * time.Hour
+
+// Expired reports whether the task is past retention at now.
+func (t Task) Expired(now time.Time) bool { return !now.Before(t.CreatedAt.Add(Retention)) }
+
+// ErrExpired refuses to download an expired task's reports.
+var ErrExpired = apierr.Conflict(fmt.Sprintf("报告已超过 %d 天保留期，文件已清理", RetentionDays))
+
 // ErrNotFound answers a task that does not exist or that the caller may not see.
 var ErrNotFound = apierr.NotFound("报告任务不存在")
 

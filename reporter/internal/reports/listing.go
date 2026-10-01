@@ -3,6 +3,7 @@ package reports
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"dbcheck/reporter/internal/releases"
 	"dbcheck/reporter/internal/store"
@@ -17,7 +18,7 @@ type Listed struct {
 	Submitter Submitter `json:"submitter"`
 	Status    string    `json:"status"`
 	CreatedAt string    `json:"createdAt"`
-	// Expired is not computed yet: always false.
+	// Expired: the task is past retention and its files are gone or going.
 	Expired bool         `json:"expired"`
 	Items   []ListedItem `json:"items"`
 }
@@ -71,10 +72,10 @@ type Filter struct {
 	TaskID      string
 }
 
-// List returns the tasks matching f, newest first (among tasks created at
-// the same instant, the last submitted first). Filtering runs in SQL; lists
-// are not paginated.
-func List(ctx context.Context, q store.Querier, f Filter) ([]Listed, error) {
+// List returns the tasks matching f as of now, newest first (among tasks
+// created at the same instant, the last submitted first). Filtering runs in
+// SQL; lists are not paginated.
+func List(ctx context.Context, q store.Querier, f Filter, now time.Time) ([]Listed, error) {
 	tasks, err := listTasks(ctx, q, f)
 	if err != nil {
 		return nil, err
@@ -84,18 +85,18 @@ func List(ctx context.Context, q store.Querier, f Filter) ([]Listed, error) {
 	}
 	out := make([]Listed, 0, len(tasks))
 	for _, t := range tasks {
-		out = append(out, toListed(t))
+		out = append(out, toListed(t, now))
 	}
 	return out, nil
 }
 
-// Read returns one task as the console reads it, if u may see it;
+// Read returns one task as the console reads it at now, if u may see it;
 // ErrNotFound otherwise.
-func Read(ctx context.Context, q store.Querier, id string, u users.User) (Listed, error) {
+func Read(ctx context.Context, q store.Querier, id string, u users.User, now time.Time) (Listed, error) {
 	if id == "" { // an empty TaskID would match every task
 		return Listed{}, ErrNotFound
 	}
-	tasks, err := List(ctx, q, Filter{TaskID: id})
+	tasks, err := List(ctx, q, Filter{TaskID: id}, now)
 	if err != nil {
 		return Listed{}, err
 	}
@@ -105,13 +106,14 @@ func Read(ctx context.Context, q store.Querier, id string, u users.User) (Listed
 	return tasks[0], nil
 }
 
-// toListed maps a stored task onto the contract.
-func toListed(t taskRow) Listed {
+// toListed maps a stored task onto the contract as of now.
+func toListed(t taskRow, now time.Time) Listed {
 	out := Listed{
 		ID:        t.ID,
 		Submitter: Submitter{ID: t.SubmitterID, DisplayName: t.SubmitterName},
 		Status:    t.Status.Wire(),
 		CreatedAt: store.FormatTime(t.CreatedAt),
+		Expired:   t.Expired(now),
 		Items:     make([]ListedItem, 0, len(t.Items)),
 	}
 	for i, it := range t.Items {

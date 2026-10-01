@@ -91,7 +91,7 @@ func (l *reportLifecycle) runLegacy(ctx context.Context, queued queuedTask) {
 	}
 	task.Status = TaskDone
 	task.CurrentFile = ""
-	if err := buildResultZip(resultZipPath(taskDir, task.ID), results, queued.Items); err != nil {
+	if err := buildResultZip(ResultZipPath(taskDir, task.ID), results, queued.Items); err != nil {
 		task.Status = TaskFailed
 		task.Error = err.Error()
 	}

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -226,6 +227,30 @@ func TestResetSeedsTheFinishedReportTasksOnly(t *testing.T) {
 	}
 	if disabled := byID["task-seed-009"]; disabled.Submitter != (reports.Submitter{ID: "u-disabled-001", DisplayName: "王五"}) {
 		t.Fatalf("task-seed-009 submitter = %+v", disabled.Submitter)
+	}
+}
+
+func TestSeededDoneTasksDownloadUntilTheyExpire(t *testing.T) {
+	c := newTestServer(t)
+	c.expect(c.do(http.MethodPost, "/test/reset", "", map[string]string{"now": seedNow}), http.StatusNoContent)
+	admin := c.signIn("admin")
+
+	rec := c.do(http.MethodGet, "/api/reports/download/task-seed-001", admin, nil)
+	c.expect(rec, http.StatusOK)
+	if _, err := zip.NewReader(bytes.NewReader(rec.Body.Bytes()), int64(rec.Body.Len())); err != nil {
+		t.Fatalf("task-seed-001's download is not a ZIP: %v", err)
+	}
+
+	rec = c.do(http.MethodGet, "/api/reports/tasks/task-seed-008", admin, nil)
+	c.expect(rec, http.StatusOK)
+	var expired reports.Listed
+	if err := json.Unmarshal(rec.Body.Bytes(), &expired); err != nil || !expired.Expired {
+		t.Fatalf("task-seed-008, 38 days old = %+v (%v), want expired", expired, err)
+	}
+	rec = c.do(http.MethodGet, "/api/reports/download/task-seed-008", admin, nil)
+	c.expect(rec, http.StatusConflict)
+	if !strings.Contains(rec.Body.String(), "保留期") {
+		t.Fatalf("expired download answered %s", rec.Body)
 	}
 }
 

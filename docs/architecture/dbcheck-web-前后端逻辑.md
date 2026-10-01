@@ -94,6 +94,8 @@ CORS/Origin allowlist：
   reports-<task_id>.zip   # 对外下载的聚合包（只包含成功 item 的 docx）
 ```
 
+保留期（ADR 0003，`reporter/internal/web/report_retention.go`）：任务创建满 30 天（`reports.RetentionDays`）即已过期（expired）。此后下载返回 409 `invalid`，保留循环每小时删除已结束且已过期任务的整个 `tasks/<task_id>/` 目录；SQLite 中的任务记录永久保留。旧版 task.json 任务仍按 `--retention-ttl`（默认 24h）清理。
+
 ### 2.4 Pipeline：从 ZIP 到 report.docx
 
 实现位置：`reporter/internal/web/pipeline.go`
