@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DbCheckApi } from "@/lib/api/contract";
-import { contractImplementations, contractImplementationsWithReal } from "@/lib/api/testing";
+import { contractImplementationsWithReal } from "@/lib/api/testing";
 
 async function adminToken(api: DbCheckApi) {
   return (await api.auth.signIn("admin", "admin")).token;
@@ -97,8 +97,8 @@ describe.each(contractImplementationsWithReal)("%s users contract: account admin
   });
 });
 
-/** Password reset and change; mock only until db-web serves them (#38). */
-describe.each(contractImplementations)("%s users contract: passwords", (_name, makeApi) => {
+/** Password reset, the forced change after it, and the voluntary change. */
+describe.each(contractImplementationsWithReal)("%s users contract: passwords", (_name, makeApi) => {
   it("refuses a password reset to an engineer", async () => {
     const api = makeApi();
     const { token } = await api.auth.signIn("user", "user");
@@ -118,17 +118,23 @@ describe.each(contractImplementations)("%s users contract: passwords", (_name, m
       await expect(api.auth.signIn("user", temporaryPassword)).resolves.toMatchObject({ user: { mustChangePassword: true } });
     });
 
-    it("holds every session of a reset user to their own account until they change the password", async () => {
+    it("ends every session of the reset user", async () => {
       const api = makeApi();
       const { token: earlier } = await api.auth.signIn("user", "user");
+      await api.users.resetPassword(await adminToken(api), "u-user-001");
+
+      await expect(api.auth.currentUser(earlier)).rejects.toMatchObject({ code: "unauthorized" });
+      await expect(api.users.myProfile(earlier)).rejects.toMatchObject({ code: "unauthorized" });
+    });
+
+    it("holds a reset user's new session to their own account until they change the password", async () => {
+      const api = makeApi();
       const { temporaryPassword } = await api.users.resetPassword(await adminToken(api), "u-user-001");
       const { token } = await api.auth.signIn("user", temporaryPassword);
 
-      for (const t of [earlier, token]) {
-        await expect(api.auth.currentUser(t)).resolves.toMatchObject({ mustChangePassword: true });
-        await expect(api.users.myProfile(t)).resolves.toMatchObject({ username: "user" });
-        await expect(api.releases.list(t)).rejects.toMatchObject({ code: "forbidden" });
-      }
+      await expect(api.auth.currentUser(token)).resolves.toMatchObject({ mustChangePassword: true });
+      await expect(api.users.myProfile(token)).resolves.toMatchObject({ username: "user" });
+      await expect(api.releases.list(token)).rejects.toMatchObject({ code: "forbidden" });
     });
 
     it("ends the forced change once the user sets a new password", async () => {

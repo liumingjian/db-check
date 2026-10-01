@@ -52,6 +52,40 @@ func (h *apiHandler) registerUsersRoutes(mux *http.ServeMux) {
 			})
 		}))
 	}
+	mux.HandleFunc("POST /api/users/{id}/reset-password", h.admin(h.handleResetPassword))
+	// signedIn, not active: a forced change is the one thing a user with a
+	// temporary password may do (package users checks the voluntary case).
+	mux.HandleFunc("POST /api/users/me/password", h.signedIn(h.handleChangePassword))
+}
+
+// handleResetPassword answers the contract's PasswordReset: the profile and
+// the temporary password, shown to the admin once.
+func (h *apiHandler) handleResetPassword(w http.ResponseWriter, r *http.Request, admin users.User) {
+	var reset struct {
+		Profile           users.Profile `json:"profile"`
+		TemporaryPassword string        `json:"temporaryPassword"`
+	}
+	err := h.platform.DB.Tx(r.Context(), func(tx store.Querier) error {
+		var err error
+		reset.Profile, reset.TemporaryPassword, err = users.ResetPassword(r.Context(), tx, admin, r.PathValue("id"), h.platform.Now())
+		return err
+	})
+	if err != nil {
+		h.writeAPIError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, reset)
+}
+
+func (h *apiHandler) handleChangePassword(w http.ResponseWriter, r *http.Request, u users.User) {
+	var body struct{ NewPassword, CurrentPassword string }
+	if err := readJSON(r, &body); err != nil {
+		h.writeAPIError(w, err)
+		return
+	}
+	h.answerProfile(w, r, func(ctx context.Context, tx store.Querier, _ time.Time) (users.Profile, error) {
+		return users.ChangePassword(ctx, tx, u, body.NewPassword, body.CurrentPassword)
+	})
 }
 
 // answerProfile runs op in one transaction and answers the profile it returns.
