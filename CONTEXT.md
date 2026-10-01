@@ -29,7 +29,7 @@ _Avoid_: Download log, access log
 ### Reports
 
 **Report task (报告)**:
-A submitted batch of report items with a collective outcome and, when report generation succeeds, a downloadable collection of reports. A task belongs to the user who submitted it. A task can contain both successful and failed items.
+A submitted batch of report items with a collective outcome and, when report generation succeeds, a downloadable collection of reports. A task belongs to the user who submitted it. A task can contain both successful and failed items. After 30 days a task **expires (已过期)**: its uploaded inputs and generated reports are deleted, and its record stays.
 _Avoid_: Report item when referring to the whole submission
 
 **Report item**:

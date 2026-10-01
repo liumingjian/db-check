@@ -18,3 +18,4 @@ Engineers used to receive the collector by offline hand-off, so nobody could tel
 - The platform exposes a publish API authenticated by a CI machine credential, separate from user sign-in.
 - CI fails the release when the tag disagrees with the collector's built-in version.
 - Moving the platform out of reach of the intranet runner means revisiting this ADR.
+- Until the CI phase lands, a person runs the same publish script CI will call, with the same credential. The script refuses unless HEAD is exactly on a `vX.Y.Z` tag that matches the collector's built-in version, so every package still traces to a tag and commit.
