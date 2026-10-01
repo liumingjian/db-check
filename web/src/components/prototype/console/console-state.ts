@@ -77,7 +77,7 @@ const PLATFORMS = [
   { platform: "linux-amd64", osLabel: "Linux", archLabel: "x86_64" },
   { platform: "linux-arm64", osLabel: "Linux", archLabel: "ARM64" },
   { platform: "windows-amd64", osLabel: "Windows", archLabel: "x86_64" },
-  { platform: "darwin-arm64", osLabel: "macOS", archLabel: "ARM64" },
+  { platform: "windows-arm64", osLabel: "Windows", archLabel: "ARM64" },
 ];
 
 function fakeSha(seed: string): string {
@@ -121,7 +121,7 @@ const SEED_DOWNLOADS: DownloadRecord[] = [
   { id: "d3", userId: "u-zhang", version: "1.1.0", platform: "linux-amd64", at: "2026-08-25T10:20:00" },
   { id: "d4", userId: "u-zhang", version: "1.2.0", platform: "linux-amd64", at: "2026-09-11T08:45:00" },
   { id: "d5", userId: "u-zhang", version: "1.2.0", platform: "windows-amd64", at: "2026-09-12T16:30:00" },
-  { id: "d6", userId: "u-admin", version: "1.3.0-rc1", platform: "darwin-arm64", at: "2026-09-29T09:00:00" },
+  { id: "d6", userId: "u-admin", version: "1.3.0-rc1", platform: "windows-arm64", at: "2026-09-29T09:00:00" },
   { id: "d7", userId: "u-admin", version: "1.2.0", platform: "linux-arm64", at: "2026-09-15T11:11:00" },
 ];
 
@@ -221,7 +221,7 @@ export function detectPlatform(): string {
   if (typeof navigator === "undefined") return "linux-amd64";
   const ua = navigator.userAgent;
   if (/Windows/i.test(ua)) return "windows-amd64";
-  if (/Mac OS X|Macintosh/i.test(ua)) return "darwin-arm64";
+  if (/Mac OS X|Macintosh/i.test(ua)) return "linux-amd64";
   if (/aarch64|arm64/i.test(ua)) return "linux-arm64";
   return "linux-amd64";
 }

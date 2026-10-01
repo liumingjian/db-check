@@ -1,6 +1,8 @@
 // PROTOTYPE — throwaway. Switcher for the console layout variants.
 // Round 1 (A sidebar, C master-detail) lost to B; they remain on this
-// branch's first commit. Round 2 refines B into B2 (light) and B3 (dark).
+// branch's first commit. Round 2 refined B into B2/B3; dark won but the
+// layout felt unchanged. Round 3 (D1-D3) drops that layout for three dark
+// directions borrowed from getdesign.md (Raycast, Vercel, ClickHouse).
 "use client";
 
 import { useEffect, useState } from "react";
@@ -18,6 +20,9 @@ import {
 } from "./console-state";
 import { VariantB } from "./variant-b";
 import { B2_SCREENS, VariantB2 } from "./variant-b2";
+import { VariantD1 } from "./variant-d1-palette";
+import { VariantD2 } from "./variant-d2-pipeline";
+import { VariantD3 } from "./variant-d3-voltage";
 
 export interface VariantProps {
   state: ConsoleState;
@@ -31,14 +36,16 @@ const VARIANTS: {
   Component: (p: VariantProps) => React.ReactNode;
   screens: (role: Role) => { key: Screen; label: string }[];
 }[] = [
+  { key: "D1", name: "指令台 · Raycast", Component: VariantD1, screens: B2_SCREENS },
+  { key: "D2", name: "流水线 · Vercel", Component: VariantD2, screens: B2_SCREENS },
+  { key: "D3", name: "电压 · ClickHouse", Component: VariantD3, screens: B2_SCREENS },
+  { key: "B3", name: "第二轮深色（对照）", Component: (p) => <VariantB2 {...p} tone="dark" />, screens: B2_SCREENS },
   {
     key: "B",
     name: "第一轮 B（对照）",
     Component: VariantB,
     screens: (r) => screensFor(r).map((k) => ({ key: k, label: SCREEN_LABEL[k] })),
   },
-  { key: "B2", name: "精修 · 浅色", Component: (p) => <VariantB2 {...p} tone="light" />, screens: B2_SCREENS },
-  { key: "B3", name: "精修 · 深色", Component: (p) => <VariantB2 {...p} tone="dark" />, screens: B2_SCREENS },
 ];
 
 const PERSONAS: { key: Persona; label: string }[] = [
@@ -52,7 +59,7 @@ export function ConsolePrototype() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const current = Math.max(0, VARIANTS.findIndex((v) => v.key === (params.get("variant") ?? "B2")));
+  const current = Math.max(0, VARIANTS.findIndex((v) => v.key === (params.get("variant") ?? "D1")));
   const [persona, setPersona] = useState<Persona>("engineer");
   const [screen, setScreen] = useState<Screen>("new-report");
   const state = useConsoleState(persona);
