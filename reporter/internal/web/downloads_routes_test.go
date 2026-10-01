@@ -89,7 +89,7 @@ func TestDownloadRefusesHiddenOrUnknownPackagesAndRecordsNothing(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			f := newDownloadFixture(t)
 			rec := f.download(f.token(c.user), c.version, c.platform)
-			expectAPIError(t, rec, http.StatusNotFound, "not_found", c.version)
+			expectAPIError(t, rec, apiError{http.StatusNotFound, "not_found", c.version})
 			if list := f.records(""); len(list) != 0 {
 				t.Fatalf("a refused download wrote records: %+v", list)
 			}
@@ -112,15 +112,15 @@ func TestAdminDownloadsEveryReleaseStatus(t *testing.T) {
 
 func TestDownloadNeedsAnActiveSession(t *testing.T) {
 	f := newDownloadFixture(t)
-	expectAPIError(t, f.download("", "1.2.0", "linux-amd64"), http.StatusUnauthorized, "unauthorized", "")
+	expectAPIError(t, f.download("", "1.2.0", "linux-amd64"), apiError{http.StatusUnauthorized, "unauthorized", ""})
 	f.addUser("lisi", users.RoleEngineer, users.StatusPending)
-	expectAPIError(t, f.download(f.token("lisi"), "1.2.0", "linux-amd64"), http.StatusForbidden, "forbidden", "未启用")
+	expectAPIError(t, f.download(f.token("lisi"), "1.2.0", "linux-amd64"), apiError{http.StatusForbidden, "forbidden", "未启用"})
 }
 
 func TestDownloadRecordsAreForAdminsOnly(t *testing.T) {
 	f := newDownloadFixture(t)
 	rec := f.do(http.MethodGet, "/api/downloads", f.token("user"), nil)
-	expectAPIError(t, rec, http.StatusForbidden, "forbidden", "管理员")
+	expectAPIError(t, rec, apiError{http.StatusForbidden, "forbidden", "管理员"})
 }
 
 func TestDownloadRecordsFilterNewestFirst(t *testing.T) {
@@ -168,5 +168,5 @@ func TestDownloadRecordsFilterNewestFirst(t *testing.T) {
 func TestDownloadRecordsRefuseAMalformedTime(t *testing.T) {
 	f := newDownloadFixture(t)
 	rec := f.do(http.MethodGet, "/api/downloads?from=yesterday", f.token("admin"), nil)
-	expectAPIError(t, rec, http.StatusBadRequest, "invalid", "yesterday")
+	expectAPIError(t, rec, apiError{http.StatusBadRequest, "invalid", "yesterday"})
 }

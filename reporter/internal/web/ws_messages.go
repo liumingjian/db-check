@@ -16,7 +16,7 @@ type wsProgressMessage struct {
 
 type wsDoneMessage struct {
 	Type        string `json:"type"`
-	DownloadURL string `json:"download_url"`
+	DownloadURL string `json:"download_url,omitempty"` // absent once the task has expired
 }
 
 type wsErrorMessage struct {

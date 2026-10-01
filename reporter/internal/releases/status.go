@@ -39,20 +39,28 @@ var transitions = map[Action]struct {
 // ErrUnknownAction is returned for an action outside the status table.
 var ErrUnknownAction = apierr.NotFound("不支持的版本操作")
 
+// StatusChange is an action on one release; Reason is for revoke only.
+type StatusChange struct {
+	Version string
+	Action  Action
+	Reason  string
+}
+
 // ChangeStatus applies one row of the status table to a release. Promoting
 // demotes the previous latest release; revoking needs a reason, kept as the
 // revocation reason; leaving the platform without a latest release is
 // valid. Run it in a transaction: the demotion and the change go together.
-func ChangeStatus(ctx context.Context, q store.Querier, version string, action Action, reason string) error {
-	t, ok := transitions[action]
+func ChangeStatus(ctx context.Context, q store.Querier, c StatusChange) error {
+	version := c.Version
+	t, ok := transitions[c.Action]
 	if !ok {
 		return ErrUnknownAction
 	}
-	reason = strings.TrimSpace(reason)
-	if action == ActionRevoke && reason == "" {
+	reason := strings.TrimSpace(c.Reason)
+	if c.Action == ActionRevoke && reason == "" {
 		return apierr.Invalid("请填写撤回原因")
 	}
-	if action != ActionRevoke {
+	if c.Action != ActionRevoke {
 		reason = ""
 	}
 
@@ -72,6 +80,6 @@ func ChangeStatus(ctx context.Context, q store.Querier, version string, action A
 			return err
 		}
 	}
-	_, err = q.ExecContext(ctx, "UPDATE releases SET status = ?, revoke_reason = ? WHERE version = ?", t.to, nullable(reason), version)
+	_, err = q.ExecContext(ctx, "UPDATE releases SET status = ?, revoke_reason = ? WHERE version = ?", t.to, store.NullIfEmpty(reason), version)
 	return err
 }

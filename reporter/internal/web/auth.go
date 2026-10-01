@@ -48,7 +48,7 @@ func (h *apiHandler) active(next authedHandler) http.HandlerFunc {
 // admin admits active admins.
 func (h *apiHandler) admin(next authedHandler) http.HandlerFunc {
 	return h.active(func(w http.ResponseWriter, r *http.Request, u users.User) {
-		if u.Role != users.RoleAdmin {
+		if !u.IsAdmin() {
 			h.writeAPIError(w, apierr.Forbidden("需要管理员权限"))
 			return
 		}

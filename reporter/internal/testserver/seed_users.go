@@ -78,7 +78,7 @@ func seedActions(ctx context.Context, tx store.Querier, seed []seedUser, now tim
 			if !ok {
 				return fmt.Errorf("seed fixture: %s's %s action names unknown admin %q", u.Username, a.Action, a.By)
 			}
-			if err := users.RecordAction(ctx, tx, u.ID, a.Action, byID, at); err != nil {
+			if err := users.RecordAction(ctx, tx, users.ActionRecord{UserID: u.ID, Action: a.Action, ByID: byID, At: at}); err != nil {
 				return err
 			}
 		}

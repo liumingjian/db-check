@@ -32,59 +32,78 @@ func ReadCollectorZip(zipPath string) (CollectorZip, error) {
 		return CollectorZip{}, errors.New("不是有效的 ZIP 文件")
 	}
 	defer r.Close()
+	run, err := findRun(r.File)
+	if err != nil {
+		return CollectorZip{}, err
+	}
+	dbType, err := run.dbType()
+	if err != nil {
+		return CollectorZip{}, err
+	}
+	out := CollectorZip{DBType: dbType}
+	if v, ok := run.meta["collector_version"].(string); ok && strings.TrimSpace(v) != "" {
+		v = strings.TrimSpace(v)
+		out.CollectorVersion = &v
+	}
+	return out, nil
+}
 
-	entries := make(map[string]*zip.File, len(r.File))
+// collectorRun is the run inside a collector ZIP: its entries, the directory
+// of its manifest, the manifest, and the meta block of the result JSON the
+// manifest names (nil when missing).
+type collectorRun struct {
+	entries  map[string]*zip.File
+	dir      string
+	manifest map[string]any
+	meta     map[string]any
+}
+
+// findRun locates the one manifest.json and reads it and its result's meta.
+func findRun(files []*zip.File) (collectorRun, error) {
+	run := collectorRun{entries: make(map[string]*zip.File, len(files))}
 	var manifests []string
-	for _, f := range r.File {
+	for _, f := range files {
 		name := cleanZipPath(f.Name)
-		entries[name] = f
+		run.entries[name] = f
 		if !isSkipped(name) && path.Base(name) == "manifest.json" {
 			manifests = append(manifests, name)
 		}
 	}
 	switch len(manifests) {
 	case 0:
-		return CollectorZip{}, errors.New("ZIP 中没有 manifest.json")
+		return collectorRun{}, errors.New("ZIP 中没有 manifest.json")
 	case 1:
 	default:
-		return CollectorZip{}, fmt.Errorf("ZIP 中有 %d 个 manifest.json", len(manifests))
+		return collectorRun{}, fmt.Errorf("ZIP 中有 %d 个 manifest.json", len(manifests))
 	}
+	if run.manifest = readObject(run.entries[manifests[0]]); run.manifest == nil {
+		return collectorRun{}, errors.New("manifest.json 无法解析")
+	}
+	run.dir = dirOf(manifests[0])
+	if name, ok := asObject(run.manifest["artifacts"])["result"].(string); ok && name != "" {
+		run.meta = asObject(readObject(run.entries[cleanZipPath(run.dir+name)])["meta"])
+	}
+	return run, nil
+}
 
-	manifest := readObject(entries[manifests[0]])
-	if manifest == nil {
-		return CollectorZip{}, errors.New("manifest.json 无法解析")
+// dbType is the manifest's db_type or, when it has no usable one, the result
+// meta's, as the launcher falls back.
+func (run collectorRun) dbType() (string, error) {
+	if dbType := normalizeDBType(run.manifest["db_type"]); dbType != "" {
+		return dbType, nil
 	}
-	runDir := dirOf(manifests[0])
-	var res map[string]any
-	if name, ok := asObject(manifest["artifacts"])["result"].(string); ok && name != "" {
-		res = readObject(entries[cleanZipPath(runDir+name)])
+	fallback := run.meta
+	if fallback == nil {
+		fallback = asObject(readObject(run.entries[run.dir+"result.json"])["meta"])
 	}
-	meta := asObject(res["meta"])
-
-	dbType := normalizeDBType(manifest["db_type"])
-	if dbType == "" {
-		// The launcher falls back to result.json's meta when the manifest
-		// has no usable db_type.
-		fallback := meta
-		if fallback == nil {
-			fallback = asObject(readObject(entries[runDir+"result.json"])["meta"])
-		}
-		dbType = normalizeDBType(fallback["db_type"])
+	if dbType := normalizeDBType(fallback["db_type"]); dbType != "" {
+		return dbType, nil
 	}
-	if dbType == "" {
-		raw, present := manifest["db_type"]
-		if !present {
-			return CollectorZip{}, errors.New("manifest.json 缺少 db_type")
-		}
-		return CollectorZip{}, fmt.Errorf("不支持的数据库类型：%v", raw)
+	raw, present := run.manifest["db_type"]
+	if !present {
+		return "", errors.New("manifest.json 缺少 db_type")
 	}
-
-	out := CollectorZip{DBType: dbType}
-	if v, ok := meta["collector_version"].(string); ok && strings.TrimSpace(v) != "" {
-		v = strings.TrimSpace(v)
-		out.CollectorVersion = &v
-	}
-	return out, nil
+	return "", fmt.Errorf("不支持的数据库类型：%v", raw)
 }
 
 // cleanZipPath mirrors the browser's cleanPath: backslashes become slashes

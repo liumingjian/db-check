@@ -109,9 +109,9 @@ func TestAllReportsIsForAdminsAndNarrowsBySubmitterDisabledUsersIncluded(t *test
 		t.Fatalf("an unknown submitter's reports = %#v, want []", got)
 	}
 
-	expectAPIError(t, get(f.handler, "/api/reports", user), http.StatusForbidden, "forbidden", "")
-	expectAPIError(t, get(f.handler, "/api/reports?submitterId=u-user", user), http.StatusForbidden, "forbidden", "")
-	expectAPIError(t, get(f.handler, "/api/reports", ""), http.StatusUnauthorized, "unauthorized", "")
+	expectAPIError(t, get(f.handler, "/api/reports", user), apiError{http.StatusForbidden, "forbidden", ""})
+	expectAPIError(t, get(f.handler, "/api/reports?submitterId=u-user", user), apiError{http.StatusForbidden, "forbidden", ""})
+	expectAPIError(t, get(f.handler, "/api/reports", ""), apiError{http.StatusUnauthorized, "unauthorized", ""})
 }
 
 func TestGetTaskShowsATaskToItsSubmitterAndAdminsOnly(t *testing.T) {
@@ -127,6 +127,6 @@ func TestGetTaskShowsATaskToItsSubmitterAndAdminsOnly(t *testing.T) {
 			t.Fatalf("getTask: %d %+v", rec.Code, task)
 		}
 	}
-	expectAPIError(t, get(f.handler, "/api/reports/tasks/"+taskID, other), http.StatusNotFound, "not_found", "报告任务不存在")
-	expectAPIError(t, get(f.handler, "/api/reports/tasks/no-such-task", user), http.StatusNotFound, "not_found", "报告任务不存在")
+	expectAPIError(t, get(f.handler, "/api/reports/tasks/"+taskID, other), apiError{http.StatusNotFound, "not_found", "报告任务不存在"})
+	expectAPIError(t, get(f.handler, "/api/reports/tasks/no-such-task", user), apiError{http.StatusNotFound, "not_found", "报告任务不存在"})
 }

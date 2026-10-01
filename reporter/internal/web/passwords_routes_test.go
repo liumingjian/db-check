@@ -41,9 +41,9 @@ func TestResetPasswordShowsATemporaryPasswordOnceAndEndsEverySession(t *testing.
 	}
 
 	for _, token := range []string{first, second} {
-		expectAPIError(t, f.do(http.MethodGet, "/api/auth/me", token, nil), http.StatusUnauthorized, "unauthorized", "")
+		expectAPIError(t, f.do(http.MethodGet, "/api/auth/me", token, nil), apiError{http.StatusUnauthorized, "unauthorized", ""})
 	}
-	expectAPIError(t, f.signIn("user", "user"), http.StatusUnauthorized, "unauthorized", "")
+	expectAPIError(t, f.signIn("user", "user"), apiError{http.StatusUnauthorized, "unauthorized", ""})
 	rec = f.signIn("user", reset.TemporaryPassword)
 	var session struct {
 		User struct{ MustChangePassword bool }
@@ -60,9 +60,9 @@ func TestResetPasswordIsForAdminsOnly(t *testing.T) {
 	f.addUser("user", users.RoleEngineer, users.StatusActive)
 
 	expectAPIError(t, f.do(http.MethodPost, "/api/users/u-admin/reset-password", f.token("user"), nil),
-		http.StatusForbidden, "forbidden", "")
+		apiError{http.StatusForbidden, "forbidden", ""})
 	expectAPIError(t, f.do(http.MethodPost, "/api/users/u-nobody/reset-password", f.token("admin"), nil),
-		http.StatusNotFound, "not_found", "")
+		apiError{http.StatusNotFound, "not_found", ""})
 	f.token("admin") // the admin's own password is untouched
 }
 
@@ -91,7 +91,7 @@ func TestForcedPasswordChangeHoldsTheUserToTheirOwnAccount(t *testing.T) {
 
 	for _, e := range gatedEndpoints {
 		t.Run("gated/"+e.domain, func(t *testing.T) {
-			expectAPIError(t, f.do(e.method, e.path, token, nil), http.StatusForbidden, "forbidden", "请先修改密码")
+			expectAPIError(t, f.do(e.method, e.path, token, nil), apiError{http.StatusForbidden, "forbidden", "请先修改密码"})
 		})
 	}
 	for _, e := range openEndpoints {
@@ -116,7 +116,7 @@ func TestForcedPasswordChangeHoldsTheUserToTheirOwnAccount(t *testing.T) {
 			t.Fatalf("after the change, %s %s: %d %s", e.method, e.path, rec.Code, rec.Body)
 		}
 	}
-	expectAPIError(t, f.signIn("temp", "temp"), http.StatusUnauthorized, "unauthorized", "")
+	expectAPIError(t, f.signIn("temp", "temp"), apiError{http.StatusUnauthorized, "unauthorized", ""})
 	if rec := f.signIn("temp", "my-new-pass"); rec.Code != http.StatusOK {
 		t.Fatalf("sign-in with the new password: %d %s", rec.Code, rec.Body)
 	}
@@ -129,10 +129,10 @@ func TestForcedPasswordChangeRefusesABlankOrUnchangedPassword(t *testing.T) {
 	token := f.token("temp")
 
 	expectAPIError(t, f.do(http.MethodPost, "/api/users/me/password", token, changePassword("  ")),
-		http.StatusBadRequest, "invalid", "请输入新密码")
+		apiError{http.StatusBadRequest, "invalid", "请输入新密码"})
 	expectAPIError(t, f.do(http.MethodPost, "/api/users/me/password", token, changePassword("temp")),
-		http.StatusBadRequest, "invalid", "新密码不能与当前密码相同")
-	expectAPIError(t, f.do(http.MethodGet, "/api/users", token, nil), http.StatusForbidden, "forbidden", "请先修改密码")
+		apiError{http.StatusBadRequest, "invalid", "新密码不能与当前密码相同"})
+	expectAPIError(t, f.do(http.MethodGet, "/api/users", token, nil), apiError{http.StatusForbidden, "forbidden", "请先修改密码"})
 }
 
 func TestVoluntaryPasswordChangeNeedsTheRightCurrentPassword(t *testing.T) {
@@ -153,7 +153,7 @@ func TestVoluntaryPasswordChangeNeedsTheRightCurrentPassword(t *testing.T) {
 			f.addUser("user", users.RoleEngineer, users.StatusActive)
 			token := f.token("user")
 			rec := f.do(http.MethodPost, "/api/users/me/password", token, c.body)
-			expectAPIError(t, rec, http.StatusBadRequest, "invalid", c.message)
+			expectAPIError(t, rec, apiError{http.StatusBadRequest, "invalid", c.message})
 			f.token("user") // unchanged
 		})
 	}
@@ -170,7 +170,7 @@ func TestVoluntaryPasswordChangeKeepsTheSession(t *testing.T) {
 	if rec := f.do(http.MethodGet, "/api/users/me", token, nil); rec.Code != http.StatusOK {
 		t.Fatalf("session after the change: %d %s", rec.Code, rec.Body)
 	}
-	expectAPIError(t, f.signIn("user", "user"), http.StatusUnauthorized, "unauthorized", "")
+	expectAPIError(t, f.signIn("user", "user"), apiError{http.StatusUnauthorized, "unauthorized", ""})
 	if rec := f.signIn("user", "my-new-pass"); rec.Code != http.StatusOK {
 		t.Fatalf("sign-in with the new password: %d %s", rec.Code, rec.Body)
 	}
@@ -181,5 +181,5 @@ func TestVoluntaryPasswordChangeIsForActiveUsers(t *testing.T) {
 	f.addUser("lisi", users.RoleEngineer, users.StatusPending)
 
 	expectAPIError(t, f.do(http.MethodPost, "/api/users/me/password", f.token("lisi"), changePassword("my-new-pass", "lisi")),
-		http.StatusForbidden, "forbidden", "账号尚未启用")
+		apiError{http.StatusForbidden, "forbidden", "账号尚未启用"})
 }

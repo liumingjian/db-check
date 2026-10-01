@@ -1,7 +1,9 @@
 package web
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"testing"
 	"time"
@@ -45,9 +47,9 @@ func TestRegisterRefusesATakenUsernameOrEmail(t *testing.T) {
 		Role: users.RoleEngineer, Status: users.StatusActive})
 
 	expectAPIError(t, f.do(http.MethodPost, "/api/auth/register", "", registration("user", "other@example.com")),
-		http.StatusBadRequest, "invalid", "用户名已被占用")
+		apiError{http.StatusBadRequest, "invalid", "用户名已被占用"})
 	expectAPIError(t, f.do(http.MethodPost, "/api/auth/register", "", registration("zhouqi", "User@Example.com")),
-		http.StatusBadRequest, "invalid", "邮箱已被注册")
+		apiError{http.StatusBadRequest, "invalid", "邮箱已被注册"})
 }
 
 func TestDisablingEndsEverySessionForGood(t *testing.T) {
@@ -60,14 +62,14 @@ func TestDisablingEndsEverySessionForGood(t *testing.T) {
 		t.Fatalf("disable: %d %s", rec.Code, rec.Body)
 	}
 	for _, token := range []string{first, second} {
-		expectAPIError(t, f.do(http.MethodGet, "/api/users/me", token, nil), http.StatusUnauthorized, "unauthorized", "")
+		expectAPIError(t, f.do(http.MethodGet, "/api/users/me", token, nil), apiError{http.StatusUnauthorized, "unauthorized", ""})
 	}
 
 	// The sessions are gone, not just refused while disabled.
 	if rec := f.do(http.MethodPost, "/api/users/u-user/enable", admin, nil); rec.Code != http.StatusOK {
 		t.Fatalf("enable: %d %s", rec.Code, rec.Body)
 	}
-	expectAPIError(t, f.do(http.MethodGet, "/api/auth/me", first, nil), http.StatusUnauthorized, "unauthorized", "登录")
+	expectAPIError(t, f.do(http.MethodGet, "/api/auth/me", first, nil), apiError{http.StatusUnauthorized, "unauthorized", "登录"})
 	f.token("user")
 }
 
@@ -83,7 +85,34 @@ func TestADemotedAdminsLiveSessionActsAsAnEngineer(t *testing.T) {
 	if rec := f.do(http.MethodPost, "/api/users/u-second/demote", admin, nil); rec.Code != http.StatusOK {
 		t.Fatalf("demote: %d %s", rec.Code, rec.Body)
 	}
-	expectAPIError(t, f.do(http.MethodGet, "/api/users", second, nil), http.StatusForbidden, "forbidden", "管理员")
+	expectAPIError(t, f.do(http.MethodGet, "/api/users", second, nil), apiError{http.StatusForbidden, "forbidden", "管理员"})
+}
+
+func TestAnAdminDemotedWhileTheirActionIsInFlightIsRefused(t *testing.T) {
+	f := newPlatformFixture(t)
+	f.addUser("admin", users.RoleAdmin, users.StatusActive)
+	f.addUser("second", users.RoleAdmin, users.StatusActive)
+	f.addUser("lisi", users.RoleEngineer, users.StatusPending)
+	ctx := context.Background()
+
+	// The access check has loaded "second" as an admin when "admin" demotes them.
+	stale, err := users.ByID(ctx, f.db, "u-second")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec := f.do(http.MethodPost, "/api/users/u-second/demote", f.token("admin"), nil); rec.Code != http.StatusOK {
+		t.Fatalf("demote: %d %s", rec.Code, rec.Body)
+	}
+	for _, act := range []authedHandler{f.api.handleAccountAction(users.Approve, noReason), f.api.handleResetPassword} {
+		req := httptest.NewRequest(http.MethodPost, "/api/users/u-lisi/approve", nil)
+		req.SetPathValue("id", "u-lisi")
+		rec := httptest.NewRecorder()
+		act(rec, req, stale)
+		expectAPIError(t, rec, apiError{http.StatusForbidden, "forbidden", "管理员"})
+	}
+	if p, err := users.ProfileByID(ctx, f.db, "u-lisi"); err != nil || p.Status != users.StatusPending || len(p.Actions) != 0 {
+		t.Fatalf("lisi = %+v, %v; want untouched", p, err)
+	}
 }
 
 func TestAdminGuardsKeepOneActiveAdmin(t *testing.T) {
@@ -91,10 +120,10 @@ func TestAdminGuardsKeepOneActiveAdmin(t *testing.T) {
 	f.addUser("admin", users.RoleAdmin, users.StatusActive)
 	admin := f.token("admin")
 
-	expectAPIError(t, f.do(http.MethodPost, "/api/users/u-admin/demote", admin, nil), http.StatusBadRequest, "invalid", "自己")
+	expectAPIError(t, f.do(http.MethodPost, "/api/users/u-admin/demote", admin, nil), apiError{http.StatusBadRequest, "invalid", "自己"})
 	expectAPIError(t, f.do(http.MethodPost, "/api/users/u-admin/disable", admin, map[string]string{"reason": "原因"}),
-		http.StatusBadRequest, "invalid", "自己")
-	expectAPIError(t, f.do(http.MethodPost, "/api/users/u-nobody/enable", admin, nil), http.StatusNotFound, "not_found", "用户不存在")
+		apiError{http.StatusBadRequest, "invalid", "自己"})
+	expectAPIError(t, f.do(http.MethodPost, "/api/users/u-nobody/enable", admin, nil), apiError{http.StatusNotFound, "not_found", "用户不存在"})
 }
 
 func TestAccountActionsRecordTheActingAdminAndTime(t *testing.T) {
@@ -139,5 +168,5 @@ func TestRejectedApplicantResubmitsBackToPending(t *testing.T) {
 		t.Fatalf("resubmit: %d %s", rec.Code, rec.Body)
 	}
 	expectAPIError(t, f.do(http.MethodPost, "/api/auth/resubmit", token, map[string]string{"displayName": "赵六", "team": "x"}),
-		http.StatusBadRequest, "invalid", "被拒绝")
+		apiError{http.StatusBadRequest, "invalid", "被拒绝"})
 }

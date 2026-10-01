@@ -20,7 +20,7 @@ func (h *apiHandler) registerReleaseRoutes(mux routeMux) {
 }
 
 func (h *apiHandler) handleListReleases(w http.ResponseWriter, r *http.Request, u users.User) {
-	list, err := releases.List(r.Context(), h.platform.DB, u.Role == users.RoleAdmin)
+	list, err := releases.List(r.Context(), h.platform.DB, u.IsAdmin())
 	if err != nil {
 		h.writeAPIError(w, err)
 		return
@@ -44,7 +44,7 @@ func (h *apiHandler) handleReleaseAction(w http.ResponseWriter, r *http.Request,
 	}
 	ctx := r.Context()
 	err := h.platform.DB.Tx(ctx, func(tx store.Querier) error {
-		return releases.ChangeStatus(ctx, tx, r.PathValue("version"), action, body.Reason)
+		return releases.ChangeStatus(ctx, tx, releases.StatusChange{Version: r.PathValue("version"), Action: action, Reason: body.Reason})
 	})
 	if err != nil {
 		h.writeAPIError(w, err)

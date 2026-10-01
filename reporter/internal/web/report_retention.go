@@ -16,11 +16,15 @@ import (
 const retentionSweepInterval = time.Hour
 
 // startRetention removes expired tasks' files now and then every
-// retentionSweepInterval.
+// retentionSweepInterval. The same sweep deletes finished legacy task.json
+// tasks RetentionTTL after their last update (legacy_tasks.go).
 func (l *reportLifecycle) startRetention(ctx context.Context) {
 	sweep := func() {
 		if err := l.removeExpiredFiles(ctx); err != nil {
 			l.platform.Log.Printf("[ERROR] report retention: %v", err)
+		}
+		if _, err := cleanupExpiredTasks(l.legacy, l.cfg.RetentionTTL, l.platform.Now); err != nil {
+			l.platform.Log.Printf("[ERROR] legacy report retention: %v", err)
 		}
 	}
 	sweep()

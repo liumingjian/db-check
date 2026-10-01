@@ -205,7 +205,7 @@ func Insert(ctx context.Context, q store.Querier, r Release) error {
 	_, err = q.ExecContext(ctx, `INSERT INTO releases
 		(version, tag, commit_sha, published_at, status, revoke_reason, notes, db_types)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		r.Version, r.Tag, r.Commit, r.PublishedAt, r.Status, nullable(r.RevokeReason), r.Notes, string(dbTypes))
+		r.Version, r.Tag, r.Commit, r.PublishedAt, r.Status, store.NullIfEmpty(r.RevokeReason), r.Notes, string(dbTypes))
 	if err != nil {
 		return fmt.Errorf("insert release %s: %w", r.Version, err)
 	}
@@ -220,13 +220,6 @@ func Insert(ctx context.Context, q store.Querier, r Release) error {
 }
 
 func demoteLatest(ctx context.Context, q store.Querier) error {
-	_, err := q.ExecContext(ctx, "UPDATE releases SET status = 'deprecated' WHERE status = 'latest'")
+	_, err := q.ExecContext(ctx, "UPDATE releases SET status = ? WHERE status = ?", StatusDeprecated, StatusLatest)
 	return err
-}
-
-func nullable(s string) any {
-	if s == "" {
-		return nil
-	}
-	return s
 }

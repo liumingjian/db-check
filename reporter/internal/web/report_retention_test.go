@@ -46,7 +46,7 @@ func TestATaskExpiresThirtyDaysAfterSubmissionAndItsDownloadIsRefused(t *testing
 	if !got.Expired {
 		t.Fatalf("getTask at 30 days = %+v, want expired", got)
 	}
-	expectAPIError(t, get(h, "/api/reports/download/"+taskID, user), http.StatusConflict, "invalid", "30 天保留期")
+	expectAPIError(t, get(h, "/api/reports/download/"+taskID, user), apiError{http.StatusConflict, "invalid", "30 天保留期"})
 }
 
 func TestRetentionDeletesAnExpiredTasksFilesAndKeepsItsRecord(t *testing.T) {
@@ -79,7 +79,7 @@ func TestRetentionDeletesAnExpiredTasksFilesAndKeepsItsRecord(t *testing.T) {
 	if !task.Expired || task.Status != "done" || len(task.Items) != 2 || task.Items[1].Outcome.Reason != "模拟失败" {
 		t.Fatalf("expired task's record = %+v, want it kept whole and expired", task)
 	}
-	expectAPIError(t, get(h, "/api/reports/download/"+expiring, user), http.StatusConflict, "invalid", "30 天保留期")
+	expectAPIError(t, get(h, "/api/reports/download/"+expiring, user), apiError{http.StatusConflict, "invalid", "30 天保留期"})
 	if entries := f.reportEntries(h, user, young); len(entries) != 1 {
 		t.Fatalf("young task's download = %v", entries)
 	}

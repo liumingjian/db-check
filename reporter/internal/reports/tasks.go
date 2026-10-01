@@ -76,6 +76,10 @@ const Retention = RetentionDays * 24 * time.Hour
 // Expired reports whether the task is past retention at now.
 func (t Task) Expired(now time.Time) bool { return !now.Before(t.CreatedAt.Add(Retention)) }
 
+// Downloadable reports whether the task's reports can be downloaded at now:
+// it is done and not expired.
+func (t Task) Downloadable(now time.Time) bool { return t.Status == StatusDone && !t.Expired(now) }
+
 // ErrExpired refuses to download an expired task's reports.
 var ErrExpired = apierr.Conflict(fmt.Sprintf("报告已超过 %d 天保留期，文件已清理", RetentionDays))
 
@@ -86,7 +90,7 @@ var ErrNotFound = apierr.NotFound("报告任务不存在")
 func (t Task) VisibleTo(u users.User) bool { return visibleTo(t.SubmitterID, u) }
 
 func visibleTo(submitterID string, u users.User) bool {
-	return u.Role == users.RoleAdmin || submitterID == u.ID
+	return u.IsAdmin() || submitterID == u.ID
 }
 
 // Insert stores a new task and its items.
@@ -150,7 +154,7 @@ func ClaimNext(ctx context.Context, db *store.DB) (id string, ok bool, err error
 			return err
 		}
 		ok = true
-		return setTaskStatus(ctx, tx, id, StatusProcessing, "")
+		return setTaskStatus(ctx, tx, TaskUpdate{TaskID: id, Status: StatusProcessing})
 	})
 	return id, ok, err
 }
@@ -168,20 +172,35 @@ func RequeueInterrupted(ctx context.Context, db *store.DB) error {
 	})
 }
 
-// SetItemStatus records an item's status, with the reason when it failed.
-func SetItemStatus(ctx context.Context, q store.Querier, taskID string, position int, status Status, reason string) error {
+// ItemUpdate is an item's new status, with the reason when it failed.
+type ItemUpdate struct {
+	TaskID   string
+	Position int
+	Status   Status
+	Reason   string
+}
+
+// SetItemStatus records an item's status.
+func SetItemStatus(ctx context.Context, q store.Querier, u ItemUpdate) error {
 	res, err := q.ExecContext(ctx, "UPDATE report_items SET status = ?, reason = ? WHERE task_id = ? AND position = ?",
-		status, reason, taskID, position)
+		u.Status, u.Reason, u.TaskID, u.Position)
 	return expectOneRow(res, err)
 }
 
-// Finish records a task's final status, with the error when it failed.
-func Finish(ctx context.Context, q store.Querier, taskID string, status Status, taskErr string) error {
-	return setTaskStatus(ctx, q, taskID, status, taskErr)
+// TaskUpdate is a task's new status, with the error when it failed.
+type TaskUpdate struct {
+	TaskID string
+	Status Status
+	Error  string
 }
 
-func setTaskStatus(ctx context.Context, q store.Querier, taskID string, status Status, taskErr string) error {
-	res, err := q.ExecContext(ctx, "UPDATE report_tasks SET status = ?, error = ? WHERE id = ?", status, taskErr, taskID)
+// Finish records a task's final status.
+func Finish(ctx context.Context, q store.Querier, u TaskUpdate) error {
+	return setTaskStatus(ctx, q, u)
+}
+
+func setTaskStatus(ctx context.Context, q store.Querier, u TaskUpdate) error {
+	res, err := q.ExecContext(ctx, "UPDATE report_tasks SET status = ?, error = ? WHERE id = ?", u.Status, u.Error, u.TaskID)
 	return expectOneRow(res, err)
 }
 

@@ -54,6 +54,11 @@ func Conflict(message string) *Error {
 	return &Error{http.StatusConflict, CodeInvalid, message}
 }
 
+// TooLarge (413, code invalid): the upload exceeds the configured limit.
+func TooLarge(message string) *Error {
+	return &Error{http.StatusRequestEntityTooLarge, CodeInvalid, message}
+}
+
 // Failed (500): anything else.
 func Failed(message string) *Error {
 	return &Error{http.StatusInternalServerError, CodeFailed, message}
