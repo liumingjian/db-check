@@ -50,6 +50,7 @@ type seeder func(ctx context.Context, tx store.Querier, f fixture, now time.Time
 // seed_<domain>.go and appends it here.
 var seeders = []seeder{
 	seedUsers,
+	seedReleases,
 }
 
 var offsetPattern = regexp.MustCompile(`^now(?:-(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?)?$`)

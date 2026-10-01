@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { DbCheckApi } from "@/lib/api/contract";
-import { contractImplementations } from "@/lib/api/testing";
+import { contractImplementationsWithReal } from "@/lib/api/testing";
 
-describe.each(contractImplementations)("%s releases contract", (_name, makeApi) => {
+describe.each(contractImplementationsWithReal)("%s releases contract", (_name, makeApi) => {
   it.each(["lisi", "zhaoliu"])("refuses the release list to applicant %s", async (username) => {
     const api = makeApi();
     const { token } = await api.auth.signIn(username, username);

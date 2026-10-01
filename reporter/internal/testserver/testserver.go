@@ -27,10 +27,10 @@ import (
 // Server serves the production routes over its own store.
 type Server struct {
 	http.Handler
+	dataDir string
 	db      *store.DB
 	fixture fixture
 	clock   *pinnedClock
-	dataDir string
 	reports *reportTasks
 	// resetMu keeps a reset from interleaving with another one.
 	resetMu sync.Mutex
@@ -47,7 +47,7 @@ func New(dataDir, fixturePath string) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{db: db, fixture: f, clock: &pinnedClock{}, dataDir: dataDir}
+	s := &Server{dataDir: dataDir, db: db, fixture: f, clock: &pinnedClock{}}
 	s.reports = &reportTasks{stub: newStubPipeline(s.clock), tasksDir: filepath.Join(dataDir, "tasks")}
 	cfg := web.Config{
 		DataDir:        dataDir,
@@ -118,9 +118,9 @@ func readNow(w http.ResponseWriter, r *http.Request) (time.Time, bool) {
 
 // reset empties every table but the migration log and runs the seeders, in
 // one transaction. Foreign keys are checked at commit, so tables can be
-// emptied in any order.
+// emptied in any order. Then it restores the files the seed refers to.
 func (s *Server) reset(ctx context.Context, now time.Time) error {
-	return s.db.Tx(ctx, func(tx store.Querier) error {
+	err := s.db.Tx(ctx, func(tx store.Querier) error {
 		if _, err := tx.ExecContext(ctx, "PRAGMA defer_foreign_keys = ON"); err != nil {
 			return err
 		}
@@ -140,6 +140,10 @@ func (s *Server) reset(ctx context.Context, now time.Time) error {
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	return s.restorePackageFiles()
 }
 
 func tableNames(ctx context.Context, q store.Querier) ([]string, error) {

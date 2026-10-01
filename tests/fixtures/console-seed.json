@@ -111,7 +111,7 @@
           "arch": "x86_64",
           "fileName": "db-collector-1.3.0-rc1-linux-amd64.zip",
           "size": 9409000,
-          "sha256": "340ca71c22eb354970452be881e3e71fa4c4e8b1fafa28dbc6ce0b7d0f5b785b"
+          "sha256": "a5c53af47f6d8121a8434dc79076c90a031230ad0f670645107b13e16f3558a4"
         },
         {
           "platform": "linux-arm64",
@@ -119,7 +119,7 @@
           "arch": "ARM64",
           "fileName": "db-collector-1.3.0-rc1-linux-arm64.zip",
           "size": 9719000,
-          "sha256": "340ca71c22eb354970452be881e3e71fa4c4e8b1fafa28dbc6ce0b7d0f5b785b"
+          "sha256": "31d477fe74923a6234b45a72802dae971d3ee82b4359d8ffeb6b5751431b5517"
         },
         {
           "platform": "windows-amd64",
@@ -127,7 +127,7 @@
           "arch": "x86_64",
           "fileName": "db-collector-1.3.0-rc1-windows-amd64.zip",
           "size": 10029000,
-          "sha256": "340ca71c22eb354970452be881e3e71fa4c4e8b1fafa28dbc6ce0b7d0f5b785b"
+          "sha256": "60fe70ef3398c99027181d9245a76ff2b302c99157a3aa9f477531377df0e4e7"
         },
         {
           "platform": "windows-arm64",
@@ -135,7 +135,7 @@
           "arch": "ARM64",
           "fileName": "db-collector-1.3.0-rc1-windows-arm64.zip",
           "size": 10339000,
-          "sha256": "340ca71c22eb354970452be881e3e71fa4c4e8b1fafa28dbc6ce0b7d0f5b785b"
+          "sha256": "8bc9a582b8fffa881f309f2630974676c92af2391f1db908dda774a09480f1ed"
         }
       ]
     },
@@ -158,7 +158,7 @@
           "arch": "x86_64",
           "fileName": "db-collector-1.2.0-linux-amd64.zip",
           "size": 9405000,
-          "sha256": "340ca71c22eb354971452d7ba5e65e627fa681623d1d877e497ba47cbfa34856"
+          "sha256": "12d2cc7c2c2cde34e65bc6e1650903c58cae7c334967a286580108881077bfbd"
         },
         {
           "platform": "linux-arm64",
@@ -166,7 +166,7 @@
           "arch": "ARM64",
           "fileName": "db-collector-1.2.0-linux-arm64.zip",
           "size": 9715000,
-          "sha256": "340ca71c22eb354971452d7ba5e65e627fa681623d1d877e497ba47cbfa34856"
+          "sha256": "2e5c76ea1069ccca8edf31b860988de308162aeee03da18b62ac36b16e4a0a0b"
         },
         {
           "platform": "windows-amd64",
@@ -174,7 +174,7 @@
           "arch": "x86_64",
           "fileName": "db-collector-1.2.0-windows-amd64.zip",
           "size": 10025000,
-          "sha256": "340ca71c22eb354971452d7ba5e65e627fa681623d1d877e447b9c9dc1981289"
+          "sha256": "db64e5caee2c7aba0e7d5d6cbb80d6d96df536613049d3be9a35d1e12c9ca955"
         },
         {
           "platform": "windows-arm64",
@@ -182,7 +182,7 @@
           "arch": "ARM64",
           "fileName": "db-collector-1.2.0-windows-arm64.zip",
           "size": 10335000,
-          "sha256": "340ca71c22eb354971452d7ba5e65e627fa681623d1d877e447b9c9dc1981289"
+          "sha256": "7c611d655211665aea95cbab52fe84303dc2bef66798bcf41f2973d0dab6bd48"
         }
       ]
     },
@@ -205,7 +205,7 @@
           "arch": "x86_64",
           "fileName": "db-collector-1.1.0-linux-amd64.zip",
           "size": 9405000,
-          "sha256": "340ca71c22eb354972452f0e05e934197b1d22d7cdde176d1b9e4005e51f6871"
+          "sha256": "5a640eae54faadbd183c7f3bb2416f75aa33556aafc566c0cebf87141e5b16f6"
         },
         {
           "platform": "linux-arm64",
@@ -213,7 +213,7 @@
           "arch": "ARM64",
           "fileName": "db-collector-1.1.0-linux-arm64.zip",
           "size": 9715000,
-          "sha256": "340ca71c22eb354972452f0e05e934197b1d22d7cdde176d1b9e4005e51f6871"
+          "sha256": "1e8b9cc2dac7d75530b60aade017fc9be64a8365d187b55d479488fb8101a57e"
         },
         {
           "platform": "windows-amd64",
@@ -221,7 +221,7 @@
           "arch": "x86_64",
           "fileName": "db-collector-1.1.0-windows-amd64.zip",
           "size": 10025000,
-          "sha256": "340ca71c22eb354972452f0e05e934197b1d22d7cdde176d309e61140353730e"
+          "sha256": "4a61695ccfd83bb80229b5c9042c4fc20f8335f250dbc680633d94286fa334c9"
         },
         {
           "platform": "windows-arm64",
@@ -229,7 +229,7 @@
           "arch": "ARM64",
           "fileName": "db-collector-1.1.0-windows-arm64.zip",
           "size": 10335000,
-          "sha256": "340ca71c22eb354972452f0e05e934197b1d22d7cdde176d309e61140353730e"
+          "sha256": "f036266b59e3b812a8b0a52fffd32a8f15ffaab7a8ca40fc40f7841c3e9745f1"
         }
       ]
     },
@@ -252,7 +252,7 @@
           "arch": "x86_64",
           "fileName": "db-collector-1.0.0-linux-amd64.zip",
           "size": 9405000,
-          "sha256": "340ca71c22eb3549734530a101eb6c64559b81f09bcd6708a659bf460747ebf8"
+          "sha256": "a4ff8a45d3040fa92abbb3008d93d0f94caf44a084d766c4f88feadd1626ff0d"
         },
         {
           "platform": "linux-arm64",
@@ -260,7 +260,7 @@
           "arch": "ARM64",
           "fileName": "db-collector-1.0.0-linux-arm64.zip",
           "size": 9715000,
-          "sha256": "340ca71c22eb3549734530a101eb6c64559b81f09bcd6708a659bf460747ebf8"
+          "sha256": "cf85ec37445905f69f42c93da44ba45408f7c3db391ce4af37136f1284ceff2b"
         },
         {
           "platform": "windows-amd64",
@@ -268,7 +268,7 @@
           "arch": "x86_64",
           "fileName": "db-collector-1.0.0-windows-amd64.zip",
           "size": 10025000,
-          "sha256": "340ca71c22eb3549734530a101eb6c64559b81f09bcd6708bd59e37b29807a0f"
+          "sha256": "25b96e8aa5660b5a527f788925fa48d68352c45a0f6b327b8b0d6e7f9aff1579"
         },
         {
           "platform": "windows-arm64",
@@ -276,7 +276,7 @@
           "arch": "ARM64",
           "fileName": "db-collector-1.0.0-windows-arm64.zip",
           "size": 10335000,
-          "sha256": "340ca71c22eb3549734530a101eb6c64559b81f09bcd6708bd59e37b29807a0f"
+          "sha256": "3c336642f7e2a73210d23f645fc93bc1e8d06e7ab95b6f901a9c2a8b6431452e"
         }
       ]
     }

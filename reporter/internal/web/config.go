@@ -16,6 +16,7 @@ const (
 const (
 	envDataDir        = "DBCHECK_DATA_DIR"
 	envAllowedOrigins = "ALLOWED_ORIGINS"
+	envPublishToken   = "DBCHECK_PUBLISH_TOKEN"
 	// envRetiredAPIToken was the shared API token; users now sign in with
 	// their own accounts. Startup only warns that it is ignored.
 	envRetiredAPIToken = "DBCHECK_API_TOKEN"
@@ -42,6 +43,9 @@ type Config struct {
 	Addr           string
 	DataDir        string
 	AllowedOrigins []string
+	// PublishToken is the CI credential for the publish API (ADR 0002);
+	// empty disables publishing.
+	PublishToken string
 
 	MaxUploadBytes int64
 	RetentionTTL   time.Duration
@@ -74,6 +78,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		allowedOrigins = strings.TrimSpace(getenv(envAllowedOrigins))
 	}
 	cfg.AllowedOrigins = splitCSV(allowedOrigins)
+	cfg.PublishToken = strings.TrimSpace(getenv(envPublishToken))
 	cfg.RetentionTTL = *retentionTTL
 
 	if strings.TrimSpace(cfg.DataDir) == "" {

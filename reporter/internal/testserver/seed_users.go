@@ -2,6 +2,7 @@ package testserver
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"dbcheck/reporter/internal/store"
@@ -23,8 +24,13 @@ type seedUser struct {
 	Note               string       `json:"note"`
 	Reason             string       `json:"reason"`
 	AppliedAt          string       `json:"appliedAt"`
-	// The account action history ("actions") is loaded with the account
-	// lifecycle (#37).
+	Actions            []seedAction `json:"actions"`
+}
+
+type seedAction struct {
+	Action users.ActionKind `json:"action"`
+	By     string           `json:"by"` // the acting admin's username
+	At     string           `json:"at"`
 }
 
 func seedUsers(ctx context.Context, tx store.Querier, f fixture, now time.Time) error {
@@ -50,6 +56,31 @@ func seedUsers(ctx context.Context, tx store.Querier, f fixture, now time.Time) 
 		})
 		if err != nil {
 			return err
+		}
+	}
+	return seedActions(ctx, tx, seed, now)
+}
+
+// seedActions loads every account action history once all users exist, as
+// actions name their acting admin by username.
+func seedActions(ctx context.Context, tx store.Querier, seed []seedUser, now time.Time) error {
+	ids := map[string]string{}
+	for _, u := range seed {
+		ids[u.Username] = u.ID
+	}
+	for _, u := range seed {
+		for _, a := range u.Actions {
+			at, err := seedTime(a.At, now)
+			if err != nil {
+				return err
+			}
+			byID, ok := ids[a.By]
+			if !ok {
+				return fmt.Errorf("seed fixture: %s's %s action names unknown admin %q", u.Username, a.Action, a.By)
+			}
+			if err := users.RecordAction(ctx, tx, u.ID, a.Action, byID, at); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
