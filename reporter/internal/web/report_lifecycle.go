@@ -51,7 +51,8 @@ func newReportLifecycle(cfg Config, p Platform, hub *taskHub) (*reportLifecycle,
 
 func (l *reportLifecycle) taskDir(id string) string { return filepath.Join(l.tasksDir, id) }
 
-func resultZipPath(taskDir, id string) string {
+// ResultZipPath is where a finished task's downloadable result ZIP lives.
+func ResultZipPath(taskDir, id string) string {
 	return filepath.Join(taskDir, fmt.Sprintf("reports-%s.zip", id))
 }
 
@@ -166,6 +167,7 @@ func (l *reportLifecycle) start() {
 		}
 		legacy := l.legacyBacklog()
 		l.startLegacyRetention()
+		l.startRetention(ctx)
 		go l.work(ctx, legacy)
 	})
 }
@@ -211,7 +213,7 @@ func (l *reportLifecycle) run(ctx context.Context, id string) {
 		}
 		results = append(results, savedResult(dir, *item, inputs[i].ID))
 	}
-	if err := buildResultZip(resultZipPath(dir, id), results, inputs); err != nil {
+	if err := buildResultZip(ResultZipPath(dir, id), results, inputs); err != nil {
 		l.fail(ctx, id, err.Error())
 		return
 	}

@@ -63,7 +63,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	var allowedOrigins string
 	fs.StringVar(&allowedOrigins, "allowed-origins", "", "required; comma-separated origin whitelist (or env ALLOWED_ORIGINS)")
 	fs.Int64Var(&cfg.MaxUploadBytes, "max-upload-bytes", defaultMaxUploadBytes, "max upload size in bytes; 0 disables the limit")
-	retentionTTL := fs.Duration("retention-ttl", defaultRetentionTTL, "task retention TTL; 0 disables auto cleanup")
+	retentionTTL := fs.Duration("retention-ttl", defaultRetentionTTL, "retention TTL of legacy task.json tasks only (store tasks follow reports.Retention); 0 disables their cleanup")
 	fs.IntVar(&cfg.LogReplayLines, "log-replay-lines", defaultLogReplayLines, "log replay lines on WS/status; 0 disables truncation")
 	fs.StringVar(&cfg.PythonBin, "python-bin", defaultPythonBin, "python executable (default python3)")
 

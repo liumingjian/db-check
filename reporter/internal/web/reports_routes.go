@@ -70,7 +70,7 @@ func (h *apiHandler) handleListAll(w http.ResponseWriter, r *http.Request, _ use
 }
 
 func (h *apiHandler) answerTasks(w http.ResponseWriter, r *http.Request, f reports.Filter) {
-	tasks, err := reports.List(r.Context(), h.platform.DB, f)
+	tasks, err := reports.List(r.Context(), h.platform.DB, f, h.platform.Now())
 	if err != nil {
 		h.writeAPIError(w, err)
 		return
@@ -79,7 +79,7 @@ func (h *apiHandler) answerTasks(w http.ResponseWriter, r *http.Request, f repor
 }
 
 func (h *apiHandler) handleGetTask(w http.ResponseWriter, r *http.Request, u users.User) {
-	task, err := reports.Read(r.Context(), h.platform.DB, r.PathValue("id"), u)
+	task, err := reports.Read(r.Context(), h.platform.DB, r.PathValue("id"), u, h.platform.Now())
 	if err != nil {
 		h.writeAPIError(w, err)
 		return
@@ -131,7 +131,11 @@ func (h *apiHandler) handleDownload(w http.ResponseWriter, r *http.Request, u us
 		h.writeAPIError(w, apierr.Conflict("报告尚未生成完成"))
 		return
 	}
-	zipPath := resultZipPath(h.reports.taskDir(task.ID), task.ID)
+	if task.Expired(h.platform.Now()) {
+		h.writeAPIError(w, reports.ErrExpired)
+		return
+	}
+	zipPath := ResultZipPath(h.reports.taskDir(task.ID), task.ID)
 	info, err := os.Stat(zipPath)
 	if err != nil {
 		h.writeAPIError(w, fmt.Errorf("result zip of task %s: %w", task.ID, err))

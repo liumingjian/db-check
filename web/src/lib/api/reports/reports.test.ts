@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ReportItemInput } from "@/lib/api/contract";
-import { contractImplementations, contractImplementationsWithReal, watchToEnd, zipFile } from "@/lib/api/testing";
+import { contractImplementationsWithReal,watchToEnd, zipFile } from "@/lib/api/testing";
 import type { DbType } from "@/lib/types";
 
 function item(name: string, dbType: DbType = "mysql", collectorVersion: string | null = "1.2.0"): ReportItemInput {
@@ -190,24 +190,34 @@ describe.each(contractImplementationsWithReal)("%s reports contract", (_name, ma
     await expect(api.reports.download(token, "no-such-task")).rejects.toMatchObject({ code: "not_found" });
     await expect(api.reports.getTask(token, "no-such-task")).rejects.toMatchObject({ code: "not_found" });
   });
-});
 
-// db-web does not expire tasks yet (#45); this runs against the mock only until it does.
-describe.each(contractImplementations)("%s reports contract: expiry", (_name, makeApi) => {
   it("expires a task's files 30 days after submission and refuses to download them", async () => {
     let now = Date.parse("2026-10-01T08:00:00Z");
     const api = makeApi({ now: () => now });
-    const { token } = await api.auth.signIn("user", "user");
-    const { taskId } = await api.reports.generate(token, { items: [item("mall.zip")] });
-    await watchToEnd(api, token, taskId);
-    const listed = async () => (await api.reports.listOwn(token)).find((t) => t.id === taskId);
+    const submitted = await api.auth.signIn("user", "user");
+    const { taskId } = await api.reports.generate(submitted.token, { items: [item("mall.zip")] });
+    await watchToEnd(api, submitted.token, taskId);
 
     now = Date.parse("2026-10-31T07:59:00Z");
+    // Sessions last 7 days on the server, so sign in again a month later.
+    const { token } = await api.auth.signIn("user", "user");
+    const listed = async () => (await api.reports.listOwn(token)).find((t) => t.id === taskId);
     expect(await listed()).toMatchObject({ expired: false });
     await expect(api.reports.download(token, taskId)).resolves.toBeInstanceOf(Blob);
 
     now = Date.parse("2026-10-31T08:00:00Z");
     expect(await listed()).toMatchObject({ expired: true, status: "done" });
     await expect(api.reports.download(token, taskId)).rejects.toMatchObject({ code: "invalid" });
+  });
+
+  it("lists the seeded tasks older than 30 days as expired, and downloads only the others", async () => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn("user", "user");
+    const mine = await api.reports.listOwn(token);
+    expect(mine.find((t) => t.id === "task-seed-001")).toMatchObject({ status: "done", expired: false });
+    expect(mine.find((t) => t.id === "task-seed-006")).toMatchObject({ status: "done", expired: true });
+
+    await expect(api.reports.download(token, "task-seed-001")).resolves.toBeInstanceOf(Blob);
+    await expect(api.reports.download(token, "task-seed-006")).rejects.toMatchObject({ code: "invalid" });
   });
 });

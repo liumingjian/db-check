@@ -83,7 +83,7 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := s.reports.reset(); err != nil {
+	if err := s.reports.reset(r.Context(), s.db, now); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

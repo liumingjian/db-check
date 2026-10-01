@@ -953,7 +953,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: The task is not done (`invalid`).
+          description: >-
+            The task is not done, or it expired (已过期): 30 days after
+            submission its files are deleted and only the record stays
+            (`invalid`, message `报告已超过 30 天保留期，文件已清理`).
           content:
             application/json:
               schema:
@@ -1286,7 +1289,10 @@ components:
           format: date-time
         expired:
           type: boolean
-          description: True once the task's files were deleted, 30 days after submission; the record stays.
+          description: >-
+            True from 30 days after submission (已过期). From then on the task
+            cannot be downloaded, and the server deletes its uploaded inputs,
+            extracted data, and generated reports within the hour. The record stays.
         items:
           type: array
           description: In submission order.

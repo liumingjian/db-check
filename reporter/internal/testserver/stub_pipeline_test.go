@@ -164,7 +164,7 @@ func TestResetRemovesTaskFilesAndUnblocksTheWorker(t *testing.T) {
 	c := newTestServer(t)
 	c.reset(seedNow)
 	token := c.signIn("user")
-	c.generate(token, "a.zip") // left waiting on the clock
+	waiting := c.generate(token, "a.zip") // left waiting on the clock
 
 	c.reset(seedNow)
 	tasksDir := filepath.Join(c.server.(*Server).dataDir, "tasks")
@@ -172,8 +172,10 @@ func TestResetRemovesTaskFilesAndUnblocksTheWorker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 0 {
-		t.Fatalf("reset left %d task directories", len(entries))
+	for _, e := range entries {
+		if !strings.HasPrefix(e.Name(), "task-seed-") {
+			t.Fatalf("reset left task directory %s (the waiting task was %s)", e.Name(), waiting)
+		}
 	}
 
 	token = c.signIn("user")
