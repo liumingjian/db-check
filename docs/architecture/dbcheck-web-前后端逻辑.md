@@ -54,7 +54,7 @@ sequenceDiagram
     - `zips`：一个或多个 `.zip`
     - 可选 `awr_<index>`：第 `index` 个 zip 对应的 AWR HTML（`.html/.htm`）
   - 返回：`{ task_id, ws_url, total, status }`
-- `GET /api/reports/status/{task_id}`：查询任务状态（done 时包含 `download_url`）
+- `GET /api/reports/status/{task_id}`：查询任务状态（carries `download_url` only while the task is done and not yet expired (已过期)）
 - `GET /api/reports/download/{task_id}`：下载结果 ZIP（仅 `done`）
 - `GET /api/reports/ws/{task_id}`：WebSocket（推送日志/进度/完成）
 
@@ -73,7 +73,7 @@ CORS/Origin allowlist：
 
 ### 2.3 任务落盘结构
 
-任务记录（提交人、状态、各报告项的数据库类型、采集器版本、结果与失败原因）存于 `<DBCHECK_DATA_DIR>/platform.db`（SQLite，`reporter/internal/reports`）。提交时先落库为 queued 再应答；worker 从库中按提交顺序领取任务，重启后继续未完成的任务（`reporter/internal/web/report_lifecycle.go`）。
+任务记录（提交人、状态、各报告项的数据库类型、采集器版本、结果与失败原因）存于 `<DBCHECK_DATA_DIR>/platform.db`（SQLite，`reporter/internal/reports`）。提交时先落库为 queued 再应答；worker 从库中按提交顺序领取任务，重启后继续未完成的任务（`reporter/internal/web/report_worker.go`）。When a claim or a save fails, the worker retries it after a backoff that doubles from 1s up to 1min, so a queued task never waits for the next submission and a task never stays processing while the server runs.
 
 任务文件目录：`<DBCHECK_DATA_DIR>/tasks/<task_id>/`。
 
@@ -119,7 +119,7 @@ CORS/Origin allowlist：
 
 - `log`：`{type, seq, timestamp, level, message}`
 - `progress`：`{type, seq, completed, total, current_file}`
-- `done`：`{type, seq, download_url}`
+- `done`：`{type, seq, download_url}`; `download_url` is absent once the task has expired (已过期)
 - `error`：`{type, seq, message}`
 
 ## 3. 前端（web/）逻辑
@@ -146,14 +146,14 @@ CORS/Origin allowlist：
   - `fetch POST /api/reports/generate` → 拿到 `{task_id, ws_url}`
   - 通过 WebSocket 订阅 `ws_url`，实时更新日志与进度，完成后展示下载按钮
 
-### 3.3 Token / API base 的处理策略
+### 3.3 Session token and API base
 
-- Token：
-  - UI 默认填入 `ATI`，输入确认后保存到 zustand store
-  - 同时写入 `sessionStorage["dbcheck_api_token"]`，刷新/重连可恢复
-- API base：
-  - 可在生成页手动输入（写入 `sessionStorage["dbcheck_api_base"]`）
-  - 未配置时遵循 `getApiBase()` 推断规则（见 3.1）
+- Session token (会话令牌):
+  - Users sign in (登录) on `/login` with their own username and password; `POST /api/auth/sign-in` answers `{token, user}`. Registration (`POST /api/auth/register`) answers the same and signs the pending applicant in. The shared `ATI` token and its input are gone.
+  - `web/src/stores/auth-store.ts` keeps the token in the zustand store and in `sessionStorage["dbcheck_session"]`. On reload, `hydrate` asks `GET /api/auth/me` who it belongs to; an ended session signs the tab out.
+  - Every API call sends `Authorization: Bearer <token>`; the report WebSocket offers the token as its subprotocol. A session lasts 7 days; sign-out (`POST /api/auth/sign-out`), disabling the account, or a password reset ends it.
+- API base:
+  - `getApiBase()` in `web/src/lib/api/http-client.ts`: a base stored in `sessionStorage["dbcheck_api_base"]`, else `NEXT_PUBLIC_API_BASE`, else inferred from the page (see 3.1). The console has no input for it any more.
 
 ### 3.4 generate 请求的表单字段
 
