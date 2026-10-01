@@ -2,7 +2,7 @@ import type { User } from "@/lib/auth-types";
 import { requireSessionUser, resolveSessionUser, startMockSession } from "@/lib/api/auth/mock";
 import { ApiError } from "@/lib/api/errors";
 import { mockCollection, mockId, type MockContext } from "@/lib/api/mock-storage";
-import type { Account, AccountActionKind, UsersApi } from "@/lib/api/users/contract";
+import type { UserProfile, AccountActionKind, UsersApi } from "@/lib/api/users/contract";
 import { seedUsers, type MockUser } from "@/lib/api/users/seed";
 
 /** The user records every mock domain reads, e.g. auth to check passwords. */
@@ -15,8 +15,8 @@ export function publicUser({ id, username, displayName, role, status, mustChange
   return { id, username, displayName, role, status, mustChangePassword };
 }
 
-function account(record: MockUser): Account {
-  const copy: Account & { password?: string } = { ...record };
+function profile(record: MockUser): UserProfile {
+  const copy: UserProfile & { password?: string } = { ...record };
   delete copy.password;
   return copy;
 }
@@ -40,13 +40,13 @@ export function createMockUsers(ctx: MockContext): UsersApi {
   }
 
   /** Replaces one record with `change(record)` and returns the stored result. */
-  function update(userId: string, change: (record: MockUser) => MockUser): Account {
+  function update(userId: string, change: (record: MockUser) => MockUser): UserProfile {
     const all = records.read();
     const index = all.findIndex((u) => u.id === userId);
     if (index < 0) throw new ApiError("not_found", "用户不存在");
     const next = change(all[index]);
     records.write(all.map((u, i) => (i === index ? next : u)));
-    return account(next);
+    return profile(next);
   }
 
   /**
@@ -58,7 +58,7 @@ export function createMockUsers(ctx: MockContext): UsersApi {
     userId: string,
     action: AccountActionKind,
     change: (record: MockUser, admin: User) => Partial<MockUser>,
-  ): Account {
+  ): UserProfile {
     const admin = requireAdmin(token);
     return update(userId, (record) => ({
       ...record,
@@ -68,7 +68,7 @@ export function createMockUsers(ctx: MockContext): UsersApi {
   }
 
   /** An admin's decision on a pending application. */
-  function decide(token: string, userId: string, action: "approve" | "reject", reason?: string): Account {
+  function decide(token: string, userId: string, action: "approve" | "reject", reason?: string): UserProfile {
     return administer(token, userId, action, (record) => {
       if (record.status !== "pending") throw new ApiError("invalid", "只能处理待审批的申请");
       return { status: action === "approve" ? "active" : "rejected", reason };
@@ -121,11 +121,11 @@ export function createMockUsers(ctx: MockContext): UsersApi {
       return startMockSession(ctx, user.id);
     },
 
-    async myAccount(token) {
+    async myProfile(token) {
       const { id } = resolveSessionUser(ctx, token);
       const found = records.read().find((u) => u.id === id);
       if (!found) throw new ApiError("unauthorized", "登录已失效，请重新登录");
-      return account(found);
+      return profile(found);
     },
 
     async resubmit(token, resubmission) {
@@ -151,7 +151,7 @@ export function createMockUsers(ctx: MockContext): UsersApi {
       requireAdmin(token);
       return records
         .read()
-        .map(account)
+        .map(profile)
         .sort((a, b) => b.appliedAt.localeCompare(a.appliedAt));
     },
 
@@ -197,7 +197,7 @@ export function createMockUsers(ctx: MockContext): UsersApi {
     async resetPassword(token, userId) {
       const temporaryPassword = makeTemporaryPassword();
       const reset = administer(token, userId, "reset", () => ({ password: temporaryPassword, mustChangePassword: true }));
-      return { account: reset, temporaryPassword };
+      return { profile: reset, temporaryPassword };
     },
 
     async changePassword(token, newPassword) {

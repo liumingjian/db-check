@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
-import { api, ApiError, type Account, type Resubmission } from "@/lib/api";
+import { api, ApiError, type UserProfile, type Resubmission } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { appliedAtLabel, FormError, INPUT, TEXTAREA } from "@/components/console/account/form";
 import { Brand, CAPTION, YellowButton } from "@/components/console/kit";
@@ -11,7 +11,7 @@ import { SessionGuard } from "@/components/console/session-guard";
 
 const HEADLINE = "mt-4 text-[88px] leading-[1.02] font-bold tracking-[-3px]";
 
-function Waiting({ account }: { account: Account }) {
+function Waiting({ profile }: { profile: UserProfile }) {
   const refresh = useAuthStore((s) => s.refresh);
   return (
     <div>
@@ -22,7 +22,7 @@ function Waiting({ account }: { account: Account }) {
         <span className="text-primary">等管理员批准。</span>
       </h1>
       <p className="mt-8 max-w-md text-lg leading-relaxed text-[#ccc]">
-        {account.displayName}，你在 {appliedAtLabel(account.appliedAt)} 提交了申请。批准后刷新状态就能开始用。
+        {profile.displayName}，你在 {appliedAtLabel(profile.appliedAt)} 提交了申请。批准后刷新状态就能开始用。
       </p>
       {/* An approved user leaves this page: the session guard sends active users home. */}
       <YellowButton onClick={() => void refresh()} className="mt-10">
@@ -32,10 +32,10 @@ function Waiting({ account }: { account: Account }) {
   );
 }
 
-function Rejected({ account }: { account: Account }) {
+function Rejected({ profile }: { profile: UserProfile }) {
   const token = useAuthStore((s) => s.token);
   const refresh = useAuthStore((s) => s.refresh);
-  const [form, setForm] = useState<Resubmission>({ displayName: account.displayName, team: account.team, note: account.note });
+  const [form, setForm] = useState<Resubmission>({ displayName: profile.displayName, team: profile.team, note: profile.note });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -59,11 +59,11 @@ function Rejected({ account }: { account: Account }) {
       <div>
         <p className={CAPTION}>Rejected</p>
         <h1 className={HEADLINE}>这次没通过。</h1>
-        <p className="mt-8 max-w-md border-l-2 border-destructive pl-4 text-lg leading-relaxed text-[#ccc]">{account.reason}</p>
+        <p className="mt-8 max-w-md border-l-2 border-destructive pl-4 text-lg leading-relaxed text-[#ccc]">{profile.reason}</p>
       </div>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <p className="mb-2 text-base text-muted-foreground">
-          改一下再申请，用户名（@{account.username}）和邮箱（{account.email}）不变。
+          改一下再申请，用户名（@{profile.username}）和邮箱（{profile.email}）不变。
         </p>
         <input aria-label="显示名称" placeholder="显示名称" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} className={INPUT} />
         <input aria-label="团队" placeholder="团队" value={form.team} onChange={(e) => setForm({ ...form, team: e.target.value })} className={INPUT} />
@@ -82,15 +82,15 @@ function ApplicationGate() {
   const token = useAuthStore((s) => s.token);
   const status = useAuthStore((s) => s.user?.status);
   const logout = useAuthStore((s) => s.logout);
-  const [account, setAccount] = useState<Account | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
-  // Re-read the account whenever the status changes, e.g. after a resubmission.
+  // Re-read the profile whenever the status changes, e.g. after a resubmission.
   useEffect(() => {
     if (!token) return;
     let live = true;
     api.users
-      .myAccount(token)
-      .then((a) => live && setAccount(a))
+      .myProfile(token)
+      .then((a) => live && setProfile(a))
       .catch(() => undefined);
     return () => {
       live = false;
@@ -108,9 +108,9 @@ function ApplicationGate() {
           </button>
         </div>
       </div>
-      {account && (
+      {profile && (
         <div className="mx-auto grid w-full max-w-[1240px] flex-1 grid-cols-[1.3fr_1fr] items-center gap-16 px-8 pb-32">
-          {account.status === "rejected" ? <Rejected key={account.appliedAt} account={account} /> : <Waiting account={account} />}
+          {profile.status === "rejected" ? <Rejected key={profile.appliedAt} profile={profile} /> : <Waiting profile={profile} />}
         </div>
       )}
     </div>

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Chip } from "@/components/console/kit";
 import { ReportRow } from "@/components/console/reports/report-row";
-import { api, errorMessage, type Account, type ReportTask } from "@/lib/api";
+import { api, errorMessage, type UserProfile, type ReportTask } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 
 /**
@@ -17,11 +17,11 @@ export function AllReports() {
   const router = useRouter();
   const user = useSearchParams().get("user") ?? undefined;
   const [tasks, setTasks] = useState<ReportTask[] | null>(null);
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (token) api.users.list(token).then(setAccounts, (e: unknown) => setError(errorMessage(e)));
+    if (token) api.users.list(token).then(setUsers, (e: unknown) => setError(errorMessage(e)));
   }, [token]);
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export function AllReports() {
   const show = (id?: string) => router.replace(id ? `/admin/reports?${new URLSearchParams({ user: id })}` : "/admin/reports");
 
   // Applicants never got console access, so they have no tasks. Disabled users keep theirs.
-  const submitters = accounts.filter((a) => a.status === "active" || a.status === "disabled");
+  const submitters = users.filter((a) => a.status === "active" || a.status === "disabled");
 
   return (
     <>

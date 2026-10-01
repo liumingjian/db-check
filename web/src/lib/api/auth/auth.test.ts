@@ -54,7 +54,7 @@ describe.each(contractImplementations)("%s auth contract", (_name, makeApi) => {
     const api = makeApi();
     const { token } = await api.auth.signIn(username, username);
     await expect(api.auth.currentUser(token)).resolves.toMatchObject({ status });
-    await expect(api.users.myAccount(token)).resolves.toMatchObject({ status });
+    await expect(api.users.myProfile(token)).resolves.toMatchObject({ status });
     await expect(api.releases.list(token)).rejects.toMatchObject({ code: "forbidden" });
     await expect(api.downloads.records(token)).rejects.toMatchObject({ code: "forbidden" });
     await expect(api.reports.download(token, "t-any")).rejects.toMatchObject({ code: "forbidden" });

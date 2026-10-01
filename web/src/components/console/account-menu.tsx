@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { apiMode } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { usePendingCount } from "@/stores/accounts-store";
+import { usePendingCount } from "@/stores/users-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { POP_IN, PRESS } from "@/components/console/kit";
 import { ResetMockDataButton } from "@/components/console/reset-mock-data";

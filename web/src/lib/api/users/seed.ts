@@ -1,7 +1,7 @@
-import type { Account } from "@/lib/api/users/contract";
+import type { UserProfile } from "@/lib/api/users/contract";
 
-/** A mock account record; only the mock ever holds a password. */
-export interface MockUser extends Account {
+/** A mock user record; only the mock ever holds a password. */
+export interface MockUser extends UserProfile {
   password: string;
 }
 

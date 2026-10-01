@@ -27,7 +27,7 @@ export interface AccountAction {
 }
 
 /** A user plus the profile and status details the account screens show. */
-export interface Account extends User {
+export interface UserProfile extends User {
   email: string;
   team: string;
   note: string;
@@ -45,16 +45,16 @@ export interface UsersApi {
    * page. Rejects with `invalid` on a missing field or a taken username or email.
    */
   register(registration: Registration): Promise<Session>;
-  /** The signed-in user's own account, e.g. for the waiting page and the rejection reason. */
-  myAccount(token: string): Promise<Account>;
+  /** The signed-in user's own profile, e.g. for the waiting page and the rejection reason. */
+  myProfile(token: string): Promise<UserProfile>;
   /** Rejected → pending with the same username and email; `invalid` from any other status. */
-  resubmit(token: string, resubmission: Resubmission): Promise<Account>;
+  resubmit(token: string, resubmission: Resubmission): Promise<UserProfile>;
   /** Admin only (`forbidden` otherwise): every account, newest application first. */
-  list(token: string): Promise<Account[]>;
+  list(token: string): Promise<UserProfile[]>;
   /** Admin only: pending → active; `invalid` from any other status. */
-  approve(token: string, userId: string): Promise<Account>;
+  approve(token: string, userId: string): Promise<UserProfile>;
   /** Admin only: pending → rejected; the reason is required (`invalid` when blank) and shown to the user. */
-  reject(token: string, userId: string, reason: string): Promise<Account>;
+  reject(token: string, userId: string, reason: string): Promise<UserProfile>;
 
   /*
    * Account administration, admin only. Every action appends to `actions`. An admin
@@ -63,13 +63,13 @@ export interface UsersApi {
    */
 
   /** Active → disabled; the reason is required. The user's sign-in is refused, their report tasks are kept. */
-  disable(token: string, userId: string, reason: string): Promise<Account>;
+  disable(token: string, userId: string, reason: string): Promise<UserProfile>;
   /** Disabled → active. */
-  enable(token: string, userId: string): Promise<Account>;
+  enable(token: string, userId: string): Promise<UserProfile>;
   /** An active engineer becomes an admin. */
-  promote(token: string, userId: string): Promise<Account>;
+  promote(token: string, userId: string): Promise<UserProfile>;
   /** An active admin becomes an engineer. */
-  demote(token: string, userId: string): Promise<Account>;
+  demote(token: string, userId: string): Promise<UserProfile>;
   /**
    * Sets a temporary password for the admin to hand over in person. The user's
    * next session is held at `/change-password` (`mustChangePassword`) until they change it.
@@ -79,10 +79,10 @@ export interface UsersApi {
    * The caller's own new password; ends a forced password change. Rejects with
    * `invalid` when blank or equal to the current one.
    */
-  changePassword(token: string, newPassword: string): Promise<Account>;
+  changePassword(token: string, newPassword: string): Promise<UserProfile>;
 }
 
 export interface PasswordReset {
-  account: Account;
+  profile: UserProfile;
   temporaryPassword: string;
 }

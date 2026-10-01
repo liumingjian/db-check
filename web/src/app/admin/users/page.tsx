@@ -2,16 +2,16 @@
 
 import { useEffect } from "react";
 import { Check } from "lucide-react";
-import { ApiError, type Account } from "@/lib/api";
+import { ApiError, type UserProfile } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { pendingAccounts, useAccountsStore } from "@/stores/accounts-store";
+import { pendingUsers, useUsersStore } from "@/stores/users-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { appliedAtLabel } from "@/components/console/account/form";
-import { MemberList } from "@/components/console/admin/member-list";
+import { UserList } from "@/components/console/admin/user-list";
 import { useDialogs } from "@/components/console/dialog-host";
 import { PRESS, YellowButton } from "@/components/console/kit";
 
-function ApplicantCard({ applicant, onApprove, onReject }: { applicant: Account; onApprove: () => void; onReject: () => void }) {
+function ApplicantCard({ applicant, onApprove, onReject }: { applicant: UserProfile; onApprove: () => void; onReject: () => void }) {
   return (
     <div className="flex flex-col rounded-2xl bg-card p-7">
       <p className="text-sm text-muted-foreground tabular-nums">{appliedAtLabel(applicant.appliedAt)} 申请</p>
@@ -32,21 +32,21 @@ function ApplicantCard({ applicant, onApprove, onReject }: { applicant: Account;
   );
 }
 
-/** 管理 → 用户: the pending count as headline, one card per applicant, then the member list. */
+/** 管理 → 用户: the pending count as headline, one card per applicant, then the user list. */
 export default function AdminUsersPage() {
   const token = useAuthStore((s) => s.token);
-  const accounts = useAccountsStore((s) => s.accounts);
-  const load = useAccountsStore((s) => s.load);
-  const approve = useAccountsStore((s) => s.approve);
-  const reject = useAccountsStore((s) => s.reject);
+  const users = useUsersStore((s) => s.users);
+  const load = useUsersStore((s) => s.load);
+  const approve = useUsersStore((s) => s.approve);
+  const reject = useUsersStore((s) => s.reject);
   const { toast, ask } = useDialogs();
 
   useEffect(() => {
     if (token) load(token).catch(() => undefined);
   }, [token, load]);
 
-  if (!token || accounts === null) return null;
-  const pending = pendingAccounts(accounts);
+  if (!token || users === null) return null;
+  const pending = pendingUsers(users);
 
   async function decide(action: Promise<unknown>, done: string) {
     try {
@@ -58,7 +58,7 @@ export default function AdminUsersPage() {
     }
   }
 
-  const askReject = (applicant: Account) =>
+  const askReject = (applicant: UserProfile) =>
     ask({
       title: `拒绝 ${applicant.displayName} 的申请`,
       body: "对方登录后会看到原因，可以修改后重新申请。",
@@ -92,7 +92,7 @@ export default function AdminUsersPage() {
           ))}
         </div>
       )}
-      <MemberList accounts={accounts} />
+      <UserList users={users} />
     </div>
   );
 }

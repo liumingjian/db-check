@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { useAccountsStore, usePendingCount } from "@/stores/accounts-store";
+import { useUsersStore, usePendingCount } from "@/stores/users-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { AccountMenu } from "@/components/console/account-menu";
 import { Bars } from "@/components/console/kit";
@@ -73,15 +73,15 @@ export function Rail() {
   const router = useRouter();
   const isAdmin = useAuthStore((s) => s.user?.role === "admin");
   const token = useAuthStore((s) => s.token);
-  const loadAccounts = useAccountsStore((s) => s.load);
+  const loadUsers = useUsersStore((s) => s.load);
   const pending = usePendingCount();
   const onHome = pathname === "/";
   const inView = useSectionInView(onHome);
 
   // The 管理 badge counts pending applications; decisions on 管理 → 用户 reload the same list.
   useEffect(() => {
-    if (isAdmin && token) loadAccounts(token).catch(() => undefined);
-  }, [isAdmin, token, loadAccounts]);
+    if (isAdmin && token) loadUsers(token).catch(() => undefined);
+  }, [isAdmin, token, loadUsers]);
 
   function go(key: SectionKey) {
     if (onHome) scrollToSection(key);

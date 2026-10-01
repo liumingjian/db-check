@@ -33,6 +33,6 @@ export type {
   ReportTaskStatus,
   SubmittedReportTask,
 } from "@/lib/api/reports/contract";
-export type { Account, PasswordReset, Registration, Resubmission } from "@/lib/api/users/contract";
+export type { UserProfile, PasswordReset, Registration, Resubmission } from "@/lib/api/users/contract";
 export { REPORT_RETENTION_DAYS } from "@/lib/api/reports/contract";
 export { ApiError, errorMessage, type ApiErrorCode } from "@/lib/api/errors";

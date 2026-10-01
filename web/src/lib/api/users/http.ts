@@ -8,7 +8,7 @@ export function createHttpUsers(): UsersApi {
   };
   return {
     register: unavailable,
-    myAccount: unavailable,
+    myProfile: unavailable,
     resubmit: unavailable,
     list: unavailable,
     approve: unavailable,

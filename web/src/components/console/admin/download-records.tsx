@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { appliedAtLabel } from "@/components/console/account/form";
 import { Chip } from "@/components/console/kit";
-import { api, errorMessage, type Account, type CollectorRelease, type DownloadRecord, type ReleaseStatus } from "@/lib/api";
+import { api, errorMessage, type UserProfile, type CollectorRelease, type DownloadRecord, type ReleaseStatus } from "@/lib/api";
 import type { DownloadRecordFilter } from "@/lib/api/downloads/contract";
 import { DAY_MS } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -52,14 +52,14 @@ export function DownloadRecords({ now = Date.now }: { now?: () => number }) {
     days: params.get("days") ?? undefined,
   };
   const [records, setRecords] = useState<DownloadRecord[] | null>(null);
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
   const [releases, setReleases] = useState<CollectorRelease[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
     const fail = (e: unknown) => setError(errorMessage(e));
-    api.users.list(token).then(setAccounts, fail);
+    api.users.list(token).then(setUsers, fail);
     api.releases.list(token).then(setReleases, fail);
   }, [token]);
 
@@ -72,10 +72,10 @@ export function DownloadRecords({ now = Date.now }: { now?: () => number }) {
   // Replace, not push: flipping chips shouldn't fill the back button's history.
   const set = (change: DownloadRecordsQuery) => router.replace(downloadRecordsHref({ ...query, ...change }));
 
-  const nameOf = (userId: string) => accounts.find((a) => a.id === userId)?.displayName ?? userId;
+  const nameOf = (userId: string) => users.find((a) => a.id === userId)?.displayName ?? userId;
   const statusOf = (version: string) => releases.find((r) => r.version === version)?.status;
   // Applicants never got console access, so they have no downloads to filter by.
-  const people = accounts.filter((a) => a.status === "active" || a.status === "disabled");
+  const people = users.filter((a) => a.status === "active" || a.status === "disabled");
 
   return (
     <>

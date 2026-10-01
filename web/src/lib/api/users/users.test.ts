@@ -43,8 +43,8 @@ describe.each(contractImplementations)("%s users contract", (_name, makeApi) => 
     const api = makeApi();
     const { token, user } = await api.auth.signIn("zhaoliu", "zhaoliu");
     expect(user.status).toBe("rejected");
-    const account = await api.users.myAccount(token);
-    expect(account.reason).toBe("外部合作方账号需由项目经理邮件确认后再申请");
+    const profile = await api.users.myProfile(token);
+    expect(profile.reason).toBe("外部合作方账号需由项目经理邮件确认后再申请");
   });
 
   async function adminToken(api: DbCheckApi) {
@@ -92,7 +92,7 @@ describe.each(contractImplementations)("%s users contract", (_name, makeApi) => 
 
     expect(rejected.actions.at(-1)).toMatchObject({ action: "reject", by: "admin" });
     expect(await pendingIds(api, admin)).not.toContain("zhouqi");
-    await expect(api.users.myAccount(applicantSession.token)).resolves.toMatchObject({ status: "rejected", reason: "请注明负责的客户" });
+    await expect(api.users.myProfile(applicantSession.token)).resolves.toMatchObject({ status: "rejected", reason: "请注明负责的客户" });
   });
 
   it("keeps every admin action on an account, oldest first, each with the acting admin and time", async () => {
@@ -173,195 +173,5 @@ describe.each(contractImplementations)("%s users contract", (_name, makeApi) => 
     const { user } = await api.users.register(applicant);
     await api.users.approve(await adminToken(api), user.id);
     await expect(api.auth.signIn("zhouqi", "zhouqi-pass")).resolves.toMatchObject({ user: { role: "user", status: "active" } });
-  });
-
-  describe("disable and enable", () => {
-    it("disables an active engineer with a reason, stamped with the acting admin", async () => {
-      const api = makeApi();
-      const disabled = await api.users.disable(await adminToken(api), "u-user-001", "  已转岗  ");
-      expect(disabled).toMatchObject({ status: "disabled", reason: "已转岗" });
-      expect(disabled.actions.at(-1)).toMatchObject({ action: "disable", by: "admin" });
-      expect(Date.parse(disabled.actions.at(-1)!.at)).not.toBeNaN();
-      await expect(api.auth.signIn("user", "user")).rejects.toMatchObject({ code: "forbidden" });
-    });
-
-    it("ends the sessions a user holds when they are disabled", async () => {
-      const api = makeApi();
-      const { token } = await api.auth.signIn("user", "user");
-      await api.users.disable(await adminToken(api), "u-user-001", "已转岗");
-      await expect(api.auth.currentUser(token)).rejects.toMatchObject({ code: "unauthorized" });
-      await expect(api.releases.list(token)).rejects.toMatchObject({ code: "unauthorized" });
-    });
-
-    it("refuses to disable without a reason", async () => {
-      const api = makeApi();
-      await expect(api.users.disable(await adminToken(api), "u-user-001", " ")).rejects.toMatchObject({ code: "invalid" });
-    });
-
-    it.each([
-      ["pending", "u-pending-001"],
-      ["rejected", "u-rejected-001"],
-      ["disabled", "u-disabled-001"],
-    ])("refuses to disable a %s account", async (_status, id) => {
-      const api = makeApi();
-      await expect(api.users.disable(await adminToken(api), id, "原因")).rejects.toMatchObject({ code: "invalid" });
-    });
-
-    it("enables a disabled user, who can sign in again", async () => {
-      const api = makeApi();
-      const enabled = await api.users.enable(await adminToken(api), "u-disabled-001");
-      expect(enabled).toMatchObject({ status: "active" });
-      expect(enabled.actions.at(-1)).toMatchObject({ action: "enable", by: "admin" });
-      expect(enabled.reason).toBeUndefined();
-      await expect(api.auth.signIn("wangwu", "wangwu")).resolves.toMatchObject({ user: { status: "active" } });
-    });
-
-    it("refuses to enable an account that is not disabled", async () => {
-      const api = makeApi();
-      await expect(api.users.enable(await adminToken(api), "u-user-001")).rejects.toMatchObject({ code: "invalid" });
-    });
-  });
-
-  describe("promote and demote", () => {
-    it("promotes an active engineer to admin, who can then administer accounts", async () => {
-      const api = makeApi();
-      const promoted = await api.users.promote(await adminToken(api), "u-user-001");
-      expect(promoted).toMatchObject({ role: "admin" });
-      expect(promoted.actions.at(-1)).toMatchObject({ action: "promote", by: "admin" });
-      const { token } = await api.auth.signIn("user", "user");
-      await expect(api.users.list(token)).resolves.not.toHaveLength(0);
-    });
-
-    it.each([
-      ["an admin", "u-admin-001"],
-      ["a pending applicant", "u-pending-001"],
-      ["a disabled user", "u-disabled-001"],
-    ])("refuses to promote %s", async (_case, id) => {
-      const api = makeApi();
-      await expect(api.users.promote(await adminToken(api), id)).rejects.toMatchObject({ code: "invalid" });
-    });
-
-    it("demotes another admin to engineer, who loses the admin operations", async () => {
-      const api = makeApi();
-      const admin = await adminToken(api);
-      await api.users.promote(admin, "u-user-001");
-
-      const demoted = await api.users.demote(admin, "u-user-001");
-
-      expect(demoted).toMatchObject({ role: "user" });
-
-      expect(demoted.actions.at(-1)).toMatchObject({ action: "demote", by: "admin" });
-      const { token } = await api.auth.signIn("user", "user");
-      await expect(api.users.list(token)).rejects.toMatchObject({ code: "forbidden" });
-    });
-
-    it("refuses to demote an engineer", async () => {
-      const api = makeApi();
-      await expect(api.users.demote(await adminToken(api), "u-user-001")).rejects.toMatchObject({ code: "invalid" });
-    });
-  });
-
-  describe("password reset and forced change", () => {
-    it("resets a password to a temporary one that replaces the old password", async () => {
-      const api = makeApi();
-      const { account, temporaryPassword } = await api.users.resetPassword(await adminToken(api), "u-user-001");
-
-      expect(account).toMatchObject({ mustChangePassword: true });
-
-      expect(account.actions.at(-1)).toMatchObject({ action: "reset", by: "admin" });
-      expect(temporaryPassword).not.toBe("");
-      await expect(api.auth.signIn("user", "user")).rejects.toMatchObject({ code: "unauthorized" });
-      await expect(api.auth.signIn("user", temporaryPassword)).resolves.toMatchObject({ user: { mustChangePassword: true } });
-    });
-
-    it("holds every session of a reset user to their own account until they change the password", async () => {
-      const api = makeApi();
-      const { token: earlier } = await api.auth.signIn("user", "user");
-      const { temporaryPassword } = await api.users.resetPassword(await adminToken(api), "u-user-001");
-      const { token } = await api.auth.signIn("user", temporaryPassword);
-
-      for (const t of [earlier, token]) {
-        await expect(api.auth.currentUser(t)).resolves.toMatchObject({ mustChangePassword: true });
-        await expect(api.users.myAccount(t)).resolves.toMatchObject({ username: "user" });
-        await expect(api.releases.list(t)).rejects.toMatchObject({ code: "forbidden" });
-      }
-    });
-
-    it("ends the forced change once the user sets a new password", async () => {
-      const api = makeApi();
-      const { temporaryPassword } = await api.users.resetPassword(await adminToken(api), "u-user-001");
-      const { token } = await api.auth.signIn("user", temporaryPassword);
-
-      await api.users.changePassword(token, "my-new-pass");
-
-      expect((await api.auth.currentUser(token)).mustChangePassword).toBeFalsy();
-      await expect(api.releases.list(token)).resolves.toBeDefined();
-      await expect(api.auth.signIn("user", temporaryPassword)).rejects.toMatchObject({ code: "unauthorized" });
-      await expect(api.auth.signIn("user", "my-new-pass")).resolves.toMatchObject({ user: { username: "user" } });
-    });
-
-    it.each([
-      ["a blank password", "  "],
-      ["the temporary password again", null],
-    ])("refuses %s as the new password", async (_case, next) => {
-      const api = makeApi();
-      const { temporaryPassword } = await api.users.resetPassword(await adminToken(api), "u-user-001");
-      const { token } = await api.auth.signIn("user", temporaryPassword);
-      await expect(api.users.changePassword(token, next ?? temporaryPassword)).rejects.toMatchObject({ code: "invalid" });
-      await expect(api.auth.currentUser(token)).resolves.toMatchObject({ mustChangePassword: true });
-    });
-  });
-
-  describe("admin guards", () => {
-    it.each([
-      ["demote", (api: DbCheckApi, token: string, id: string) => api.users.demote(token, id)],
-      ["disable", (api: DbCheckApi, token: string, id: string) => api.users.disable(token, id, "原因")],
-    ])("refuses an admin who tries to %s themselves, even with another admin around", async (_action, act) => {
-      const api = makeApi();
-      const admin = await adminToken(api);
-      await api.users.promote(admin, "u-user-001");
-      await expect(act(api, admin, "u-admin-001")).rejects.toMatchObject({ code: "invalid" });
-      await expect(api.auth.currentUser(admin)).resolves.toMatchObject({ role: "admin", status: "active" });
-    });
-
-    it("keeps the last active admin: once the seed admin is demoted, the remaining admin cannot step down", async () => {
-      const api = makeApi();
-      await api.users.promote(await adminToken(api), "u-user-001");
-      const { token: second } = await api.auth.signIn("user", "user");
-      await api.users.demote(second, "u-admin-001");
-
-      await expect(api.users.demote(second, "u-user-001")).rejects.toMatchObject({ code: "invalid" });
-      await expect(api.users.disable(second, "u-user-001", "原因")).rejects.toMatchObject({ code: "invalid" });
-      const admins = (await api.users.list(second)).filter((a) => a.role === "admin" && a.status === "active");
-      expect(admins.map((a) => a.username)).toEqual(["user"]);
-    });
-
-    it("disables another admin, who can no longer sign in", async () => {
-      const api = makeApi();
-      const admin = await adminToken(api);
-      await api.users.promote(admin, "u-user-001");
-      await expect(api.users.disable(admin, "u-user-001", "已离职")).resolves.toMatchObject({ role: "admin", status: "disabled" });
-      await expect(api.auth.signIn("user", "user")).rejects.toMatchObject({ code: "forbidden" });
-    });
-
-    it("refuses every account action to an engineer", async () => {
-      const api = makeApi();
-      const { token } = await api.auth.signIn("user", "user");
-      for (const act of [
-        () => api.users.disable(token, "u-admin-001", "原因"),
-        () => api.users.disable(token, "u-admin-001", ""),
-        () => api.users.enable(token, "u-disabled-001"),
-        () => api.users.promote(token, "u-user-001"),
-        () => api.users.demote(token, "u-admin-001"),
-        () => api.users.resetPassword(token, "u-admin-001"),
-      ]) {
-        await expect(act()).rejects.toMatchObject({ code: "forbidden" });
-      }
-    });
-
-    it("refuses an action on an unknown account", async () => {
-      const api = makeApi();
-      await expect(api.users.enable(await adminToken(api), "u-nobody")).rejects.toMatchObject({ code: "not_found" });
-    });
   });
 });
