@@ -47,7 +47,7 @@ export function ConsolePrototype() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const current = Math.max(0, VARIANTS.findIndex((v) => v.key === (params.get("variant") ?? "D3a")));
+  const current = Math.max(0, VARIANTS.findIndex((v) => v.key === (params.get("variant") ?? "D3b")));
   const [persona, setPersona] = useState<Persona>((params.get("as") as Persona) ?? "engineer");
   const [screen, setScreen] = useState<Screen>((params.get("screen") as Screen) ?? "new-report");
   const state = useConsoleState(persona);
