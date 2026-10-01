@@ -100,7 +100,7 @@ function errorCodeFor(status: number): ApiErrorCode {
 /**
  * The message for a failed response. db-web's error envelope is
  * `{"code", "message"}` with a Chinese message the console shows as-is; any
- * other body (the report routes until they move to the envelope, proxies)
+ * other body (a proxy, for one)
  * falls back to the raw status and body.
  */
 function errorMessageFor(action: string, status: number, body: string): string {

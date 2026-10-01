@@ -249,10 +249,10 @@ make pm2-status
 make pm2-logs
 ```
 
-最小链路验证（可选）：
+最小链路验证（可选，需要一个已启用且已改过临时密码的账号）：
 
 ```bash
-make pm2-smoke
+DBCHECK_SMOKE_USERNAME=<用户名> DBCHECK_SMOKE_PASSWORD=<密码> make pm2-smoke
 ```
 
 启动（production，需先 build）：
@@ -264,7 +264,7 @@ make pm2-start-prod
 ```
 
 说明：
-- `ecosystem.config.cjs` 会自动读取仓库根目录 `.env`（不覆盖已 export 的同名变量），并内置本地联调默认值：`DBCHECK_DATA_DIR=/tmp/dbcheck-data`、`ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000`、`DBCHECK_API_TOKEN=ATI` 等；如需覆盖，可修改 `.env` 或在 `pm2 start` 前设置同名环境变量，并用 `make pm2-restart` 刷新 env。
+- `ecosystem.config.cjs` 会自动读取仓库根目录 `.env`（不覆盖已 export 的同名变量），并内置本地联调默认值：`DBCHECK_DATA_DIR=/tmp/dbcheck-data`、`ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000` 等；如需覆盖，可修改 `.env` 或在 `pm2 start` 前设置同名环境变量，并用 `make pm2-restart` 刷新 env。
 - 若用局域网地址打开前端（例如 `http://192.168.x.x:3000`），前端会默认请求同一主机的 `:8080` 后端；如后端在其他主机，可显式设置 `NEXT_PUBLIC_API_BASE` 或在生成页手动填写 API Base。
 
 远程 Linux 部署示例：
@@ -274,7 +274,6 @@ cat > .env <<'EOF'
 DBCHECK_ADDR=0.0.0.0:18080
 DBCHECK_DATA_DIR=/tmp/dbcheck-data
 ALLOWED_ORIGINS=*
-DBCHECK_API_TOKEN=ATI
 EOF
 
 make pm2-restart
@@ -305,13 +304,12 @@ zip -j /tmp/mysql-e2e.zip "$RUN_DIR/manifest.json" "$RUN_DIR/result.json"
 
 ### 4. 启动后端（db-web）
 
-后端需要 2 个环境变量；本地默认 Token 为 `ATI`，可用 `DBCHECK_API_TOKEN` 覆盖：
+后端需要 2 个环境变量（共享令牌 `DBCHECK_API_TOKEN` 已停用：仍设置时会被忽略，启动日志给出告警；每个用户用自己的账号登录）：
 - `DBCHECK_DATA_DIR`：任务落盘目录（例如 `/tmp/dbcheck-data`）
 - `ALLOWED_ORIGINS`：前端 Origin 白名单（逗号分隔）。支持三种写法：
   - 完整 Origin：`http://127.0.0.1:3000`（推荐）
   - Host（含端口）：`127.0.0.1:3000` / `localhost:3000`（更宽松，适合本地联调）
   - `*`：允许任意 Origin（仅建议本地联调临时使用；生产环境不要用）
-- `DBCHECK_API_TOKEN`：固定 Bearer token（默认 `ATI`；前端 real 模式下登录时把它填作密码，前端不再内置默认值）
 
 说明：
 - 当 `ALLOWED_ORIGINS` 配置里包含 `localhost` / `127.0.0.1`（带端口）时，`db-web` 会自动放行同端口的本机局域网地址（例如 `http://192.168.x.x:3000`），避免你用 Next dev server 的 Network 地址打开前端时触发 CORS。
@@ -323,8 +321,9 @@ export DBCHECK_DATA_DIR=/tmp/dbcheck-data
 export ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000
 # 本地快速联调（不建议在生产环境使用）：
 # export ALLOWED_ORIGINS=*
-# 可选：不设置时默认 ATI
-export DBCHECK_API_TOKEN=ATI
+
+# 首次使用：创建首个管理员，打印一次临时密码（首次登录需修改）
+go run ./reporter/cmd/db-web admin create --username admin
 
 go run ./reporter/cmd/db-web --addr 127.0.0.1:8080 --python-bin "$VIRTUAL_ENV/bin/python3"
 ```
@@ -348,14 +347,17 @@ NEXT_PUBLIC_API_MODE=real NEXT_PUBLIC_API_BASE=http://127.0.0.1:8080 npm run dev
 
 1. 页面选择 MySQL
 2. 上传 `/tmp/mysql-run.zip`（或 `/tmp/mysql-e2e.zip`）
-3. 登录时用户名任填、密码填 `DBCHECK_API_TOKEN` 的值（默认 `ATI`），然后点击“生成报告”
+3. 用自己的账号登录（首个管理员由 `db-web admin create` 创建，首次登录需修改临时密码），然后点击“生成报告”
 4. 观察 WS 日志与进度，完成后点击下载，得到 `reports-<task_id>.zip`
 
 ### 7. 仅用 curl 验证 HTTP（可选）
 
 ```bash
 API_BASE="http://127.0.0.1:8080"
-TOKEN="ATI"
+# 用已启用且已改过临时密码的账号登录，取会话令牌
+TOKEN="$(curl -sS -X POST -H "Content-Type: application/json" \
+  -d '{"username":"<用户名>","password":"<密码>"}' \
+  "${API_BASE}/api/auth/sign-in" | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')"
 
 curl -sS -X POST \
   -H "Authorization: Bearer ${TOKEN}" \

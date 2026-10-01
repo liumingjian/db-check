@@ -3,7 +3,7 @@ import type { ReportItemInput } from "@/lib/api/contract";
 import { contractImplementations, zipFile } from "@/lib/api/testing";
 
 function item(name: string, collectorVersion: string | null): ReportItemInput {
-  return { zip: zipFile(name), dbType: "mysql", collectorVersion, diagnostics: [] };
+  return { zip: zipFile(name, "mysql", collectorVersion), dbType: "mysql", collectorVersion, diagnostics: [] };
 }
 
 /** Seed releases: 1.3.0-rc1 pre-release, 1.2.0 latest, 1.1.0 deprecated, 1.0.0 revoked. */

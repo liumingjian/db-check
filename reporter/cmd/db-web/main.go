@@ -20,6 +20,9 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 		fmt.Fprintf(stderr, "[ERROR] %v\n", err)
 		return web.ExitParamError
 	}
+	for _, warning := range web.RetiredSettingWarnings(getenv) {
+		fmt.Fprintf(stderr, "[WARN] %s\n", warning)
+	}
 	if err := web.Run(cfg); err != nil {
 		fmt.Fprintf(stderr, "[ERROR] %v\n", err)
 		return web.ExitRuntimeError

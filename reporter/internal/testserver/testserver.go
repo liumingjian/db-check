@@ -3,8 +3,11 @@
 // and pin the clock. The console's "real" contract entry drives it
 // (web/src/lib/api/testing.ts). It is never built into production.
 //
-//	POST /test/reset {"now": "<ISO time>"}  wipe every table, pin the clock, load the seed
-//	POST /test/clock {"now": "<ISO time>"}  move the pinned clock
+//	POST /test/reset {"now": "<ISO time>"}  wipe every table and task file, pin the clock, load the seed
+//	POST /test/clock {"now": "<ISO time>"}  move the pinned clock; answers once report tasks it made due finished
+//
+// Reports run on a stub pipeline (stub_pipeline.go) instead of the collector
+// toolchain.
 package testserver
 
 import (
@@ -13,6 +16,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -26,6 +30,8 @@ type Server struct {
 	db      *store.DB
 	fixture fixture
 	clock   *pinnedClock
+	dataDir string
+	reports *reportTasks
 	// resetMu keeps a reset from interleaving with another one.
 	resetMu sync.Mutex
 }
@@ -41,15 +47,15 @@ func New(dataDir, fixturePath string) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{db: db, fixture: f, clock: &pinnedClock{}}
+	s := &Server{db: db, fixture: f, clock: &pinnedClock{}, dataDir: dataDir}
+	s.reports = &reportTasks{stub: newStubPipeline(s.clock), tasksDir: filepath.Join(dataDir, "tasks")}
 	cfg := web.Config{
 		DataDir:        dataDir,
 		AllowedOrigins: []string{"http://localhost:3000"},
-		APIToken:       "contract-test-server",
 		LogReplayLines: 1000,
 		PythonBin:      "python3",
 	}
-	api, err := web.NewHandler(cfg, web.Platform{DB: db, Now: s.clock.Now, Log: log.Default()})
+	api, err := web.NewHandler(cfg, web.Platform{DB: db, Now: s.clock.Now, Log: log.Default(), Pipeline: s.reports.stub})
 	if err != nil {
 		db.Close()
 		return nil, err
@@ -57,6 +63,7 @@ func New(dataDir, fixturePath string) (*Server, error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /test/reset", s.handleReset)
 	mux.HandleFunc("POST /test/clock", s.handleClock)
+	s.reports.routes(mux, api)
 	mux.Handle("/", api)
 	s.Handler = mux
 	return s, nil
@@ -76,14 +83,26 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if err := s.reports.reset(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// handleClock moves the clock and answers once the report tasks it made due
+// have finished.
 func (s *Server) handleClock(w http.ResponseWriter, r *http.Request) {
-	if now, ok := readNow(w, r); ok {
-		s.clock.Set(now)
-		w.WriteHeader(http.StatusNoContent)
+	now, ok := readNow(w, r)
+	if !ok {
+		return
 	}
+	s.clock.Set(now)
+	if err := s.reports.settle(r.Context(), s.db, now); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func readNow(w http.ResponseWriter, r *http.Request) (time.Time, bool) {
