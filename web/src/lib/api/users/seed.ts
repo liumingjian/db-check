@@ -19,6 +19,7 @@ export function seedUsers(): MockUser[] {
       team: "DBA 平台组",
       note: "初始管理员（部署配置）",
       appliedAt: "2026-08-01T09:00:00.000Z",
+      actions: [],
     },
     {
       id: "u-user-001",
@@ -31,7 +32,7 @@ export function seedUsers(): MockUser[] {
       team: "华东交付一部",
       note: "负责某银行 Oracle 巡检",
       appliedAt: "2026-08-15T10:12:00.000Z",
-      lastAction: { action: "approve", by: "admin", at: "2026-08-15T11:00:00.000Z" },
+      actions: [{ action: "approve", by: "admin", at: "2026-08-15T11:00:00.000Z" }],
     },
     {
       id: "u-pending-001",
@@ -44,6 +45,7 @@ export function seedUsers(): MockUser[] {
       team: "华南交付二部",
       note: "新入职，需要 GaussDB 巡检",
       appliedAt: "2026-09-30T16:40:00.000Z",
+      actions: [],
     },
     {
       id: "u-rejected-001",
@@ -57,7 +59,7 @@ export function seedUsers(): MockUser[] {
       note: "协助客户巡检",
       appliedAt: "2026-09-20T14:05:00.000Z",
       reason: "外部合作方账号需由项目经理邮件确认后再申请",
-      lastAction: { action: "reject", by: "admin", at: "2026-09-21T09:30:00.000Z" },
+      actions: [{ action: "reject", by: "admin", at: "2026-09-21T09:30:00.000Z" }],
     },
     {
       id: "u-disabled-001",
@@ -71,7 +73,10 @@ export function seedUsers(): MockUser[] {
       note: "MySQL 巡检",
       appliedAt: "2026-08-05T08:20:00.000Z",
       reason: "已离职",
-      lastAction: { action: "disable", by: "admin", at: "2026-09-10T10:00:00.000Z" },
+      actions: [
+        { action: "approve", by: "admin", at: "2026-08-05T09:00:00.000Z" },
+        { action: "disable", by: "admin", at: "2026-09-10T10:00:00.000Z" },
+      ],
     },
   ];
 }

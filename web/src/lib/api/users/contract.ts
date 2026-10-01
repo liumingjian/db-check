@@ -17,7 +17,7 @@ export type Resubmission = Pick<Registration, "displayName" | "team" | "note">;
 
 export type AccountActionKind = "approve" | "reject" | "disable" | "enable" | "promote" | "demote" | "reset";
 
-/** The audit stamp of the latest admin action on an account. */
+/** The audit stamp of one admin action on an account. */
 export interface AccountAction {
   action: AccountActionKind;
   /** The acting admin's username. */
@@ -35,7 +35,8 @@ export interface Account extends User {
   appliedAt: string;
   /** The admin's reason while `status` is `rejected` or `disabled`. */
   reason?: string;
-  lastAction?: AccountAction;
+  /** Every admin action on the account, oldest first; append-only. */
+  actions: AccountAction[];
 }
 
 export interface UsersApi {
@@ -56,7 +57,7 @@ export interface UsersApi {
   reject(token: string, userId: string, reason: string): Promise<Account>;
 
   /*
-   * Account administration, admin only. Every action stamps `lastAction`. An admin
+   * Account administration, admin only. Every action appends to `actions`. An admin
    * can neither disable nor demote themselves, and neither action may leave the
    * platform without an active admin (`invalid` in all those cases).
    */

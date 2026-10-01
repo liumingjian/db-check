@@ -74,7 +74,9 @@ describe.each(contractImplementations)("%s users contract", (_name, makeApi) => 
 
     const approved = await api.users.approve(admin, applicantSession.user.id);
 
-    expect(approved).toMatchObject({ status: "active", lastAction: { action: "approve", by: "admin" } });
+    expect(approved).toMatchObject({ status: "active" });
+
+    expect(approved.actions.at(-1)).toMatchObject({ action: "approve", by: "admin" });
     expect(await pendingIds(api, admin)).not.toContain("zhouqi");
     await expect(api.auth.currentUser(applicantSession.token)).resolves.toMatchObject({ status: "active" });
   });
@@ -86,9 +88,29 @@ describe.each(contractImplementations)("%s users contract", (_name, makeApi) => 
 
     const rejected = await api.users.reject(admin, applicantSession.user.id, "  请注明负责的客户  ");
 
-    expect(rejected).toMatchObject({ status: "rejected", reason: "请注明负责的客户", lastAction: { action: "reject", by: "admin" } });
+    expect(rejected).toMatchObject({ status: "rejected", reason: "请注明负责的客户" });
+
+    expect(rejected.actions.at(-1)).toMatchObject({ action: "reject", by: "admin" });
     expect(await pendingIds(api, admin)).not.toContain("zhouqi");
     await expect(api.users.myAccount(applicantSession.token)).resolves.toMatchObject({ status: "rejected", reason: "请注明负责的客户" });
+  });
+
+  it("keeps every admin action on an account, oldest first, each with the acting admin and time", async () => {
+    const api = makeApi();
+    const { user } = await api.users.register(applicant);
+    const admin = await adminToken(api);
+    await api.users.approve(admin, user.id);
+    await api.users.disable(admin, user.id, "已转岗");
+    const enabled = await api.users.enable(admin, user.id);
+
+    expect(enabled.actions.map((a) => [a.action, a.by])).toEqual([
+      ["approve", "admin"],
+      ["disable", "admin"],
+      ["enable", "admin"],
+    ]);
+    expect(enabled.actions.every((a) => !Number.isNaN(Date.parse(a.at)))).toBe(true);
+    const listed = (await api.users.list(admin)).find((a) => a.id === user.id);
+    expect(listed?.actions).toEqual(enabled.actions);
   });
 
   it("refuses a rejection without a reason", async () => {
@@ -157,8 +179,9 @@ describe.each(contractImplementations)("%s users contract", (_name, makeApi) => 
     it("disables an active engineer with a reason, stamped with the acting admin", async () => {
       const api = makeApi();
       const disabled = await api.users.disable(await adminToken(api), "u-user-001", "  已转岗  ");
-      expect(disabled).toMatchObject({ status: "disabled", reason: "已转岗", lastAction: { action: "disable", by: "admin" } });
-      expect(Date.parse(disabled.lastAction!.at)).not.toBeNaN();
+      expect(disabled).toMatchObject({ status: "disabled", reason: "已转岗" });
+      expect(disabled.actions.at(-1)).toMatchObject({ action: "disable", by: "admin" });
+      expect(Date.parse(disabled.actions.at(-1)!.at)).not.toBeNaN();
       await expect(api.auth.signIn("user", "user")).rejects.toMatchObject({ code: "forbidden" });
     });
 
@@ -187,7 +210,8 @@ describe.each(contractImplementations)("%s users contract", (_name, makeApi) => 
     it("enables a disabled user, who can sign in again", async () => {
       const api = makeApi();
       const enabled = await api.users.enable(await adminToken(api), "u-disabled-001");
-      expect(enabled).toMatchObject({ status: "active", lastAction: { action: "enable", by: "admin" } });
+      expect(enabled).toMatchObject({ status: "active" });
+      expect(enabled.actions.at(-1)).toMatchObject({ action: "enable", by: "admin" });
       expect(enabled.reason).toBeUndefined();
       await expect(api.auth.signIn("wangwu", "wangwu")).resolves.toMatchObject({ user: { status: "active" } });
     });
@@ -202,7 +226,8 @@ describe.each(contractImplementations)("%s users contract", (_name, makeApi) => 
     it("promotes an active engineer to admin, who can then administer accounts", async () => {
       const api = makeApi();
       const promoted = await api.users.promote(await adminToken(api), "u-user-001");
-      expect(promoted).toMatchObject({ role: "admin", lastAction: { action: "promote", by: "admin" } });
+      expect(promoted).toMatchObject({ role: "admin" });
+      expect(promoted.actions.at(-1)).toMatchObject({ action: "promote", by: "admin" });
       const { token } = await api.auth.signIn("user", "user");
       await expect(api.users.list(token)).resolves.not.toHaveLength(0);
     });
@@ -223,7 +248,9 @@ describe.each(contractImplementations)("%s users contract", (_name, makeApi) => 
 
       const demoted = await api.users.demote(admin, "u-user-001");
 
-      expect(demoted).toMatchObject({ role: "user", lastAction: { action: "demote", by: "admin" } });
+      expect(demoted).toMatchObject({ role: "user" });
+
+      expect(demoted.actions.at(-1)).toMatchObject({ action: "demote", by: "admin" });
       const { token } = await api.auth.signIn("user", "user");
       await expect(api.users.list(token)).rejects.toMatchObject({ code: "forbidden" });
     });
@@ -239,7 +266,9 @@ describe.each(contractImplementations)("%s users contract", (_name, makeApi) => 
       const api = makeApi();
       const { account, temporaryPassword } = await api.users.resetPassword(await adminToken(api), "u-user-001");
 
-      expect(account).toMatchObject({ mustChangePassword: true, lastAction: { action: "reset", by: "admin" } });
+      expect(account).toMatchObject({ mustChangePassword: true });
+
+      expect(account.actions.at(-1)).toMatchObject({ action: "reset", by: "admin" });
       expect(temporaryPassword).not.toBe("");
       await expect(api.auth.signIn("user", "user")).rejects.toMatchObject({ code: "unauthorized" });
       await expect(api.auth.signIn("user", temporaryPassword)).resolves.toMatchObject({ user: { mustChangePassword: true } });

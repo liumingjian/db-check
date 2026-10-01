@@ -34,6 +34,7 @@ function isMember(a: Account): boolean {
 }
 
 function MemberRow({ member, self, actions }: { member: Account; self: boolean; actions: MenuItem[] }) {
+  const latest = member.actions.at(-1);
   return (
     <div className="flex items-center gap-6 py-4">
       <div className="min-w-0 flex-1">
@@ -52,7 +53,7 @@ function MemberRow({ member, self, actions }: { member: Account; self: boolean; 
         {member.status === "disabled" && member.reason && <p className="mt-0.5 truncate text-muted-foreground">{member.reason}</p>}
       </div>
       <p className="w-52 text-sm text-muted-foreground tabular-nums">
-        {member.lastAction && `${member.lastAction.by} ${ACTION_LABEL[member.lastAction.action]} · ${appliedAtLabel(member.lastAction.at)}`}
+        {latest && `${latest.by} ${ACTION_LABEL[latest.action]} · ${appliedAtLabel(latest.at)}`}
       </p>
       <div className="w-7">
         <Menu items={actions} />

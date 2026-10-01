@@ -63,7 +63,7 @@ export function createMockUsers(ctx: MockContext): UsersApi {
     return update(userId, (record) => ({
       ...record,
       ...change(record, admin),
-      lastAction: { action, by: admin.username, at: new Date().toISOString() },
+      actions: [...record.actions, { action, by: admin.username, at: new Date(ctx.now()).toISOString() }],
     }));
   }
 
@@ -115,6 +115,7 @@ export function createMockUsers(ctx: MockContext): UsersApi {
         role: "user",
         status: "pending",
         appliedAt: new Date().toISOString(),
+        actions: [],
       };
       records.write([...all, user]);
       return startMockSession(ctx, user.id);
