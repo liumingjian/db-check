@@ -1,7 +1,8 @@
 /**
  * Persistence for the mock implementation. Each domain keeps its own
- * collection under its own storage key, seeded on first read, so domains
- * evolve their seed and shape independently.
+ * collection under its own storage key, seeded and stored on first read, so
+ * domains evolve their seed and shape independently and a seed built
+ * relative to `now` keeps its dates from then on.
  */
 const KEY_PREFIX = "dbcheck_mock_";
 
@@ -23,7 +24,10 @@ export function mockCollection<T>(storage: Storage, name: string, seed: () => T)
   return {
     read() {
       const raw = storage.getItem(key);
-      return raw === null ? seed() : (JSON.parse(raw) as T);
+      if (raw !== null) return JSON.parse(raw) as T;
+      const seeded = seed();
+      storage.setItem(key, JSON.stringify(seeded));
+      return seeded;
     },
     write(value) {
       storage.setItem(key, JSON.stringify(value));

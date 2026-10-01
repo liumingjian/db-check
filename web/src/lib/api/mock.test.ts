@@ -22,6 +22,17 @@ describe("mock API state", () => {
     expect(report.size).toBeGreaterThan(0);
   });
 
+  it("fixes the seed's dates at the first read, so later reads don't shift them", async () => {
+    let now = Date.parse("2026-10-01T08:00:00Z");
+    const api = createMockApi({ storage: memoryStorage(), stepDelayMs: 0, now: () => now });
+    const { token } = await api.auth.signIn("user", "user");
+    const firstRead = await api.reports.listOwn(token);
+
+    now += 3 * 24 * 60 * 60 * 1000;
+    const laterRead = await api.reports.listOwn(token);
+    expect(laterRead.map((t) => t.createdAt)).toEqual(firstRead.map((t) => t.createdAt));
+  });
+
   it("reset restores the seed: generated tasks and sessions are gone, seed accounts remain", async () => {
     const storage = memoryStorage();
     const api = createMockApi({ storage, stepDelayMs: 0 });
