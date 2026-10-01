@@ -5,10 +5,104 @@ info:
   description: |
     Web service for generating db-check reports from uploaded collector ZIP packages.
 
+    Platform routes (`/api/auth`, and later `/api/users`, `/api/releases`,
+    `/api/downloads`) authenticate with a session token from sign-in
+    (`Authorization: Bearer <token>`) and answer errors with `ApiError`
+    (`{"code", "message"}`): 401 `unauthorized`, 403 `forbidden`,
+    404 `not_found`, 400 or 409 `invalid`, anything else `failed`. The
+    message is Chinese and shown to the user as-is.
+
+    Access levels: most operations need an active user with no forced
+    password change due (otherwise 403); current user accepts any account
+    status except disabled. A disabled user's session answers 401.
+
+    The `/api/reports` routes still check the shared `DBCHECK_API_TOKEN` and
+    answer `ErrorResponse` until they move to sessions.
+
 servers:
   - url: /
 
 paths:
+  /api/auth/sign-in:
+    post:
+      summary: Sign in with username and password
+      description: |
+        Opens a session that expires 7 days after it was issued. Failed
+        sign-ins are logged; there is no lockout.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Signed in. Pending and rejected users sign in too.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          description: Malformed body (`invalid`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Unknown user or wrong password (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Correct password, but the account is disabled (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/auth/sign-out:
+    post:
+      summary: End the presented session
+      description: Ending an unknown or expired session also succeeds.
+      security:
+        - sessionAuth: []
+      responses:
+        "204":
+          description: Session ended.
+        "401":
+          description: No bearer token (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/auth/me:
+    get:
+      summary: The signed-in user
+      description: Answers any account status except disabled.
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: The user behind the session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: No live session, or the user is disabled (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /api/reports/generate:
     post:
       summary: Generate reports from uploaded ZIP packages
@@ -165,8 +259,56 @@ components:
       type: http
       scheme: bearer
       bearerFormat: token
+      description: The shared DBCHECK_API_TOKEN (report routes only, until they move to sessions).
+    sessionAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: session token
+      description: The token from sign-in. WebSockets pass it as the subprotocol.
 
   schemas:
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [unauthorized, forbidden, not_found, invalid, failed]
+        message:
+          type: string
+          description: Chinese, user-facing; the console shows it as-is.
+
+    User:
+      type: object
+      required: [id, username, displayName, role, status]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: string
+        role:
+          type: string
+          enum: [admin, user]
+          description: "`user` is the engineer role."
+        status:
+          type: string
+          enum: [pending, active, rejected, disabled]
+        mustChangePassword:
+          type: boolean
+          description: Present and true while a temporary password must be changed.
+
+    Session:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+          description: Opaque; only its hash is stored on the server.
+        user:
+          $ref: "#/components/schemas/User"
+
     GenerateResponse:
       type: object
       required:

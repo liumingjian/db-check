@@ -47,6 +47,15 @@ describe.each(contractImplementations)("%s users contract", (_name, makeApi) => 
     expect(profile.reason).toBe("外部合作方账号需由项目经理邮件确认后再申请");
   });
 
+  it.each([
+    ["pending", "lisi"],
+    ["rejected", "zhaoliu"],
+  ])("answers own-account for a %s applicant", async (status, username) => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn(username, username);
+    await expect(api.users.myProfile(token)).resolves.toMatchObject({ status });
+  });
+
   async function adminToken(api: DbCheckApi) {
     return (await api.auth.signIn("admin", "admin")).token;
   }

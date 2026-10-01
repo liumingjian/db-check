@@ -18,7 +18,7 @@ func TestWebSocketAuthViaSubprotocol(t *testing.T) {
 		AllowedOrigins: []string{"http://example.com"},
 		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestWebSocketReplayAndProgressSnapshot(t *testing.T) {
 		APIToken:       defaultAPIToken,
 		LogReplayLines: 1000,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestWebSocketAllowsWildcardOrigin(t *testing.T) {
 		AllowedOrigins: []string{"*"},
 		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestWebSocketAllowsHostOnlyOriginEntry(t *testing.T) {
 		AllowedOrigins: []string{"localhost:3000"},
 		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestWebSocketAllowsLocalhostAlias(t *testing.T) {
 		AllowedOrigins: []string{"http://localhost:3000"},
 		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}

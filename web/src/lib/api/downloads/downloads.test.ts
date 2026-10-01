@@ -65,6 +65,12 @@ describe.each(contractImplementations)("%s downloads contract", (_name, makeApi)
     });
   });
 
+  it.each(["lisi", "zhaoliu"])("refuses download records to applicant %s", async (username) => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn(username, username);
+    await expect(api.downloads.records(token)).rejects.toMatchObject({ code: "forbidden" });
+  });
+
   it("keeps download records from engineers", async () => {
     const api = makeApi();
     const engineer = await api.auth.signIn("user", "user");
