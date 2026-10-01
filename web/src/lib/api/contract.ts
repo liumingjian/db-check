@@ -26,6 +26,7 @@ export type {
   ReportEvent,
   ReportItem,
   ReportItemInput,
+  ReportItemOutcome,
   ReportTask,
   ReportTaskInput,
   ReportTaskStatus,

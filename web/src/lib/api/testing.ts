@@ -20,8 +20,13 @@ export function memoryStorage(): Storage {
   };
 }
 
-export const contractImplementations: Array<[name: string, makeApi: () => DbCheckApi]> = [
-  ["mock", () => createMockApi({ storage: memoryStorage(), stepDelayMs: 0 })],
+export interface ContractOptions {
+  /** Pins the clock (epoch ms) for time-dependent rules such as report retention. */
+  now?: () => number;
+}
+
+export const contractImplementations: Array<[name: string, makeApi: (options?: ContractOptions) => DbCheckApi]> = [
+  ["mock", (options) => createMockApi({ storage: memoryStorage(), stepDelayMs: 0, ...options })],
 ];
 
 /** Collects a task's events until it ends with `done` or `error`. */

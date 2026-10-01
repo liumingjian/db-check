@@ -9,6 +9,8 @@ export interface MockContext {
   storage: Storage;
   /** Pause between simulated long-running steps; tests use 0. */
   stepDelayMs: number;
+  /** Current time in epoch ms; tests pin it to step across retention limits. */
+  now: () => number;
 }
 
 export interface MockCollection<T> {

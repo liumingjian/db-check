@@ -19,6 +19,10 @@ export function createHttpReports(): ReportsApi {
       return { taskId: body.task_id, total: body.total };
     },
 
+    async listOwn() {
+      throw new ApiError("failed", "后端尚未提供报告任务列表接口");
+    },
+
     async getTask() {
       throw new ApiError("failed", "后端尚未提供报告任务查询接口");
     },

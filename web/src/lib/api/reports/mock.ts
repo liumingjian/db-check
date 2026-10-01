@@ -19,6 +19,9 @@ const SIMULATED_ITEM_LOGS: Array<{ level: LogLevel; message: string }> = [
   { level: "success", message: "报告生成完成 ✓" },
 ];
 
+/** Uploaded ZIPs and generated reports are deleted after 30 days (ADR 0003). */
+const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
 export function createMockReports(ctx: MockContext): ReportsApi {
   const tasks = mockReportTasks(ctx);
 
@@ -41,11 +44,27 @@ export function createMockReports(ctx: MockContext): ReportsApi {
     const submitter = mockUserRecords(ctx)
       .read()
       .find((u) => u.id === submitterId);
-    return { ...task, submitter: { id: submitterId, displayName: submitter?.displayName ?? submitterId } };
+    return {
+      ...task,
+      submitter: { id: submitterId, displayName: submitter?.displayName ?? submitterId },
+      expired: isExpired(task),
+    };
+  }
+
+  function isExpired({ createdAt }: { createdAt: string }): boolean {
+    return ctx.now() - Date.parse(createdAt) >= RETENTION_MS;
   }
 
   function markDone(taskId: string): void {
-    tasks.write(tasks.read().map((t) => (t.id === taskId ? { ...t, status: "done" } : t)));
+    tasks.write(
+      tasks
+        .read()
+        .map((t) =>
+          t.id === taskId
+            ? { ...t, status: "done", items: t.items.map((item) => ({ ...item, outcome: { status: "done" } })) }
+            : t,
+        ),
+    );
   }
 
   /** Plays the backend's event stream for a task, then records it as done. */
@@ -83,12 +102,18 @@ export function createMockReports(ctx: MockContext): ReportsApi {
           fileName: zip.name,
           dbType,
           collectorVersion,
+          outcome: { status: "processing" },
         })),
         status: "processing",
-        createdAt: new Date().toISOString(),
+        createdAt: new Date(ctx.now()).toISOString(),
       };
       tasks.write([task, ...tasks.read()]);
       return { taskId: task.id, total: task.items.length };
+    },
+
+    async listOwn(token) {
+      const caller = requireSessionUser(ctx, token);
+      return newestFirst(tasks.read().filter((t) => t.submitterId === caller.id)).map(toReportTask);
     },
 
     async getTask(token, taskId) {
@@ -115,6 +140,7 @@ export function createMockReports(ctx: MockContext): ReportsApi {
     async download(token, taskId) {
       const task = requireVisibleTask(requireSessionUser(ctx, token), taskId);
       if (task.status !== "done") throw new ApiError("invalid", "报告尚未生成完成");
+      if (isExpired(task)) throw new ApiError("invalid", "报告已超过 30 天保留期，文件已清理");
       const content = [
         "DB-Check 巡检诊断报告集合 (mock)",
         `任务编号: ${task.id}`,
@@ -125,6 +151,11 @@ export function createMockReports(ctx: MockContext): ReportsApi {
   };
 }
 
+/** Stable, so tasks created in the same millisecond keep their newest-first storage order. */
+function newestFirst(tasks: MockReportTask[]): MockReportTask[] {
+  return [...tasks].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+}
+
 function mockReportTasks(ctx: MockContext) {
-  return mockCollection<MockReportTask[]>(ctx.storage, "report_tasks", seedReportTasks);
+  return mockCollection<MockReportTask[]>(ctx.storage, "report_tasks", () => seedReportTasks(ctx.now()));
 }

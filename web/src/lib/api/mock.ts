@@ -11,8 +11,12 @@ export interface MockApi extends DbCheckApi {
   resetMockData(): void;
 }
 
-export function createMockApi({ storage, stepDelayMs = 250 }: Partial<MockContext> & { storage: Storage }): MockApi {
-  const ctx: MockContext = { storage, stepDelayMs };
+export function createMockApi({
+  storage,
+  stepDelayMs = 250,
+  now = Date.now,
+}: Partial<MockContext> & { storage: Storage }): MockApi {
+  const ctx: MockContext = { storage, stepDelayMs, now };
   return {
     auth: createMockAuth(ctx),
     users: createMockUsers(ctx),
