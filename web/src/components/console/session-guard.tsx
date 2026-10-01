@@ -5,17 +5,25 @@ import { usePathname, useRouter } from "next/navigation";
 import type { User } from "@/lib/auth-types";
 import { useAuthStore, type AuthStatus } from "@/stores/auth-store";
 
-export type RouteAccess = "public" | "console" | "admin";
+/**
+ * Who a route is for: `public` (signed out: /login, /register), `applicant`
+ * (pending or rejected: /pending), `console` (active users), `admin` (active admins).
+ */
+export type RouteAccess = "public" | "applicant" | "console" | "admin";
 
 /**
  * Where a visitor must go instead of `access`, or null to stay. Every redirect
  * rule of the console lives here (spec #19, Navigation): later account states
- * (pending, rejected, forced password change) add their rules to this function.
+ * (forced password change) add their rules to this function.
  */
 export function redirectFor(access: RouteAccess, status: AuthStatus, user: User | null): string | null {
   if (status === "unknown") return null;
-  if (access === "public") return user ? "/" : null;
-  if (!user) return "/login";
+  if (!user) return access === "public" ? null : "/login";
+  // Pending and rejected users see only the waiting page (and its resubmit form).
+  const applying = user.status === "pending" || user.status === "rejected";
+  if (access === "applicant") return applying ? null : "/";
+  if (applying) return "/pending";
+  if (access === "public") return "/";
   if (access === "admin" && user.role !== "admin") return "/";
   return null;
 }

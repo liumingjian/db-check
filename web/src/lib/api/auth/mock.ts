@@ -1,5 +1,5 @@
 import type { User } from "@/lib/auth-types";
-import type { AuthApi } from "@/lib/api/auth/contract";
+import type { AuthApi, Session } from "@/lib/api/auth/contract";
 import { ApiError } from "@/lib/api/errors";
 import { mockCollection, mockId, type MockContext } from "@/lib/api/mock-storage";
 import { mockUserRecords, publicUser } from "@/lib/api/users/mock";
@@ -19,6 +19,14 @@ export function requireSessionUser(ctx: MockContext, token: string): User {
   return publicUser(found);
 }
 
+/** Opens a session for a user, as sign-in and registration both do. */
+export function startMockSession(ctx: MockContext, userId: string): Session {
+  const token = mockId("mock-session");
+  const sessions = mockSessions(ctx);
+  sessions.write({ ...sessions.read(), [token]: userId });
+  return { token, user: requireSessionUser(ctx, token) };
+}
+
 export function createMockAuth(ctx: MockContext): AuthApi {
   return {
     async signIn(username, password) {
@@ -26,10 +34,7 @@ export function createMockAuth(ctx: MockContext): AuthApi {
         .read()
         .find((u) => u.username === username && u.password === password);
       if (!found) throw new ApiError("unauthorized", "用户名或密码错误");
-      const token = mockId("mock-session");
-      const sessions = mockSessions(ctx);
-      sessions.write({ ...sessions.read(), [token]: found.id });
-      return { token, user: requireSessionUser(ctx, token) };
+      return startMockSession(ctx, found.id);
     },
 
     async currentUser(token) {

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAccountsStore, usePendingCount } from "@/stores/accounts-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { AccountMenu } from "@/components/console/account-menu";
 import { Bars } from "@/components/console/kit";
@@ -38,11 +39,12 @@ function useSectionInView(enabled: boolean): SectionKey {
   return active;
 }
 
-function RailLabel({ label, on, onClick, href }: { label: string; on: boolean; onClick?: () => void; href?: string }) {
+function RailLabel({ label, on, onClick, href, children }: { label: string; on: boolean; onClick?: () => void; href?: string; children?: React.ReactNode }) {
   const className = cn("relative flex cursor-pointer flex-col items-center gap-2", on ? "text-foreground" : "text-[#5a5a5a] hover:text-[#bbb]");
   const content = (
     <>
       <span className="text-[14px] font-semibold tracking-[0.35em] [writing-mode:vertical-rl]">{label}</span>
+      {children}
       {/* No transition: the marker follows frequent navigation, which never animates. */}
       {on && <span aria-hidden className="absolute top-0 -left-[22px] h-full w-[2px] bg-primary" />}
     </>
@@ -70,8 +72,16 @@ export function Rail() {
   const pathname = usePathname();
   const router = useRouter();
   const isAdmin = useAuthStore((s) => s.user?.role === "admin");
+  const token = useAuthStore((s) => s.token);
+  const loadAccounts = useAccountsStore((s) => s.load);
+  const pending = usePendingCount();
   const onHome = pathname === "/";
   const inView = useSectionInView(onHome);
+
+  // The 管理 badge counts pending applications; decisions on 管理 → 用户 reload the same list.
+  useEffect(() => {
+    if (isAdmin && token) loadAccounts(token).catch(() => undefined);
+  }, [isAdmin, token, loadAccounts]);
 
   function go(key: SectionKey) {
     if (onHome) scrollToSection(key);
@@ -87,7 +97,15 @@ export function Rail() {
         {SECTIONS.map(({ key, label }) => (
           <RailLabel key={key} label={label} on={onHome && inView === key} onClick={() => go(key)} />
         ))}
-        {isAdmin && <RailLabel label="管理" href="/admin/users" on={pathname.startsWith("/admin")} />}
+        {isAdmin && (
+          <RailLabel label="管理" href="/admin/users" on={pathname.startsWith("/admin")}>
+            {pending > 0 && (
+              <span aria-label={`${pending} 个待审批`} className="rounded-sm bg-primary px-1 text-[11px] font-bold tracking-normal text-primary-foreground tabular-nums">
+                {pending}
+              </span>
+            )}
+          </RailLabel>
+        )}
       </nav>
       <AccountMenu />
     </aside>

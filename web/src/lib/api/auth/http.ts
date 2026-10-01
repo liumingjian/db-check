@@ -15,7 +15,7 @@ async function verifyCredential(token: string): Promise<void> {
 }
 
 function backendUser(username: string): User {
-  return { id: `backend-${username}`, username, displayName: username, role: "user" };
+  return { id: `backend-${username}`, username, displayName: username, role: "user", status: "active" };
 }
 
 /**

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { apiMode, resetMockData } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { usePendingCount } from "@/stores/accounts-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { POP_IN, PRESS } from "@/components/console/kit";
 
@@ -15,6 +16,7 @@ export function AccountMenu() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const pathname = usePathname();
+  const pending = usePendingCount();
   const [open, setOpen] = useState(false);
   if (!user) return null;
 
@@ -28,9 +30,12 @@ export function AccountMenu() {
         aria-label="账号"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className={cn("flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-muted text-sm font-semibold hover:bg-[#2f2f2f]", PRESS)}
+        className={cn("relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-muted text-sm font-semibold hover:bg-[#2f2f2f]", PRESS)}
       >
         {user.displayName.slice(0, 1)}
+        {user.role === "admin" && pending > 0 && (
+          <span aria-hidden className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-background" />
+        )}
       </button>
       {open && (
         <>
@@ -48,6 +53,7 @@ export function AccountMenu() {
               {user.role === "admin" && !inAdmin && (
                 <Link href="/admin/users" className={item}>
                   管理
+                  {pending > 0 && <span className="text-xs font-semibold text-primary tabular-nums">{pending} 待审批</span>}
                 </Link>
               )}
               {inAdmin && (
