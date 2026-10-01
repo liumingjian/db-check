@@ -1,11 +1,14 @@
 import type { ReportItem, ReportTaskStatus } from "@/lib/api/reports/contract";
 import type { DbType } from "@/lib/types";
 
+/** A stored item; its `collectorNotice` is joined from the releases on every read. */
+export type MockReportItem = Omit<ReportItem, "collectorNotice">;
+
 export interface MockReportTask {
   id: string;
   submitterId: string;
   /** One per report item, in submission order. */
-  items: ReportItem[];
+  items: MockReportItem[];
   status: ReportTaskStatus;
   createdAt: string;
 }
@@ -13,17 +16,18 @@ export interface MockReportTask {
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 
-function done(fileName: string, dbType: DbType, collectorVersion: string | null = "1.2.0"): ReportItem {
+function done(fileName: string, dbType: DbType, collectorVersion: string | null = "1.2.0"): MockReportItem {
   return { fileName, dbType, collectorVersion, outcome: { status: "done" } };
 }
 
-function failed(fileName: string, dbType: DbType, reason: string): ReportItem {
+function failed(fileName: string, dbType: DbType, reason: string): MockReportItem {
   return { fileName, dbType, collectorVersion: "1.2.0", outcome: { status: "failed", reason } };
 }
 
 /**
  * Dates are relative to `now`, so each 我的报告 marker (生成中, 部分失败, 失败,
- * 已过期) keeps showing however long after the seed is read.
+ * 已过期) keeps showing however long after the seed is read. Task 010 holds an
+ * item from the revoked release 1.0.0, so 我的报告 shows the revoked warning.
  */
 export function seedReportTasks(now: number): MockReportTask[] {
   const ago = (ms: number) => new Date(now - ms).toISOString();
@@ -59,6 +63,13 @@ export function seedReportTasks(now: number): MockReportTask[] {
       ],
       status: "done",
       createdAt: ago(6 * DAY_MS),
+    },
+    {
+      id: "task-seed-010",
+      submitterId: "u-user-001",
+      items: [done("oracle-fin-01.zip", "oracle", "1.0.0"), done("mysql-fin-01.zip", "mysql")],
+      status: "done",
+      createdAt: ago(9 * DAY_MS),
     },
     {
       id: "task-seed-002",

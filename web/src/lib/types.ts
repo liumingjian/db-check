@@ -3,6 +3,8 @@
 export const DB_TYPES = ["mysql", "oracle", "gaussdb"] as const;
 export type DbType = (typeof DB_TYPES)[number];
 
+export const DB_LABEL: Record<DbType, string> = { mysql: "MySQL", oracle: "Oracle", gaussdb: "GaussDB" };
+
 /* ─── Log entries ─── */
 export type LogLevel = "info" | "success" | "error" | "warn";
 
