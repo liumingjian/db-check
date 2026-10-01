@@ -11,9 +11,7 @@ function isNewestFirst(isoTimes: string[]): boolean {
   return isoTimes.every((at, i) => i === 0 || Date.parse(isoTimes[i - 1]) >= Date.parse(at));
 }
 
-// db-web serves generation, watching, and download; the task reads below
-// (lists, getTask) run against the mock only until it serves them too.
-describe.each(contractImplementationsWithReal)("%s reports contract: generation", (_name, makeApi) => {
+describe.each(contractImplementationsWithReal)("%s reports contract", (_name, makeApi) => {
   it("refuses to generate without a valid session", async () => {
     const api = makeApi();
     await expect(api.reports.generate("not-a-session", { items: [item("mysql-prod-01.zip")] })).rejects.toMatchObject({
@@ -60,9 +58,7 @@ describe.each(contractImplementationsWithReal)("%s reports contract: generation"
     const { taskId } = await api.reports.generate(token, { items: [item("mysql-prod-01.zip")] });
     await expect(api.reports.download(token, taskId)).rejects.toMatchObject({ code: "invalid" });
   });
-});
 
-describe.each(contractImplementations)("%s reports contract", (_name, makeApi) => {
   it("records the task under the signed-in submitter, with each item's database type and collector version", async () => {
     const api = makeApi();
     const { token, user } = await api.auth.signIn("user", "user");
@@ -183,6 +179,21 @@ describe.each(contractImplementations)("%s reports contract", (_name, makeApi) =
     await expect(api.reports.listAll("not-a-session")).rejects.toMatchObject({ code: "unauthorized" });
   });
 
+  it("refuses to list without a valid session", async () => {
+    const api = makeApi();
+    await expect(api.reports.listOwn("not-a-session")).rejects.toMatchObject({ code: "unauthorized" });
+  });
+
+  it("reports an unknown task as not found", async () => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn("user", "user");
+    await expect(api.reports.download(token, "no-such-task")).rejects.toMatchObject({ code: "not_found" });
+    await expect(api.reports.getTask(token, "no-such-task")).rejects.toMatchObject({ code: "not_found" });
+  });
+});
+
+// db-web does not expire tasks yet (#45); this runs against the mock only until it does.
+describe.each(contractImplementations)("%s reports contract: expiry", (_name, makeApi) => {
   it("expires a task's files 30 days after submission and refuses to download them", async () => {
     let now = Date.parse("2026-10-01T08:00:00Z");
     const api = makeApi({ now: () => now });
@@ -198,17 +209,5 @@ describe.each(contractImplementations)("%s reports contract", (_name, makeApi) =
     now = Date.parse("2026-10-31T08:00:00Z");
     expect(await listed()).toMatchObject({ expired: true, status: "done" });
     await expect(api.reports.download(token, taskId)).rejects.toMatchObject({ code: "invalid" });
-  });
-
-  it("refuses to list without a valid session", async () => {
-    const api = makeApi();
-    await expect(api.reports.listOwn("not-a-session")).rejects.toMatchObject({ code: "unauthorized" });
-  });
-
-  it("reports an unknown task as not found", async () => {
-    const api = makeApi();
-    const { token } = await api.auth.signIn("user", "user");
-    await expect(api.reports.download(token, "no-such-task")).rejects.toMatchObject({ code: "not_found" });
-    await expect(api.reports.getTask(token, "no-such-task")).rejects.toMatchObject({ code: "not_found" });
   });
 });

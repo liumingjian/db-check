@@ -17,10 +17,13 @@ import (
 	"nhooyr.io/websocket"
 )
 
-// registerReportRoutes mounts report generation. Every route needs an
-// active user; a task is visible to its submitter and to admins, and is
-// not_found for anyone else.
+// registerReportRoutes mounts report generation and the task lists. Every
+// route needs an active user; a task is visible to its submitter and to
+// admins, and is not_found for anyone else.
 func (h *apiHandler) registerReportRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/reports", h.admin(h.handleListAll))
+	mux.HandleFunc("GET /api/reports/mine", h.active(h.handleListOwn))
+	mux.HandleFunc("GET /api/reports/tasks/{id}", h.active(h.handleGetTask))
 	mux.HandleFunc("POST /api/reports/generate", h.active(h.handleGenerate))
 	mux.HandleFunc("GET /api/reports/status/{id}", h.active(h.handleStatus))
 	mux.HandleFunc("GET /api/reports/download/{id}", h.active(h.handleDownload))
@@ -54,6 +57,34 @@ func (h *apiHandler) handleGenerate(w http.ResponseWriter, r *http.Request, u us
 		"total":   len(task.Items),
 		"ws_url":  "/api/reports/ws/" + task.ID,
 	})
+}
+
+// handleListOwn answers 我的报告: the caller's own tasks, admins included.
+func (h *apiHandler) handleListOwn(w http.ResponseWriter, r *http.Request, u users.User) {
+	h.answerTasks(w, r, reports.Filter{SubmitterID: u.ID})
+}
+
+// handleListAll answers 全部报告, optionally narrowed to one submitter.
+func (h *apiHandler) handleListAll(w http.ResponseWriter, r *http.Request, _ users.User) {
+	h.answerTasks(w, r, reports.Filter{SubmitterID: r.URL.Query().Get("submitterId")})
+}
+
+func (h *apiHandler) answerTasks(w http.ResponseWriter, r *http.Request, f reports.Filter) {
+	tasks, err := reports.List(r.Context(), h.platform.DB, f)
+	if err != nil {
+		h.writeAPIError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, tasks)
+}
+
+func (h *apiHandler) handleGetTask(w http.ResponseWriter, r *http.Request, u users.User) {
+	task, err := reports.Read(r.Context(), h.platform.DB, r.PathValue("id"), u)
+	if err != nil {
+		h.writeAPIError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, task)
 }
 
 // visibleTask loads a task the user may see.

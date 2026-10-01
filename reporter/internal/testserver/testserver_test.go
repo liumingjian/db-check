@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"dbcheck/reporter/internal/releases"
+	"dbcheck/reporter/internal/reports"
 )
 
 func TestSeedTimeMirrorsTheFixtureGrammar(t *testing.T) {
@@ -191,6 +192,40 @@ func TestResetSeedsReleasesAndTheirPackageFiles(t *testing.T) {
 				t.Errorf("%s is not a zip: %v", p.FileName, err)
 			}
 		}
+	}
+}
+
+func TestResetSeedsTheFinishedReportTasksOnly(t *testing.T) {
+	c := newTestServer(t)
+	c.expect(c.do(http.MethodPost, "/test/reset", "", map[string]string{"now": seedNow}), http.StatusNoContent)
+
+	rec := c.do(http.MethodGet, "/api/reports", c.signIn("admin"), nil)
+	c.expect(rec, http.StatusOK)
+	var list []reports.Listed
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]reports.Listed{}
+	for _, task := range list {
+		if task.Status == "processing" {
+			t.Errorf("seeded %s as processing; a seeded task has no uploads to generate from", task.ID)
+		}
+		byID[task.ID] = task
+	}
+	if _, ok := byID["task-seed-003"]; ok || len(list) != 9 {
+		t.Fatalf("seeded %d tasks, task-seed-003 included: %v; want the 9 finished ones", len(list), ok)
+	}
+	if list[0].ID != "task-seed-007" || list[0].CreatedAt != "2026-09-30T08:00:00.000Z" {
+		t.Fatalf("newest seeded task = %+v", list[0])
+	}
+	partlyFailed := byID["task-seed-004"]
+	if partlyFailed.Status != "done" || partlyFailed.Items[1].Outcome != (reports.Outcome{
+		Status: "failed", Reason: "AWR 报告解析失败：文件不是有效的 AWR HTML",
+	}) {
+		t.Fatalf("task-seed-004 = %+v", partlyFailed)
+	}
+	if disabled := byID["task-seed-009"]; disabled.Submitter != (reports.Submitter{ID: "u-disabled-001", DisplayName: "王五"}) {
+		t.Fatalf("task-seed-009 submitter = %+v", disabled.Submitter)
 	}
 }
 
