@@ -42,13 +42,17 @@ describe.each(contractImplementations)("%s downloads contract", (_name, makeApi)
     expect(await api.downloads.records(admin.token)).toHaveLength(before.length);
   });
 
-  it("lets an admin download a revoked release", async () => {
+  it.each([
+    ["revoked", "1.0.0"],
+    ["pre-release", "1.3.0-rc1"],
+  ])("lets an admin download the %s release %s", async (_status, version) => {
     const api = makeApi();
     const admin = await api.auth.signIn("admin", "admin");
-    await api.downloads.download(admin.token, "1.0.0", "linux-arm64");
+    const blob = await api.downloads.download(admin.token, version, "linux-arm64");
+    expect(blob.size).toBeGreaterThan(0);
     expect((await api.downloads.records(admin.token))[0]).toMatchObject({
       userId: admin.user.id,
-      version: "1.0.0",
+      version,
       platform: "linux-arm64",
     });
   });
