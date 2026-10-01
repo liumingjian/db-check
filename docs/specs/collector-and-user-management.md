@@ -70,7 +70,7 @@ Release metadata comes from CI and is read-only on the platform:
 - supported database types, which CI reads from the collector itself
 - release packages: OS/arch, size, SHA256
 
-Release packages cover exactly four platforms: linux-amd64, linux-arm64, windows-amd64, windows-arm64. They are equals: customer core systems run Linux and Windows on both x86_64 and ARM64. No macOS package is built (`scripts/build_release_packages.sh`). Every release package is a `.zip`, on every platform, so the format is the same everywhere and older Windows Server releases without `tar` can unpack it. The packaging script still writes `.tar.gz` until the CI phase switches it.
+Release packages cover exactly four platforms: linux-amd64, linux-arm64, windows-amd64, windows-arm64. They are equals: customer core systems run Linux and Windows on both x86_64 and ARM64. No macOS package is built (`scripts/build_release_packages.sh`). Every release package is a `.zip`, on every platform, so the format is the same everywhere and older Windows Server releases without `tar` can unpack it. The packaging script writes them as `db-collector-<version>-<platform>.zip`, and the publish script (`scripts/publish_release.sh`) posts them.
 
 Engineer collector page:
 

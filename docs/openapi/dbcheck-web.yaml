@@ -611,7 +611,10 @@ paths:
     post:
       summary: Publish a collector release with its four packages (CI only)
       description: |
-        The publish script's API (ADR 0002). One multipart request carries
+        The publish script's API (ADR 0002); `scripts/publish_release.sh`
+        is its only client, run by a person until the CI phase and by CI
+        after. Package files are named `db-collector-<version>-<platform>.zip`.
+        One multipart request carries
         the metadata and exactly four `.zip` package files. The server checks
         each file's size and SHA256 against the metadata, stores the files
         under `<data dir>/releases/<version>/`, and inserts the release in

@@ -396,6 +396,30 @@ curl -i -sS -X OPTIONS \
   "${API_BASE}/api/reports/generate"
 ```
 
+### 9. 发布采集器版本（publish script）
+
+采集器版本只能从 git tag 发布（ADR 0002）。CI 阶段上线前由人工在发布机上运行 `scripts/publish_release.sh`，CI 之后调用的也是同一个脚本。
+
+前置条件：
+- 服务端已设置 `DBCHECK_PUBLISH_TOKEN`（未设置时发布接口不可用），发布机持有同一个值
+- 发布机有 Go、`git`、`zip`，在仓库根目录的干净检出上运行（已跟踪文件不能有未提交修改）
+- HEAD 恰好位于 `vX.Y.Z` 或 `vX.Y.Z-rcN` tag 上，且 tag 去掉 `v` 后与采集器内置版本（`collector/internal/cli/config.go` 的 `Version`，即 `db-collector --version`）完全一致。发布预发布版时，先把 `Version` 改为 `X.Y.Z-rcN` 再打 tag
+- 发布说明取自 tag 注释（`git tag -a`）；没有注释时，读取 `CHANGELOG.md` 中 `## [X.Y.Z]` 一节（文件可选）；两者都没有则拒绝发布
+
+```bash
+git tag -a v1.2.0 -m "- 新增 xxx
+- 修复 yyy"        # 打在要发布的提交上
+export DBCHECK_PUBLISH_TOKEN='<与服务端一致>'
+scripts/publish_release.sh --url https://dbcheck.example.com
+```
+
+脚本依次：
+1. 校验 tag 与内置版本、工作区是否干净、发布说明；任一不满足即报错退出，不会构建
+2. 调用 `scripts/build_release_packages.sh` 构建四个发布包：`dist/db-collector-<version>-{linux,windows}-{amd64,arm64}.zip`（`--dist-dir` 可改输出目录）
+3. 计算 SHA256，连同版本、tag、commit、发布说明、支持的数据库类型（脚本内维护：mysql、oracle、gaussdb，见 `reporter/internal/publish`）一起提交到 `POST /api/ci/releases`
+
+结果：`vX.Y.Z` 发布为「最新」，原最新版转为「已弃用」；`vX.Y.Z-rcN` 发布为「预发布」，仅管理员可见。发布包是可复现构建（同一提交重建出的 zip 逐字节相同），因此同一 tag 重复运行是幂等的：内容一致时提示 `already published ... nothing changed` 并成功退出；同一版本内容不同（例如 tag 被移动）时服务端返回 409，脚本失败。
+
 ---
 
 ## 发布包构建
@@ -409,15 +433,18 @@ make release
 默认输出目录：
 - `dist/`
 
-生成后目录形态类似：
+包名带采集器内置版本（可用 `VERSION=` 覆盖），生成后目录形态类似：
 
 ```text
 dist/
-├── db-check-linux-amd64/
-├── db-check-linux-arm64/
-├── db-check-windows-amd64/
-└── db-check-windows-arm64/
+├── db-collector-1.2.0-linux-amd64/
+├── db-collector-1.2.0-linux-amd64.zip
+├── db-collector-1.2.0-linux-arm64.zip
+├── db-collector-1.2.0-windows-amd64.zip
+└── db-collector-1.2.0-windows-arm64.zip
 ```
+
+构建需要 `zip` 命令。发布到平台请用 `scripts/publish_release.sh`（见「方式三」第 9 节）。
 
 每个发布包目录中都包含：
 - `db-collector`
