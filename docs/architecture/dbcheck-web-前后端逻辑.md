@@ -38,18 +38,18 @@ sequenceDiagram
   - 必需：
     - `DBCHECK_DATA_DIR`：任务落盘目录（内部会创建 `tasks/`）
     - `ALLOWED_ORIGINS`：CORS/WS origin 白名单（逗号分隔；支持 `*`）
-    - `DBCHECK_API_TOKEN`：HTTP Bearer token + WS subprotocol token（默认 `ATI`）
+  - 已停用：`DBCHECK_API_TOKEN`（共享令牌）。仍设置时被忽略，启动时输出告警。
   - 常用参数：
     - `--addr` / `DBCHECK_ADDR`：监听地址（默认 `:8080`）
     - `--python-bin` / `DBCHECK_PYTHON_BIN`：执行 orchestrator 的 python（默认 `python3`）
-    - `--retention-ttl`：任务自动清理 TTL（默认 24h）
+    - `--retention-ttl`：旧版（task.json）任务的自动清理 TTL（默认 24h）
 
 ### 2.2 HTTP 路由与鉴权/CORS
 
-路由注册在 `reporter/internal/web/http_handler.go`：
+报告路由注册在 `reporter/internal/web/reports_routes.go`：
 
 - `POST /api/reports/generate`
-  - `Authorization: Bearer <DBCHECK_API_TOKEN>`
+  - `Authorization: Bearer <会话令牌>`（登录 `POST /api/auth/sign-in` 获得）
   - `multipart/form-data`：
     - `zips`：一个或多个 `.zip`
     - 可选 `awr_<index>`：第 `index` 个 zip 对应的 AWR HTML（`.html/.htm`）
@@ -60,8 +60,9 @@ sequenceDiagram
 
 鉴权逻辑：
 
-- HTTP：`requireAuth`（`Authorization` Bearer token 必须等于 `cfg.APIToken`）
-- WS：`requireWSAuth`（`Sec-WebSocket-Protocol` 列表里包含 token 才允许）
+- HTTP：会话令牌，用户须为已启用且无待改临时密码（`reporter/internal/web/auth.go` 的 `active`）。
+- WS：浏览器无法设置请求头，会话令牌作为 `Sec-WebSocket-Protocol` 传入，校验同上，服务端回显该子协议。
+- 可见性：提交人与管理员可见；其他工程师访问 status、ws、download 均得到 `not_found`。
 
 CORS/Origin allowlist：
 
@@ -72,13 +73,15 @@ CORS/Origin allowlist：
 
 ### 2.3 任务落盘结构
 
-任务根目录：`<DBCHECK_DATA_DIR>/tasks/<task_id>/`（见 `reporter/internal/web/task_store.go`）
+任务记录（提交人、状态、各报告项的数据库类型、采集器版本、结果与失败原因）存于 `<DBCHECK_DATA_DIR>/platform.db`（SQLite，`reporter/internal/reports`）。提交时先落库为 queued 再应答；worker 从库中按提交顺序领取任务，重启后继续未完成的任务（`reporter/internal/web/report_lifecycle.go`）。
+
+任务文件目录：`<DBCHECK_DATA_DIR>/tasks/<task_id>/`。
 
 典型结构：
 
 ```text
 <data_dir>/tasks/<task_id>/
-  task.json
+  task.json               # 仅旧版任务；新任务不再写入
   uploads/
     zip-1-xxx.zip
     awr-1-xxx.html
@@ -106,7 +109,7 @@ CORS/Origin allowlist：
 
 - `taskHub`：`reporter/internal/web/ws_hub.go`
   - `emitLog/emitProgress/emitDone/emitError` 统一封装并注入递增 `seq`
-  - 支持 “重连补发”：`snapshot()` 先回放最近 N 行日志，再发一条 progress snapshot
+  - 支持 “重连补发”：`subscribeWithReplay()` 先回放最近 N 行日志，再发一条 progress snapshot
 
 ### 2.5 WS 消息类型（与前端契约对齐）
 

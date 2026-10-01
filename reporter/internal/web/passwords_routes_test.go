@@ -70,6 +70,7 @@ func TestResetPasswordIsForAdminsOnly(t *testing.T) {
 var gatedEndpoints = []struct{ domain, method, path string }{
 	{"users", http.MethodGet, "/api/users"},
 	{"releases", http.MethodGet, "/api/releases"},
+	{"reports", http.MethodGet, "/api/reports/status/any-task"},
 	{"downloads", http.MethodGet, "/api/downloads"},
 }
 
@@ -106,8 +107,10 @@ func TestForcedPasswordChangeHoldsTheUserToTheirOwnAccount(t *testing.T) {
 	if rec.Code != http.StatusOK || profile.MustChangePassword {
 		t.Fatalf("forced change: %d %s", rec.Code, rec.Body)
 	}
+	// The gate lifts: no endpoint answers 403 any more (one may still
+	// answer 404 for the made-up record it names).
 	for _, e := range gatedEndpoints {
-		if rec := f.do(e.method, e.path, token, nil); rec.Code != http.StatusOK {
+		if rec := f.do(e.method, e.path, token, nil); rec.Code == http.StatusForbidden {
 			t.Fatalf("after the change, %s %s: %d %s", e.method, e.path, rec.Code, rec.Body)
 		}
 	}

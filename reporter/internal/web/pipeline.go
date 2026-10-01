@@ -1,11 +1,34 @@
 package web
 
 import (
+	"context"
 	"dbcheck/reporter/internal/launcher"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
+
+// ReportPipeline generates one report item's document. Production uses
+// *Pipeline; the contract test server plugs in a stub.
+type ReportPipeline interface {
+	// RunItem generates the item's report at ItemReportPath(job.TaskDir,
+	// job.Input.ID), passing its output lines to onLog.
+	RunItem(ctx context.Context, job ItemJob, onLog func(LogEvent)) ItemResult
+}
+
+// ItemJob is one report item handed to the pipeline.
+type ItemJob struct {
+	TaskID        string
+	TaskDir       string
+	TaskCreatedAt time.Time
+	Input         ItemInput
+}
+
+// ItemReportPath is where an item's report document is written.
+func ItemReportPath(taskDir, itemID string) string {
+	return filepath.Join(taskDir, "items", itemID, "report.docx")
+}
 
 type AssetLayoutResolver interface {
 	Resolve(executablePath string, cfg launcher.Config) (launcher.AssetLayout, error)
@@ -70,6 +93,11 @@ func (p *Pipeline) RunItems(taskDir string, items []ItemInput, onLog func(itemID
 	return results
 }
 
+// RunItem runs the report launcher on one item.
+func (p *Pipeline) RunItem(_ context.Context, job ItemJob, onLog func(LogEvent)) ItemResult {
+	return p.runOne(job.TaskDir, job.Input, func(_ string, ev LogEvent) { onLog(ev) })
+}
+
 func (p *Pipeline) runOne(taskDir string, item ItemInput, onLog func(itemID string, ev LogEvent)) ItemResult {
 	if err := validateTaskID(item.ID); err != nil {
 		return ItemResult{ID: item.ID, Status: ItemFailed, Error: err.Error()}
@@ -99,7 +127,7 @@ func (p *Pipeline) runOne(taskDir string, item ItemInput, onLog func(itemID stri
 		return ItemResult{ID: item.ID, Status: ItemFailed, Error: err.Error()}
 	}
 
-	outDocx := filepath.Join(itemDir, "report.docx")
+	outDocx := ItemReportPath(taskDir, item.ID)
 	cfg := launcher.Config{
 		RunDir:   runDir,
 		OutDocx:  outDocx,

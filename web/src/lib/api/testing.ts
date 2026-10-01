@@ -3,9 +3,11 @@
  * each entry of an implementations list: the mock, plus the real backend
  * once the suite's domain opts in (`contractImplementationsWithReal`).
  */
+import { strToU8, zipSync } from "fflate";
 import type { DbCheckApi, ReportEvent } from "@/lib/api/contract";
 import { createMockApi } from "@/lib/api/mock";
 import { createTestServerApi } from "@/lib/api/test-server";
+import type { DbType } from "@/lib/types";
 
 export function memoryStorage(): Storage {
   const data = new Map<string, string>();
@@ -66,6 +68,18 @@ export function watchToEnd(api: DbCheckApi, token: string, taskId: string): Prom
   });
 }
 
-export function zipFile(name: string): File {
-  return new File(["PK"], name, { type: "application/zip" });
+/**
+ * A tiny real collector ZIP: a manifest naming its result JSON, whose `meta`
+ * carries the collector version (`null` writes none). The real backend reads
+ * both from the ZIP itself, so they must match the item's `dbType` and
+ * `collectorVersion`.
+ */
+export function zipFile(name: string, dbType: DbType = "mysql", collectorVersion: string | null = "1.2.0"): File {
+  const manifest = { schema_version: "1.0", db_type: dbType, artifacts: { result: "result.json" } };
+  const result = { meta: { schema_version: "2.0", ...(collectorVersion === null ? {} : { collector_version: collectorVersion }) } };
+  const zip = zipSync({
+    "manifest.json": strToU8(JSON.stringify(manifest)),
+    "result.json": strToU8(JSON.stringify(result)),
+  });
+  return new File([zip], name, { type: "application/zip" });
 }

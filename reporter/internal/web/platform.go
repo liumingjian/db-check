@@ -18,6 +18,8 @@ type Platform struct {
 	DB  *store.DB
 	Now func() time.Time
 	Log *log.Logger
+	// Pipeline generates report items; nil means the real report launcher.
+	Pipeline ReportPipeline
 }
 
 func (p Platform) withDefaults() Platform {

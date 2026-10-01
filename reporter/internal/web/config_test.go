@@ -1,31 +1,17 @@
 package web
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
-func TestParseConfigUsesDefaultAPIToken(t *testing.T) {
-	cfg, err := ParseConfig(nil, envGetter(map[string]string{
-		envDataDir:        t.TempDir(),
-		envAllowedOrigins: "http://example.com",
-	}))
-	if err != nil {
-		t.Fatalf("ParseConfig failed: %v", err)
+func TestRetiredSharedTokenOnlyWarns(t *testing.T) {
+	if got := RetiredSettingWarnings(envGetter(nil)); len(got) != 0 {
+		t.Fatalf("warnings without the variable = %q", got)
 	}
-	if cfg.APIToken != defaultAPIToken {
-		t.Fatalf("expected default token %q got %q", defaultAPIToken, cfg.APIToken)
-	}
-}
-
-func TestParseConfigAllowsAPITokenOverride(t *testing.T) {
-	cfg, err := ParseConfig(nil, envGetter(map[string]string{
-		envDataDir:        t.TempDir(),
-		envAllowedOrigins: "http://example.com",
-		envAPIToken:       "custom-token",
-	}))
-	if err != nil {
-		t.Fatalf("ParseConfig failed: %v", err)
-	}
-	if cfg.APIToken != "custom-token" {
-		t.Fatalf("expected custom token got %q", cfg.APIToken)
+	got := RetiredSettingWarnings(envGetter(map[string]string{"DBCHECK_API_TOKEN": "ATI"}))
+	if len(got) != 1 || !strings.Contains(got[0], "DBCHECK_API_TOKEN") || !strings.Contains(got[0], "忽略") {
+		t.Fatalf("warnings = %q, want one saying DBCHECK_API_TOKEN is ignored", got)
 	}
 }
 
