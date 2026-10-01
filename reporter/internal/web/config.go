@@ -17,6 +17,7 @@ const (
 	envDataDir        = "DBCHECK_DATA_DIR"
 	envAllowedOrigins = "ALLOWED_ORIGINS"
 	envAPIToken       = "DBCHECK_API_TOKEN"
+	envPublishToken   = "DBCHECK_PUBLISH_TOKEN"
 )
 
 const (
@@ -33,6 +34,9 @@ type Config struct {
 	DataDir        string
 	AllowedOrigins []string
 	APIToken       string
+	// PublishToken is the CI credential for the publish API (ADR 0002);
+	// empty disables publishing.
+	PublishToken string
 
 	MaxUploadBytes int64
 	RetentionTTL   time.Duration
@@ -69,6 +73,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	if cfg.APIToken == "" {
 		cfg.APIToken = defaultAPIToken
 	}
+	cfg.PublishToken = strings.TrimSpace(getenv(envPublishToken))
 	cfg.RetentionTTL = *retentionTTL
 
 	if strings.TrimSpace(cfg.DataDir) == "" {

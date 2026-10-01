@@ -1,16 +1,19 @@
-import { ApiError } from "@/lib/api/errors";
-import type { ReleasesApi } from "@/lib/api/releases/contract";
+import type { HttpClient } from "@/lib/api/http-client";
+import type { CollectorRelease, ReleaseAction, ReleasesApi } from "@/lib/api/releases/contract";
 
-/** db-web has no release store yet (a later phase); mock mode is the target for now. */
-export function createHttpReleases(): ReleasesApi {
-  const notImplemented = async (): Promise<never> => {
-    throw new ApiError("failed", "采集器版本接口尚未实现");
+/** Collector releases on db-web: `/api/releases`. */
+export function createHttpReleases(client: HttpClient): ReleasesApi {
+  const act = async (token: string, version: string, action: ReleaseAction, body?: { reason: string }) => {
+    await client.send("修改版本状态失败", "POST", `/api/releases/${encodeURIComponent(version)}/${action}`, token, body);
   };
   return {
-    list: notImplemented,
-    promote: notImplemented,
-    deprecate: notImplemented,
-    revoke: notImplemented,
-    restore: notImplemented,
+    async list(token) {
+      const resp = await client.request("读取采集器版本失败", "/api/releases", token);
+      return (await resp.json()) as CollectorRelease[];
+    },
+    promote: (token, version) => act(token, version, "promote"),
+    deprecate: (token, version) => act(token, version, "deprecate"),
+    revoke: (token, version, reason) => act(token, version, "revoke", { reason }),
+    restore: (token, version) => act(token, version, "restore"),
   };
 }
