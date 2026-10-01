@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -36,6 +37,20 @@ func TestAdminCreateMakesTheFirstAdminWithATemporaryPassword(t *testing.T) {
 	}
 	if u.Role != users.RoleAdmin || u.Status != users.StatusActive || !u.MustChangePassword {
 		t.Fatalf("created user = %+v, want an active admin who must change the password", u)
+	}
+}
+
+// The first deploy runs admin create before db-web has ever started, so the
+// data directory may not exist yet.
+func TestAdminCreateCreatesAMissingDataDirectory(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "var", "lib", "dbcheck")
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"admin", "create", "--username", "root", "--data-dir", dataDir}, noEnv, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "临时密码") {
+		t.Fatalf("stdout %q does not print the temporary password", stdout.String())
 	}
 }
 
