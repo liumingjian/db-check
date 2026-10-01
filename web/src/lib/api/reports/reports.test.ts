@@ -108,6 +108,45 @@ describe.each(contractImplementations)("%s reports contract", (_name, makeApi) =
     expect(adminsOwn.every((t) => t.submitter.id === admin.user.id)).toBe(true);
   });
 
+  it("lists every submitter's tasks to an admin, disabled users included, newest first", async () => {
+    const api = makeApi();
+    const engineer = await api.auth.signIn("user", "user");
+    const admin = await api.auth.signIn("admin", "admin");
+    const engineersTask = await api.reports.generate(engineer.token, { items: [item("mall.zip")] });
+    const adminsTask = await api.reports.generate(admin.token, { items: [item("core.zip")] });
+
+    const all = await api.reports.listAll(admin.token);
+    expect(all.map((t) => t.id)).toEqual(expect.arrayContaining([engineersTask.taskId, adminsTask.taskId]));
+    expect(new Set(all.map((t) => t.submitter.id))).toEqual(new Set(["u-user-001", "u-admin-001", "u-disabled-001"]));
+    expect(all.find((t) => t.submitter.id === "u-disabled-001")?.submitter.displayName).toBe("王五");
+    expect(isNewestFirst(all.map((t) => t.createdAt))).toBe(true);
+  });
+
+  it("narrows all tasks to one submitter", async () => {
+    const api = makeApi();
+    const admin = await api.auth.signIn("admin", "admin");
+
+    const disabledUsers = await api.reports.listAll(admin.token, { submitterId: "u-disabled-001" });
+    expect(disabledUsers.map((t) => t.id)).toEqual(["task-seed-009"]);
+
+    const engineers = await api.reports.listAll(admin.token, { submitterId: "u-user-001" });
+    expect(engineers.length).toBeGreaterThan(1);
+    expect(engineers.every((t) => t.submitter.id === "u-user-001")).toBe(true);
+    expect(engineers).toEqual(await api.reports.listOwn((await api.auth.signIn("user", "user")).token));
+
+    expect(await api.reports.listAll(admin.token, { submitterId: "no-such-user" })).toEqual([]);
+  });
+
+  it("lists all tasks to admins only", async () => {
+    const api = makeApi();
+    const engineer = await api.auth.signIn("user", "user");
+    await expect(api.reports.listAll(engineer.token)).rejects.toMatchObject({ code: "forbidden" });
+    await expect(api.reports.listAll(engineer.token, { submitterId: engineer.user.id })).rejects.toMatchObject({
+      code: "forbidden",
+    });
+    await expect(api.reports.listAll("not-a-session")).rejects.toMatchObject({ code: "unauthorized" });
+  });
+
   it("expires a task's files 30 days after submission and refuses to download them", async () => {
     let now = Date.parse("2026-10-01T08:00:00Z");
     const api = makeApi({ now: () => now });

@@ -1,4 +1,14 @@
-/** 管理 → 全部报告. Placeholder until the all-reports page (#31) fills it. */
+"use client";
+
+import { Suspense } from "react";
+import { AllReports } from "@/components/console/admin/all-reports";
+
+/** 管理 → 全部报告. The submitter filter lives in the URL query. */
 export default function AdminReportsPage() {
-  return <p className="text-muted-foreground">全部报告即将上线。</p>;
+  // useSearchParams needs a Suspense boundary, or the static build bails out.
+  return (
+    <Suspense>
+      <AllReports />
+    </Suspense>
+  );
 }

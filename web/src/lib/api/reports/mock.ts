@@ -116,6 +116,12 @@ export function createMockReports(ctx: MockContext): ReportsApi {
       return newestFirst(tasks.read().filter((t) => t.submitterId === caller.id)).map(toReportTask);
     },
 
+    async listAll(token, { submitterId } = {}) {
+      if (requireSessionUser(ctx, token).role !== "admin") throw new ApiError("forbidden", "只有管理员可以查看全部报告");
+      const all = tasks.read();
+      return newestFirst(submitterId ? all.filter((t) => t.submitterId === submitterId) : all).map(toReportTask);
+    },
+
     async getTask(token, taskId) {
       return toReportTask(requireVisibleTask(requireSessionUser(ctx, token), taskId));
     },

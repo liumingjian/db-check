@@ -49,6 +49,11 @@ export interface ReportTask {
   items: ReportItem[];
 }
 
+/** Narrows 全部报告; every field is optional. */
+export interface ReportTaskFilter {
+  submitterId?: string;
+}
+
 /** Progress events of a running report task, in the backend WebSocket shape. */
 export type ReportEvent = WsMessage;
 
@@ -57,6 +62,11 @@ export interface ReportsApi {
   generate(token: string, input: ReportTaskInput): Promise<SubmittedReportTask>;
   /** The caller's own tasks, admins included, newest first (我的报告). */
   listOwn(token: string): Promise<ReportTask[]>;
+  /**
+   * Every user's tasks, disabled users' included, newest first (管理 → 全部报告).
+   * Admin only; `forbidden` otherwise.
+   */
+  listAll(token: string, filter?: ReportTaskFilter): Promise<ReportTask[]>;
   /** One task; `not_found` unless the caller is its submitter or an admin. */
   getTask(token: string, taskId: string): Promise<ReportTask>;
   /**
