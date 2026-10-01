@@ -10,6 +10,7 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -40,14 +41,17 @@ type Querier interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-// Open opens (creating if needed) the database in dataDir and applies every
-// embedded migration not yet applied, in file-name order, each in its own
-// transaction. Applied migrations are remembered by file name, so a
+// Open opens (creating it and dataDir if needed) the database in dataDir and
+// applies every embedded migration not yet applied, in file-name order, each
+// in its own transaction. Applied migrations are remembered by file name, so a
 // migration merged later with a lower number still runs once.
 func Open(dataDir string) (*DB, error) {
 	sub, err := fs.Sub(migrations, "migrations")
 	if err != nil {
 		return nil, err
+	}
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		return nil, fmt.Errorf("create data dir: %w", err)
 	}
 	return open(filepath.Join(dataDir, FileName), sub)
 }

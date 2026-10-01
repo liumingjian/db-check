@@ -47,10 +47,22 @@ func newAPIHandler(cfg Config, p Platform, startWorker bool) (*apiHandler, error
 	return h, nil
 }
 
-func (h *apiHandler) handler() http.Handler {
-	mux := http.NewServeMux()
+// routeMux is the part of *http.ServeMux that route registration uses, so the
+// OpenAPI test can list the registered patterns.
+type routeMux interface {
+	HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request))
+}
+
+// registerRoutes mounts every API route. docs/openapi/dbcheck-web.yaml
+// documents exactly these routes (TestOpenAPIDocumentMatchesTheRegisteredRoutes).
+func (h *apiHandler) registerRoutes(mux routeMux) {
 	h.registerReportRoutes(mux)
 	h.registerPlatformRoutes(mux)
+}
+
+func (h *apiHandler) handler() http.Handler {
+	mux := http.NewServeMux()
+	h.registerRoutes(mux)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		h.writeAPIError(w, apierr.NotFound("接口不存在"))
 	})

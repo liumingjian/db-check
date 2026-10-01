@@ -13,7 +13,7 @@ import (
 	"dbcheck/reporter/internal/users"
 )
 
-func (h *apiHandler) registerReleaseRoutes(mux *http.ServeMux) {
+func (h *apiHandler) registerReleaseRoutes(mux routeMux) {
 	mux.HandleFunc("GET /api/releases", h.active(h.handleListReleases))
 	mux.HandleFunc("POST /api/releases/{version}/{action}", h.admin(h.handleReleaseAction))
 	mux.HandleFunc("POST /api/ci/releases", h.handlePublish)

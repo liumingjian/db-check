@@ -6,7 +6,7 @@
 #
 # It refuses unless HEAD is exactly on a vX.Y.Z or vX.Y.Z-rcN tag equal to the
 # collector's built-in version, then builds the four .zip release packages
-# with scripts/build_release_packages.sh and posts them. README.md documents
+# with scripts/build_release_packages.sh and posts them. docs/deployment.md documents
 # the details. Flags: --url, --dist-dir (see reporter/cmd/publish-release).
 set -euo pipefail
 

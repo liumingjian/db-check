@@ -68,6 +68,8 @@ module.exports = {
           "DBCHECK_PYTHON_BIN",
           path.join(ROOT, ".venv", "bin", "python3"),
         ),
+        // CI machine credential for the publish API; empty keeps it disabled.
+        DBCHECK_PUBLISH_TOKEN: envOr("DBCHECK_PUBLISH_TOKEN", ""),
         GOCACHE: envOr("GOCACHE", "/tmp/go-cache"),
       },
       env_production: {
@@ -90,8 +92,8 @@ module.exports = {
           "NEXT_ALLOWED_DEV_ORIGINS",
           envOr("ALLOWED_ORIGINS", ""),
         ),
-        // Used by Next.js in dev (and at build-time in prod if you run `npm run build` with it set).
-        // PM2 runs the web UI next to db-web, so it talks to the real backend.
+        // Used by Next.js in dev; production inlines it at `npm run build`.
+        // Unset means real, the same default as the console itself.
         NEXT_PUBLIC_API_MODE: envOr("NEXT_PUBLIC_API_MODE", "real"),
         NEXT_PUBLIC_API_BASE: envOr(
           "NEXT_PUBLIC_API_BASE",

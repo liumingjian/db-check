@@ -84,7 +84,7 @@ func bearerToken(r *http.Request) string {
 	return strings.TrimSpace(value)
 }
 
-func (h *apiHandler) registerAuthRoutes(mux *http.ServeMux) {
+func (h *apiHandler) registerAuthRoutes(mux routeMux) {
 	mux.HandleFunc("POST /api/auth/sign-in", h.handleSignIn)
 	mux.HandleFunc("POST /api/auth/sign-out", h.handleSignOut)
 	mux.HandleFunc("GET /api/auth/me", h.signedIn(func(w http.ResponseWriter, _ *http.Request, u users.User) {

@@ -20,7 +20,7 @@ import (
 // registerReportRoutes mounts report generation and the task lists. Every
 // route needs an active user; a task is visible to its submitter and to
 // admins, and is not_found for anyone else.
-func (h *apiHandler) registerReportRoutes(mux *http.ServeMux) {
+func (h *apiHandler) registerReportRoutes(mux routeMux) {
 	mux.HandleFunc("GET /api/reports", h.admin(h.handleListAll))
 	mux.HandleFunc("GET /api/reports/mine", h.active(h.handleListOwn))
 	mux.HandleFunc("GET /api/reports/tasks/{id}", h.active(h.handleGetTask))
