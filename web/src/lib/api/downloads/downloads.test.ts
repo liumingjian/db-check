@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { contractImplementations } from "@/lib/api/testing";
+import { contractImplementationsWithReal } from "@/lib/api/testing";
 
-describe.each(contractImplementations)("%s downloads contract", (_name, makeApi) => {
+describe.each(contractImplementationsWithReal)("%s downloads contract", (_name, makeApi) => {
   it("records one download record per package download", async () => {
     const api = makeApi();
     const engineer = await api.auth.signIn("user", "user");

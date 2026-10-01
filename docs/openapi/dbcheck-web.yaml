@@ -5,7 +5,7 @@ info:
   description: |
     Web service for generating db-check reports from uploaded collector ZIP packages.
 
-    Platform routes (`/api/auth`, `/api/users`, `/api/releases`, and later
+    Platform routes (`/api/auth`, `/api/users`, `/api/releases`, and
     `/api/downloads`) authenticate with a session token from sign-in
     (`Authorization: Bearer <token>`) and answer errors with `ApiError`
     (`{"code", "message"}`): 401 `unauthorized`, 403 `forbidden`,
@@ -487,6 +487,124 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /api/releases/{version}/packages/{platform}:
+    get:
+      summary: Download one release package
+      description: |
+        Streams the package as a `.zip` attachment and writes one download
+        record (user, release, package, time) as the transfer starts.
+        Engineers may download latest and deprecated releases; admins may
+        download every status. A package the user may not see answers
+        404 `not_found`, exactly like an unknown one, and writes no record.
+        Needs an active user.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 1.2.0
+        - name: platform
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Platform"
+      responses:
+        "200":
+          description: The package file.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: attachment; filename="db-collector-1.2.0-linux-amd64.zip"
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: No live session (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: The account is not active, or a password change is due (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: |
+            Unknown version or platform, or a release the user may not see:
+            pre-release and revoked releases for engineers (`not_found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/downloads:
+    get:
+      summary: Download records, newest first (admins only)
+      description: |
+        Every query parameter is optional and narrows the list; set ones
+        must all match. Not paginated.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: string
+          example: u-user-001
+        - name: version
+          in: query
+          description: Release version.
+          schema:
+            type: string
+          example: 1.2.0
+        - name: from
+          in: query
+          description: Keeps records at or after this time (inclusive).
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: Keeps records strictly before this time (exclusive).
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Matching download records, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DownloadRecord"
+        "400":
+          description: "`from` or `to` is not an RFC 3339 time (`invalid`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: No live session (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not an active admin (`forbidden`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /api/ci/releases:
     post:
       summary: Publish a collector release with its four packages (CI only)
@@ -925,6 +1043,24 @@ components:
           description: In platform order.
           items:
             $ref: "#/components/schemas/ReleasePackage"
+
+    DownloadRecord:
+      type: object
+      description: Which user downloaded which release package, and when.
+      required: [id, userId, version, platform, at]
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        version:
+          type: string
+          example: 1.2.0
+        platform:
+          $ref: "#/components/schemas/Platform"
+        at:
+          type: string
+          format: date-time
 
     PublishMetadata:
       type: object
