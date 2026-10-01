@@ -66,6 +66,7 @@ export function GenerateSection() {
     setInspecting((n) => n + 1);
     try {
       const fresh = await inspectDrop(files, items);
+      // Filter again: another drop may have landed while this one was read.
       setItems((current) => [...current, ...fresh.filter((f) => !current.some((c) => c.file.name === f.file.name))]);
     } finally {
       setInspecting((n) => n - 1);
