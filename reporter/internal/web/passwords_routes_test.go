@@ -45,7 +45,9 @@ func TestResetPasswordShowsATemporaryPasswordOnceAndEndsEverySession(t *testing.
 	}
 	expectAPIError(t, f.signIn("user", "user"), http.StatusUnauthorized, "unauthorized", "")
 	rec = f.signIn("user", reset.TemporaryPassword)
-	var session struct{ User struct{ MustChangePassword bool } }
+	var session struct {
+		User struct{ MustChangePassword bool }
+	}
 	decode(t, rec, &session)
 	if rec.Code != http.StatusOK || !session.User.MustChangePassword {
 		t.Fatalf("sign-in with the temporary password: %d %s", rec.Code, rec.Body)

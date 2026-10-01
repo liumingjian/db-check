@@ -12,7 +12,7 @@ import (
 
 // registerUsersRoutes mounts registration, resubmission, the own profile,
 // and the admin's account operations (package users holds the rules).
-func (h *apiHandler) registerUsersRoutes(mux *http.ServeMux) {
+func (h *apiHandler) registerUsersRoutes(mux routeMux) {
 	mux.HandleFunc("POST /api/auth/register", h.handleRegister)
 	mux.HandleFunc("POST /api/auth/resubmit", h.signedIn(h.handleResubmit))
 	mux.HandleFunc("GET /api/users/me", h.signedIn(func(w http.ResponseWriter, r *http.Request, u users.User) {

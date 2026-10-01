@@ -13,7 +13,7 @@ import (
 	"dbcheck/reporter/internal/users"
 )
 
-func (h *apiHandler) registerDownloadRoutes(mux *http.ServeMux) {
+func (h *apiHandler) registerDownloadRoutes(mux routeMux) {
 	mux.HandleFunc("GET /api/releases/{version}/packages/{platform}", h.active(h.handleDownloadPackage))
 	mux.HandleFunc("GET /api/downloads", h.admin(h.handleDownloadRecords))
 }

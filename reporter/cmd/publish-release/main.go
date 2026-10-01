@@ -1,6 +1,6 @@
 // Command publish-release publishes the collector release tagged on HEAD to
 // the platform's publish API (package publish). Run it through
-// scripts/publish_release.sh; README.md documents its usage.
+// scripts/publish_release.sh; docs/deployment.md documents its usage.
 package main
 
 import (

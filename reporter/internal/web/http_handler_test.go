@@ -164,4 +164,3 @@ func TestAuthIsRequired(t *testing.T) {
 		t.Fatalf("expected %d got %d", http.StatusUnauthorized, rec.Code)
 	}
 }
-

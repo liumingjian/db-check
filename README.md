@@ -217,69 +217,14 @@ GOCACHE=/tmp/go-cache go run ./collector/cmd/db-collector \
 - Python `3.10+`（需安装 `requirements.txt` 依赖；推荐使用 `.venv`）
 - Node.js（建议 `20+`，用于 `web/`）
 
-### 2. 使用 PM2 一键启动（推荐）
+### 2. 部署（PM2）
 
-PM2 会同时管理：
-- `dbcheck-api`：后端 `db-web`（默认 `127.0.0.1:8080`）
-- `dbcheck-web`：前端 Next dev server（默认 `:3000`）
+部署、配置、首次上线与采集器版本发布见 [docs/deployment.md](docs/deployment.md)，包括：
+- PM2 启动（`make pm2-start` / `make pm2-start-prod`）与 `.env`（模板：`.env.example`、`web/.env.example`）
+- 数据目录 `DBCHECK_DATA_DIR` 即平台的全部状态，以及 `sqlite3 .backup` 在线备份命令
+- 首次部署三步：`db-web admin create` 创建首个管理员 → 设置 `DBCHECK_PUBLISH_TOKEN` → 用发布脚本发布当前采集器版本
 
-说明：
-- **PM2 只用于管理 Web 服务前后端**（`db-web` + `web/`），不管理 `db-collector` 这类一次性 CLI 任务。
-
-准备依赖（如已准备可跳过）：
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-make init-python
-
-make web-install
-```
-
-启动（dev）：
-
-```bash
-make pm2-start
-```
-
-查看日志/状态：
-
-```bash
-make pm2-status
-make pm2-logs
-```
-
-最小链路验证（可选，需要一个已启用且已改过临时密码的账号）：
-
-```bash
-DBCHECK_SMOKE_USERNAME=<用户名> DBCHECK_SMOKE_PASSWORD=<密码> make pm2-smoke
-```
-
-启动（production，需先 build）：
-
-```bash
-make build-db-web
-make web-build
-make pm2-start-prod
-```
-
-说明：
-- `ecosystem.config.cjs` 会自动读取仓库根目录 `.env`（不覆盖已 export 的同名变量），并内置本地联调默认值：`DBCHECK_DATA_DIR=/tmp/dbcheck-data`、`ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000` 等；如需覆盖，可修改 `.env` 或在 `pm2 start` 前设置同名环境变量，并用 `make pm2-restart` 刷新 env。
-- 若用局域网地址打开前端（例如 `http://192.168.x.x:3000`），前端会默认请求同一主机的 `:8080` 后端；如后端在其他主机，可显式设置 `NEXT_PUBLIC_API_BASE` 或在生成页手动填写 API Base。
-
-远程 Linux 部署示例：
-
-```bash
-cat > .env <<'EOF'
-DBCHECK_ADDR=0.0.0.0:18080
-DBCHECK_DATA_DIR=/tmp/dbcheck-data
-ALLOWED_ORIGINS=*
-EOF
-
-make pm2-restart
-```
-
-当前页面在 `:3000` 时，前端默认把 API 推断为同一主机的后端端口；该端口会从 `DBCHECK_ADDR` 自动派生。上例中访问 `http://10.250.0.222:3000` 时，前端会自动请求 `http://10.250.0.222:18080`。内网自测可用 `ALLOWED_ORIGINS=*` 避免频繁换 IP 时反复改 CORS；若要收紧白名单，再改成具体 Origin 列表。
+下文是本地联调的手动方式。
 
 ### 3. 准备输入 ZIP
 
@@ -304,15 +249,7 @@ zip -j /tmp/mysql-e2e.zip "$RUN_DIR/manifest.json" "$RUN_DIR/result.json"
 
 ### 4. 启动后端（db-web）
 
-后端需要 2 个环境变量（共享令牌 `DBCHECK_API_TOKEN` 已停用：仍设置时会被忽略，启动日志给出告警；每个用户用自己的账号登录）：
-- `DBCHECK_DATA_DIR`：任务落盘目录（例如 `/tmp/dbcheck-data`）
-- `ALLOWED_ORIGINS`：前端 Origin 白名单（逗号分隔）。支持三种写法：
-  - 完整 Origin：`http://127.0.0.1:3000`（推荐）
-  - Host（含端口）：`127.0.0.1:3000` / `localhost:3000`（更宽松，适合本地联调）
-  - `*`：允许任意 Origin（仅建议本地联调临时使用；生产环境不要用）
-
-说明：
-- 当 `ALLOWED_ORIGINS` 配置里包含 `localhost` / `127.0.0.1`（带端口）时，`db-web` 会自动放行同端口的本机局域网地址（例如 `http://192.168.x.x:3000`），避免你用 Next dev server 的 Network 地址打开前端时触发 CORS。
+后端必需 `DBCHECK_DATA_DIR`（数据目录）和 `ALLOWED_ORIGINS`（前端 Origin 白名单，逗号分隔；本地联调可临时用 `*`）。全部变量与参数见 [docs/deployment.md](docs/deployment.md#configuration)。
 
 ```bash
 source .venv/bin/activate
@@ -330,12 +267,13 @@ go run ./reporter/cmd/db-web --addr 127.0.0.1:8080 --python-bin "$VIRTUAL_ENV/bi
 
 ### 5. 启动前端（web/）
 
-前端用构建期开关 `NEXT_PUBLIC_API_MODE` 选择数据来源：`mock`（默认，数据存于浏览器 localStorage，可在用户菜单“重置 Mock 数据”）或 `real`（连接 db-web）。两者之间没有自动回退。real 模式通过 `NEXT_PUBLIC_API_BASE`（完整 Origin）指向后端（推荐）：
+前端默认连接真实后端（`NEXT_PUBLIC_API_MODE` 未设置即为 `real`），`NEXT_PUBLIC_API_BASE`（完整 Origin）指向 db-web。只有显式运行 `npm run dev:mock` 才使用浏览器内的 Mock 数据（可在用户菜单“重置 Mock 数据”），两者之间没有自动回退。
 
 ```bash
 cd web
 npm install
-NEXT_PUBLIC_API_MODE=real NEXT_PUBLIC_API_BASE=http://127.0.0.1:8080 npm run dev
+NEXT_PUBLIC_API_BASE=http://127.0.0.1:8080 npm run dev
+# 无后端演示：npm run dev:mock
 ```
 
 访问：`http://127.0.0.1:3000`
@@ -398,27 +336,7 @@ curl -i -sS -X OPTIONS \
 
 ### 9. 发布采集器版本（publish script）
 
-采集器版本只能从 git tag 发布（ADR 0002）。CI 阶段上线前由人工在发布机上运行 `scripts/publish_release.sh`，CI 之后调用的也是同一个脚本。
-
-前置条件：
-- 服务端已设置 `DBCHECK_PUBLISH_TOKEN`（未设置时发布接口不可用），发布机持有同一个值
-- 发布机有 Go、`git`、`zip`，在仓库根目录的干净检出上运行（已跟踪文件不能有未提交修改）
-- HEAD 恰好位于 `vX.Y.Z` 或 `vX.Y.Z-rcN` tag 上，且 tag 去掉 `v` 后与采集器内置版本（`collector/internal/cli/config.go` 的 `Version`，即 `db-collector --version`）完全一致。发布预发布版时，先把 `Version` 改为 `X.Y.Z-rcN` 再打 tag
-- 发布说明取自 tag 注释（`git tag -a`）；没有注释时，读取 `CHANGELOG.md` 中 `## [X.Y.Z]` 一节（文件可选）；两者都没有则拒绝发布
-
-```bash
-git tag -a v1.2.0 -m "- 新增 xxx
-- 修复 yyy"        # 打在要发布的提交上
-export DBCHECK_PUBLISH_TOKEN='<与服务端一致>'
-scripts/publish_release.sh --url https://dbcheck.example.com
-```
-
-脚本依次：
-1. 校验 tag 与内置版本、工作区是否干净、发布说明；任一不满足即报错退出，不会构建
-2. 调用 `scripts/build_release_packages.sh` 构建四个发布包：`dist/db-collector-<version>-{linux,windows}-{amd64,arm64}.zip`（`--dist-dir` 可改输出目录）
-3. 计算 SHA256，连同版本、tag、commit、发布说明、支持的数据库类型（脚本内维护：mysql、oracle、gaussdb，见 `reporter/internal/publish`）一起提交到 `POST /api/ci/releases`
-
-结果：`vX.Y.Z` 发布为「最新」，原最新版转为「已弃用」；`vX.Y.Z-rcN` 发布为「预发布」，仅管理员可见。发布包是可复现构建（同一提交重建出的 zip 逐字节相同），因此同一 tag 重复运行是幂等的：内容一致时提示 `already published ... nothing changed` 并成功退出；同一版本内容不同（例如 tag 被移动）时服务端返回 409，脚本失败。
+采集器版本只能从 `vX.Y.Z` tag 发布（ADR 0002）。CI 阶段上线前由人工运行 `scripts/publish_release.sh`，前置条件与用法见 [docs/deployment.md](docs/deployment.md#publishing-a-collector-release)。
 
 ---
 
@@ -526,6 +444,7 @@ Makefile 的职责边界：
 常用目标：
 - `make init-python`
 - `make build`
+- `make test-go`（gofmt 检查 + 全部 Go 测试）
 - `make test-reporter`
 - `make test-integration`
 - `make test-e2e`

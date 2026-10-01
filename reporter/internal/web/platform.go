@@ -35,7 +35,7 @@ func (p Platform) withDefaults() Platform {
 // registerPlatformRoutes mounts every platform domain's routes. Each domain
 // keeps its routes in its own <domain>_routes.go and adds one line here.
 // Patterns use Go 1.22 method syntax ("GET /api/users/{id}").
-func (h *apiHandler) registerPlatformRoutes(mux *http.ServeMux) {
+func (h *apiHandler) registerPlatformRoutes(mux routeMux) {
 	h.registerAuthRoutes(mux)
 	h.registerUsersRoutes(mux)
 	h.registerReleaseRoutes(mux)

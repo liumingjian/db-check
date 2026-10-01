@@ -80,7 +80,7 @@ func TestReadCollectorZipFindsDBTypeAndCollectorVersion(t *testing.T) {
 	}{
 		{"mysql at the root", map[string]any{"manifest.json": manifest("mysql"), "result.json": result("1.2.0")}, "mysql", ptr("1.2.0")},
 		{"oracle run dir in a subdirectory, custom result name", map[string]any{
-			"oracle-10.0.0.8-20260312/manifest.json":     manifest("oracle", "result_oracle.json"),
+			"oracle-10.0.0.8-20260312/manifest.json":      manifest("oracle", "result_oracle.json"),
 			"oracle-10.0.0.8-20260312/result_oracle.json": result("1.1.0"),
 		}, "oracle", ptr("1.1.0")},
 		{"run dir two levels down", map[string]any{"a/b/manifest.json": manifest("mysql"), "a/b/result.json": result("1.2.0")}, "mysql", ptr("1.2.0")},
