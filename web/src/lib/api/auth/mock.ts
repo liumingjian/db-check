@@ -31,5 +31,16 @@ export function createMockAuth(ctx: MockContext): AuthApi {
       sessions.write({ ...sessions.read(), [token]: found.id });
       return { token, user: requireSessionUser(ctx, token) };
     },
+
+    async currentUser(token) {
+      return requireSessionUser(ctx, token);
+    },
+
+    async signOut(token) {
+      const sessions = mockSessions(ctx);
+      const rest = { ...sessions.read() };
+      delete rest[token];
+      sessions.write(rest);
+    },
   };
 }
