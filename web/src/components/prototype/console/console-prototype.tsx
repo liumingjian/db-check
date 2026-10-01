@@ -1,4 +1,6 @@
 // PROTOTYPE — throwaway. Switcher for the console layout variants.
+// Round 1 (A sidebar, C master-detail) lost to B; they remain on this
+// branch's first commit. Round 2 refines B into B2 (light) and B3 (dark).
 "use client";
 
 import { useEffect, useState } from "react";
@@ -11,11 +13,11 @@ import {
   useConsoleState,
   type ConsoleState,
   type Persona,
+  type Role,
   type Screen,
 } from "./console-state";
-import { VariantA } from "./variant-a";
 import { VariantB } from "./variant-b";
-import { VariantC } from "./variant-c";
+import { B2_SCREENS, VariantB2 } from "./variant-b2";
 
 export interface VariantProps {
   state: ConsoleState;
@@ -23,11 +25,21 @@ export interface VariantProps {
   setScreen: (s: Screen) => void;
 }
 
-const VARIANTS = [
-  { key: "A", name: "侧边栏 + 密集表格", Component: VariantA },
-  { key: "B", name: "顶部导航 + 主推下载卡片", Component: VariantB },
-  { key: "C", name: "图标栏 + 主从分栏", Component: VariantC },
-] as const;
+const VARIANTS: {
+  key: string;
+  name: string;
+  Component: (p: VariantProps) => React.ReactNode;
+  screens: (role: Role) => { key: Screen; label: string }[];
+}[] = [
+  {
+    key: "B",
+    name: "第一轮 B（对照）",
+    Component: VariantB,
+    screens: (r) => screensFor(r).map((k) => ({ key: k, label: SCREEN_LABEL[k] })),
+  },
+  { key: "B2", name: "精修 · 浅色", Component: (p) => <VariantB2 {...p} tone="light" />, screens: B2_SCREENS },
+  { key: "B3", name: "精修 · 深色", Component: (p) => <VariantB2 {...p} tone="dark" />, screens: B2_SCREENS },
+];
 
 const PERSONAS: { key: Persona; label: string }[] = [
   { key: "engineer", label: "普通用户" },
@@ -40,13 +52,14 @@ export function ConsolePrototype() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const current = Math.max(0, VARIANTS.findIndex((v) => v.key === (params.get("variant") ?? "A")));
+  const current = Math.max(0, VARIANTS.findIndex((v) => v.key === (params.get("variant") ?? "B2")));
   const [persona, setPersona] = useState<Persona>("engineer");
-  const [screen, setScreen] = useState<Screen>("collectors");
+  const [screen, setScreen] = useState<Screen>("new-report");
   const state = useConsoleState(persona);
 
-  const screens = screensFor(state.me.role);
-  const shownScreen = screens.includes(screen) ? screen : "collectors";
+  const variant = VARIANTS[current];
+  const screens = variant.screens(state.me.role);
+  const shownScreen = screens.some((s) => s.key === screen) ? screen : "new-report";
 
   function go(delta: number) {
     const next = VARIANTS[(current + delta + VARIANTS.length) % VARIANTS.length];
@@ -64,7 +77,7 @@ export function ConsolePrototype() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const { Component, key, name } = VARIANTS[current];
+  const { Component, key, name } = variant;
   const showShell = state.me.status === "active";
 
   return (
@@ -72,8 +85,8 @@ export function ConsolePrototype() {
       <Component state={state} screen={shownScreen} setScreen={setScreen} />
 
       {process.env.NODE_ENV !== "production" && (
-        <div className="fixed bottom-4 left-1/2 z-[100] -translate-x-1/2 flex flex-col items-center gap-1.5">
-          <div className="max-w-[90vw] truncate rounded-full bg-white/90 px-3 py-1 text-[11px] text-slate-700 shadow">
+        <div className="fixed bottom-4 left-4 z-[100] flex flex-col items-start gap-1.5 font-sans">
+          <div className="max-w-[60vw] truncate rounded-full bg-white/90 px-3 py-1 text-[11px] text-slate-700 shadow">
             最新：{state.latest?.version ?? "无"} · 待审批：{state.pendingCount} · 下载记录：{state.downloads.length} · 当前身份：
             {state.me.displayName}（{state.me.role === "admin" ? "管理员" : "普通用户"} / {state.me.status}）· 最近操作：{state.lastEvent}
           </div>
@@ -81,7 +94,7 @@ export function ConsolePrototype() {
             <button type="button" onClick={() => go(-1)} className="rounded-full p-1 hover:bg-slate-200 cursor-pointer" aria-label="上一个方案">
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="min-w-40 text-center font-semibold">
+            <span className="min-w-32 text-center font-semibold">
               {key}（{name}）
             </span>
             <button type="button" onClick={() => go(1)} className="rounded-full p-1 hover:bg-slate-200 cursor-pointer" aria-label="下一个方案">
@@ -110,8 +123,8 @@ export function ConsolePrototype() {
                   className="rounded-full bg-slate-100 px-2 py-0.5 outline-none cursor-pointer"
                 >
                   {screens.map((s) => (
-                    <option key={s} value={s}>
-                      {SCREEN_LABEL[s]}
+                    <option key={s.key} value={s.key}>
+                      {s.label}
                     </option>
                   ))}
                 </select>

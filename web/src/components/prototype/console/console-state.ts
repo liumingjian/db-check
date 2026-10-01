@@ -234,7 +234,7 @@ export function useConsoleState(persona: Persona) {
   const [users, setUsers] = useState(SEED_USERS);
   const [releases, setReleases] = useState(SEED_RELEASES);
   const [downloads, setDownloads] = useState(SEED_DOWNLOADS);
-  const [tasks] = useState(SEED_TASKS);
+  const [tasks, setTasks] = useState(SEED_TASKS);
   const [lastEvent, setLastEvent] = useState("（种子数据）");
 
   const me = users.find((u) => u.id === PERSONA_USER[persona])!;
@@ -262,8 +262,8 @@ export function useConsoleState(persona: Persona) {
       setReleaseStatus(version, "deprecated");
       setLastEvent(`弃用：${version}`);
     },
-    revoke(version: string) {
-      const reason = window.prompt(`撤回 ${version} 的原因（必填）`);
+    revoke(version: string, given?: string) {
+      const reason = given ?? window.prompt(`撤回 ${version} 的原因（必填）`);
       if (!reason?.trim()) return;
       setReleaseStatus(version, "revoked", reason.trim());
       setLastEvent(`撤回：${version}，原因：${reason.trim()}`);
@@ -295,15 +295,15 @@ export function useConsoleState(persona: Persona) {
 
   const userActions = {
     approve: (id: string) => patchUser(id, { status: "active", reason: undefined }, "批准"),
-    reject(id: string) {
-      const reason = window.prompt("拒绝原因（必填，将展示给申请人）");
+    reject(id: string, given?: string) {
+      const reason = given ?? window.prompt("拒绝原因（必填，将展示给申请人）");
       if (reason?.trim()) patchUser(id, { status: "rejected", reason: reason.trim() }, "拒绝");
     },
-    disable(id: string) {
+    disable(id: string, given?: string) {
       const u = userById(id)!;
       if (id === me.id) return setLastEvent("不能禁用自己");
       if (u.role === "admin" && activeAdmins <= 1) return setLastEvent("平台至少保留一名正常状态的管理员");
-      const reason = window.prompt("禁用原因（必填）");
+      const reason = given ?? window.prompt("禁用原因（必填）");
       if (reason?.trim()) patchUser(id, { status: "disabled", reason: reason.trim() }, "禁用");
     },
     enable: (id: string) => patchUser(id, { status: "active", reason: undefined }, "启用"),
@@ -317,13 +317,23 @@ export function useConsoleState(persona: Persona) {
         patchUser(id, { role: "admin" }, "升为管理员");
       }
     },
-    resetPassword(id: string) {
+    resetPassword(id: string, silent = false): string {
       const temp = Math.random().toString(36).slice(2, 10);
       patchUser(id, {}, "重置密码");
-      window.alert(`临时密码：${temp}\n请线下交给用户，下次登录时必须修改。`);
+      if (!silent) window.alert(`临时密码：${temp}\n请线下交给用户，下次登录时必须修改。`);
+      return temp;
     },
     resubmit: (id: string) => patchUser(id, { status: "pending", reason: undefined }, "重新提交申请"),
   };
+
+  function addTask(items: ReportItem[]) {
+    const id = `T-${now().slice(0, 10).replace(/-/g, "")}-${String(tasks.length + 1).padStart(4, "0")}`;
+    const failed = items.filter((i) => i.outcome === "failed").length;
+    const status: ReportTask["status"] = failed === 0 ? "success" : failed === items.length ? "failed" : "partial";
+    setTasks((ts) => [{ id, submitterId: me.id, createdAt: now(), status, filesExpired: false, items }, ...ts]);
+    setLastEvent(`生成报告：${id}（${items.length} 项）`);
+    return id;
+  }
 
   const pendingCount = users.filter((u) => u.status === "pending").length;
   const latest = releases.find((r) => r.status === "latest");
@@ -347,6 +357,8 @@ export function useConsoleState(persona: Persona) {
     releases,
     downloads,
     tasks: visibleTasks,
+    allTasks: tasks,
+    addTask,
     latest,
     pendingCount,
     lastEvent,
