@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useReportStore } from "@/stores/report-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useHistoryStore } from "@/stores/history-store";
-import { useNavStore } from "@/stores/nav-store";
+import { scrollToSection } from "@/components/console/sections";
 import { GenerationProgress } from "@/components/generation-progress";
 import { api, type ReportEvent } from "@/lib/api";
 import { ArrowRight, ClipboardList } from "lucide-react";
@@ -35,7 +35,6 @@ export function GenerationStep() {
 
   const token = useAuthStore((s) => s.token);
   const addTask = useHistoryStore((s) => s.addTask);
-  const setActiveTab = useNavStore((s) => s.setActiveTab);
 
   const startedRef = useRef(false);
   const lastLogSeqRef = useRef<number>(0);
@@ -148,7 +147,7 @@ export function GenerationStep() {
           </span>
           <button
             type="button"
-            onClick={() => setActiveTab("history")}
+            onClick={() => scrollToSection("reports")}
             className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline cursor-pointer shrink-0"
           >
             <ClipboardList className="h-4 w-4" />

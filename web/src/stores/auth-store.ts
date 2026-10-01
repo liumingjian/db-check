@@ -1,36 +1,46 @@
 import { create } from "zustand";
 import type { User, UserRole } from "@/lib/auth-types";
-import { api, ApiError, type Session } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 
 const SESSION_KEY = "dbcheck_session";
 
+/** `unknown` until `hydrate` has asked the API who the stored token belongs to. */
+export type AuthStatus = "unknown" | "anonymous" | "authenticated";
+
 interface AuthStore {
+  status: AuthStatus;
   user: User | null;
   token: string | null;
-  isAuthenticated: boolean;
 
   /** Resolves to an error message, or null on success. */
   login: (username: string, password: string) => Promise<string | null>;
   /** Mock mode only: signs in with the seed account of a role. */
   quickLogin: (role: UserRole) => Promise<void>;
-  logout: () => void;
-  hydrate: () => void;
+  logout: () => Promise<void>;
+  /** Resolves the token kept in this tab through current-user; a dead session signs out. */
+  hydrate: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthStore>((set) => {
-  function start(session: Session) {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    set({ user: session.user, token: session.token, isAuthenticated: true });
+export const useAuthStore = create<AuthStore>((set, get) => {
+  function start(token: string, user: User) {
+    sessionStorage.setItem(SESSION_KEY, token);
+    set({ status: "authenticated", user, token });
+  }
+
+  function clear() {
+    sessionStorage.removeItem(SESSION_KEY);
+    set({ status: "anonymous", user: null, token: null });
   }
 
   return {
+    status: "unknown",
     user: null,
     token: null,
-    isAuthenticated: false,
 
     login: async (username, password) => {
       try {
-        start(await api.auth.signIn(username, password));
+        const session = await api.auth.signIn(username, password);
+        start(session.token, session.user);
         return null;
       } catch (e) {
         if (e instanceof ApiError) return e.message;
@@ -39,19 +49,27 @@ export const useAuthStore = create<AuthStore>((set) => {
     },
 
     // Seed accounts use the role name as username and password.
-    quickLogin: async (role) => start(await api.auth.signIn(role, role)),
-
-    logout: () => {
-      sessionStorage.removeItem(SESSION_KEY);
-      set({ user: null, token: null, isAuthenticated: false });
+    quickLogin: async (role) => {
+      const session = await api.auth.signIn(role, role);
+      start(session.token, session.user);
     },
 
-    hydrate: () => {
-      if (typeof window === "undefined") return;
-      const raw = sessionStorage.getItem(SESSION_KEY);
-      if (!raw) return;
-      const session = JSON.parse(raw) as Session;
-      set({ user: session.user, token: session.token, isAuthenticated: true });
+    logout: async () => {
+      const { token } = get();
+      clear();
+      if (token) await api.auth.signOut(token).catch(() => undefined);
+    },
+
+    hydrate: async () => {
+      if (get().status !== "unknown") return;
+      const token = sessionStorage.getItem(SESSION_KEY);
+      if (!token) return clear();
+      try {
+        start(token, await api.auth.currentUser(token));
+      } catch {
+        // An ended session or an unreachable backend: either way, sign in again.
+        clear();
+      }
     },
   };
 });

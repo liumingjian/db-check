@@ -16,7 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToolStore } from "@/stores/tool-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { useNavStore } from "@/stores/nav-store";
+import { scrollToSection } from "@/components/console/sections";
 import { PLATFORMS, type Platform, type ToolRelease } from "@/lib/tool-types";
 
 const PLATFORM_ICONS: Record<Platform, React.ReactNode> = {
@@ -380,7 +380,7 @@ export function ToolsPage() {
           </div>
           <button
             type="button"
-            onClick={() => useNavStore.getState().setActiveTab("report")}
+            onClick={() => scrollToSection("new-report")}
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer shrink-0"
           >
             已有采集数据？前往生成报告

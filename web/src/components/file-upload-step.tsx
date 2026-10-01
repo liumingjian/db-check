@@ -3,7 +3,7 @@
 import { ChevronRight, Wrench, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useReportStore } from "@/stores/report-store";
-import { useNavStore } from "@/stores/nav-store";
+import { scrollToSection } from "@/components/console/sections";
 import { FileUploadZone } from "@/components/file-upload-zone";
 import { FilePairCard } from "@/components/file-pair-card";
 
@@ -14,7 +14,6 @@ export function FileUploadStep() {
   const removeZipFile = useReportStore((s) => s.removeZipFile);
   const setAwrFile = useReportStore((s) => s.setAwrFile);
   const nextStep = useReportStore((s) => s.nextStep);
-  const setActiveTab = useNavStore((s) => s.setActiveTab);
 
   return (
     <div className="flex flex-col gap-6">
@@ -34,7 +33,7 @@ export function FileUploadStep() {
         </div>
         <button
           type="button"
-          onClick={() => setActiveTab("tools")}
+          onClick={() => scrollToSection("collectors")}
           className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline cursor-pointer shrink-0"
         >
           <Wrench className="h-3.5 w-3.5" />
