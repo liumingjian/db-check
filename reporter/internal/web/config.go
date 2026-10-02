@@ -16,12 +16,23 @@ const (
 const (
 	envDataDir        = "DBCHECK_DATA_DIR"
 	envAllowedOrigins = "ALLOWED_ORIGINS"
-	envAPIToken       = "DBCHECK_API_TOKEN"
+	envPublishToken   = "DBCHECK_PUBLISH_TOKEN"
+	// envRetiredAPIToken was the shared API token; users now sign in with
+	// their own accounts. Startup only warns that it is ignored.
+	envRetiredAPIToken = "DBCHECK_API_TOKEN"
 )
+
+// RetiredSettingWarnings lists a warning for each retired setting still in
+// the environment.
+func RetiredSettingWarnings(getenv func(string) string) []string {
+	if strings.TrimSpace(getenv(envRetiredAPIToken)) == "" {
+		return nil
+	}
+	return []string{envRetiredAPIToken + " 已废弃并被忽略：共享令牌已停用，请改用各自账号登录；请从配置中删除该变量"}
+}
 
 const (
 	defaultAddr           = ":8080"
-	defaultAPIToken       = "ATI"
 	defaultMaxUploadBytes = int64(1_073_741_824) // 1 GiB
 	defaultRetentionTTL   = 24 * time.Hour
 	defaultLogReplayLines = 1000
@@ -32,7 +43,9 @@ type Config struct {
 	Addr           string
 	DataDir        string
 	AllowedOrigins []string
-	APIToken       string
+	// PublishToken is the CI credential for the publish API (ADR 0002);
+	// empty disables publishing.
+	PublishToken string
 
 	MaxUploadBytes int64
 	RetentionTTL   time.Duration
@@ -50,7 +63,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	var allowedOrigins string
 	fs.StringVar(&allowedOrigins, "allowed-origins", "", "required; comma-separated origin whitelist (or env ALLOWED_ORIGINS)")
 	fs.Int64Var(&cfg.MaxUploadBytes, "max-upload-bytes", defaultMaxUploadBytes, "max upload size in bytes; 0 disables the limit")
-	retentionTTL := fs.Duration("retention-ttl", defaultRetentionTTL, "task retention TTL; 0 disables auto cleanup")
+	retentionTTL := fs.Duration("retention-ttl", defaultRetentionTTL, "retention TTL of legacy task.json tasks only (store tasks follow reports.Retention); 0 disables their cleanup")
 	fs.IntVar(&cfg.LogReplayLines, "log-replay-lines", defaultLogReplayLines, "log replay lines on WS/status; 0 disables truncation")
 	fs.StringVar(&cfg.PythonBin, "python-bin", defaultPythonBin, "python executable (default python3)")
 
@@ -65,10 +78,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		allowedOrigins = strings.TrimSpace(getenv(envAllowedOrigins))
 	}
 	cfg.AllowedOrigins = splitCSV(allowedOrigins)
-	cfg.APIToken = strings.TrimSpace(getenv(envAPIToken))
-	if cfg.APIToken == "" {
-		cfg.APIToken = defaultAPIToken
-	}
+	cfg.PublishToken = strings.TrimSpace(getenv(envPublishToken))
 	cfg.RetentionTTL = *retentionTTL
 
 	if strings.TrimSpace(cfg.DataDir) == "" {

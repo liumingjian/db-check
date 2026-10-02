@@ -1,0 +1,532 @@
+{
+  "users": [
+    {
+      "id": "u-admin-001",
+      "username": "admin",
+      "password": "admin",
+      "displayName": "系统管理员",
+      "role": "admin",
+      "status": "active",
+      "email": "admin@example.com",
+      "team": "DBA 平台组",
+      "note": "初始管理员（部署配置）",
+      "appliedAt": "now-60d23h",
+      "actions": []
+    },
+    {
+      "id": "u-user-001",
+      "username": "user",
+      "password": "user",
+      "displayName": "巡检工程师",
+      "role": "user",
+      "status": "active",
+      "email": "user@example.com",
+      "team": "华东交付一部",
+      "note": "负责某银行 Oracle 巡检",
+      "appliedAt": "now-46d21h48m",
+      "actions": [
+        {
+          "action": "approve",
+          "by": "admin",
+          "at": "now-46d21h"
+        }
+      ]
+    },
+    {
+      "id": "u-pending-001",
+      "username": "lisi",
+      "password": "lisi",
+      "displayName": "李四",
+      "role": "user",
+      "status": "pending",
+      "email": "lisi@example.com",
+      "team": "华南交付二部",
+      "note": "新入职，需要 GaussDB 巡检",
+      "appliedAt": "now-15h20m",
+      "actions": []
+    },
+    {
+      "id": "u-rejected-001",
+      "username": "zhaoliu",
+      "password": "zhaoliu",
+      "displayName": "赵六",
+      "role": "user",
+      "status": "rejected",
+      "email": "zhaoliu@partner.com",
+      "team": "外部合作方",
+      "note": "协助客户巡检",
+      "appliedAt": "now-10d17h55m",
+      "reason": "外部合作方账号需由项目经理邮件确认后再申请",
+      "actions": [
+        {
+          "action": "reject",
+          "by": "admin",
+          "at": "now-9d22h30m"
+        }
+      ]
+    },
+    {
+      "id": "u-disabled-001",
+      "username": "wangwu",
+      "password": "wangwu",
+      "displayName": "王五",
+      "role": "user",
+      "status": "disabled",
+      "email": "wangwu@example.com",
+      "team": "华北交付三部",
+      "note": "MySQL 巡检",
+      "appliedAt": "now-56d23h40m",
+      "reason": "已离职",
+      "actions": [
+        {
+          "action": "approve",
+          "by": "admin",
+          "at": "now-56d23h"
+        },
+        {
+          "action": "disable",
+          "by": "admin",
+          "at": "now-20d22h"
+        }
+      ]
+    }
+  ],
+  "releases": [
+    {
+      "version": "1.3.0-rc1",
+      "tag": "v1.3.0-rc1",
+      "commit": "9f3c2ab",
+      "publishedAt": "now-2d19h49m",
+      "status": "pre-release",
+      "notes": "- 新增 GaussDB WDR 自动采集\n- 采集超时可配置",
+      "dbTypes": [
+        "mysql",
+        "oracle",
+        "gaussdb"
+      ],
+      "packages": [
+        {
+          "platform": "linux-amd64",
+          "os": "Linux",
+          "arch": "x86_64",
+          "fileName": "db-collector-1.3.0-rc1-linux-amd64.zip",
+          "size": 9409000,
+          "sha256": "a5c53af47f6d8121a8434dc79076c90a031230ad0f670645107b13e16f3558a4"
+        },
+        {
+          "platform": "linux-arm64",
+          "os": "Linux",
+          "arch": "ARM64",
+          "fileName": "db-collector-1.3.0-rc1-linux-arm64.zip",
+          "size": 9719000,
+          "sha256": "31d477fe74923a6234b45a72802dae971d3ee82b4359d8ffeb6b5751431b5517"
+        },
+        {
+          "platform": "windows-amd64",
+          "os": "Windows",
+          "arch": "x86_64",
+          "fileName": "db-collector-1.3.0-rc1-windows-amd64.zip",
+          "size": 10029000,
+          "sha256": "60fe70ef3398c99027181d9245a76ff2b302c99157a3aa9f477531377df0e4e7"
+        },
+        {
+          "platform": "windows-arm64",
+          "os": "Windows",
+          "arch": "ARM64",
+          "fileName": "db-collector-1.3.0-rc1-windows-arm64.zip",
+          "size": 10339000,
+          "sha256": "8bc9a582b8fffa881f309f2630974676c92af2391f1db908dda774a09480f1ed"
+        }
+      ]
+    },
+    {
+      "version": "1.2.0",
+      "tag": "v1.2.0",
+      "commit": "5e81d07",
+      "publishedAt": "now-20d21h30m",
+      "status": "latest",
+      "notes": "- Oracle AWR 采集支持 RAC\n- 修复 MySQL 8.4 权限检查误报",
+      "dbTypes": [
+        "mysql",
+        "oracle",
+        "gaussdb"
+      ],
+      "packages": [
+        {
+          "platform": "linux-amd64",
+          "os": "Linux",
+          "arch": "x86_64",
+          "fileName": "db-collector-1.2.0-linux-amd64.zip",
+          "size": 9405000,
+          "sha256": "12d2cc7c2c2cde34e65bc6e1650903c58cae7c334967a286580108881077bfbd"
+        },
+        {
+          "platform": "linux-arm64",
+          "os": "Linux",
+          "arch": "ARM64",
+          "fileName": "db-collector-1.2.0-linux-arm64.zip",
+          "size": 9715000,
+          "sha256": "2e5c76ea1069ccca8edf31b860988de308162aeee03da18b62ac36b16e4a0a0b"
+        },
+        {
+          "platform": "windows-amd64",
+          "os": "Windows",
+          "arch": "x86_64",
+          "fileName": "db-collector-1.2.0-windows-amd64.zip",
+          "size": 10025000,
+          "sha256": "db64e5caee2c7aba0e7d5d6cbb80d6d96df536613049d3be9a35d1e12c9ca955"
+        },
+        {
+          "platform": "windows-arm64",
+          "os": "Windows",
+          "arch": "ARM64",
+          "fileName": "db-collector-1.2.0-windows-arm64.zip",
+          "size": 10335000,
+          "sha256": "7c611d655211665aea95cbab52fe84303dc2bef66798bcf41f2973d0dab6bd48"
+        }
+      ]
+    },
+    {
+      "version": "1.1.0",
+      "tag": "v1.1.0",
+      "commit": "c47aa10",
+      "publishedAt": "now-42d58m",
+      "status": "deprecated",
+      "notes": "- 新增 GaussDB 基础采集",
+      "dbTypes": [
+        "mysql",
+        "oracle",
+        "gaussdb"
+      ],
+      "packages": [
+        {
+          "platform": "linux-amd64",
+          "os": "Linux",
+          "arch": "x86_64",
+          "fileName": "db-collector-1.1.0-linux-amd64.zip",
+          "size": 9405000,
+          "sha256": "5a640eae54faadbd183c7f3bb2416f75aa33556aafc566c0cebf87141e5b16f6"
+        },
+        {
+          "platform": "linux-arm64",
+          "os": "Linux",
+          "arch": "ARM64",
+          "fileName": "db-collector-1.1.0-linux-arm64.zip",
+          "size": 9715000,
+          "sha256": "1e8b9cc2dac7d75530b60aade017fc9be64a8365d187b55d479488fb8101a57e"
+        },
+        {
+          "platform": "windows-amd64",
+          "os": "Windows",
+          "arch": "x86_64",
+          "fileName": "db-collector-1.1.0-windows-amd64.zip",
+          "size": 10025000,
+          "sha256": "4a61695ccfd83bb80229b5c9042c4fc20f8335f250dbc680633d94286fa334c9"
+        },
+        {
+          "platform": "windows-arm64",
+          "os": "Windows",
+          "arch": "ARM64",
+          "fileName": "db-collector-1.1.0-windows-arm64.zip",
+          "size": 10335000,
+          "sha256": "f036266b59e3b812a8b0a52fffd32a8f15ffaab7a8ca40fc40f7841c3e9745f1"
+        }
+      ]
+    },
+    {
+      "version": "1.0.0",
+      "tag": "v1.0.0",
+      "commit": "1b2d3e4",
+      "publishedAt": "now-61d4h",
+      "status": "revoked",
+      "revokeReason": "Oracle 采集会在 11g 上锁表，请勿使用",
+      "notes": "- 首个版本：MySQL、Oracle",
+      "dbTypes": [
+        "mysql",
+        "oracle"
+      ],
+      "packages": [
+        {
+          "platform": "linux-amd64",
+          "os": "Linux",
+          "arch": "x86_64",
+          "fileName": "db-collector-1.0.0-linux-amd64.zip",
+          "size": 9405000,
+          "sha256": "a4ff8a45d3040fa92abbb3008d93d0f94caf44a084d766c4f88feadd1626ff0d"
+        },
+        {
+          "platform": "linux-arm64",
+          "os": "Linux",
+          "arch": "ARM64",
+          "fileName": "db-collector-1.0.0-linux-arm64.zip",
+          "size": 9715000,
+          "sha256": "cf85ec37445905f69f42c93da44ba45408f7c3db391ce4af37136f1284ceff2b"
+        },
+        {
+          "platform": "windows-amd64",
+          "os": "Windows",
+          "arch": "x86_64",
+          "fileName": "db-collector-1.0.0-windows-amd64.zip",
+          "size": 10025000,
+          "sha256": "25b96e8aa5660b5a527f788925fa48d68352c45a0f6b327b8b0d6e7f9aff1579"
+        },
+        {
+          "platform": "windows-arm64",
+          "os": "Windows",
+          "arch": "ARM64",
+          "fileName": "db-collector-1.0.0-windows-arm64.zip",
+          "size": 10335000,
+          "sha256": "3c336642f7e2a73210d23f645fc93bc1e8d06e7ab95b6f901a9c2a8b6431452e"
+        }
+      ]
+    }
+  ],
+  "downloadRecords": [
+    {
+      "id": "d-seed-001",
+      "userId": "u-user-001",
+      "version": "1.0.0",
+      "platform": "linux-amd64",
+      "at": "now-60d6h50m"
+    },
+    {
+      "id": "d-seed-002",
+      "userId": "u-user-001",
+      "version": "1.1.0",
+      "platform": "linux-arm64",
+      "at": "now-40d2h"
+    },
+    {
+      "id": "d-seed-003",
+      "userId": "u-user-001",
+      "version": "1.2.0",
+      "platform": "linux-amd64",
+      "at": "now-20d7h15m"
+    },
+    {
+      "id": "d-seed-004",
+      "userId": "u-user-001",
+      "version": "1.2.0",
+      "platform": "windows-amd64",
+      "at": "now-18d23h30m"
+    },
+    {
+      "id": "d-seed-005",
+      "userId": "u-admin-001",
+      "version": "1.2.0",
+      "platform": "linux-arm64",
+      "at": "now-16d4h49m"
+    },
+    {
+      "id": "d-seed-006",
+      "userId": "u-admin-001",
+      "version": "1.3.0-rc1",
+      "platform": "windows-arm64",
+      "at": "now-2d7h"
+    }
+  ],
+  "reportTasks": [
+    {
+      "id": "task-seed-003",
+      "submitterId": "u-user-001",
+      "items": [
+        {
+          "fileName": "gauss-billing-01.zip",
+          "dbType": "gaussdb",
+          "collectorVersion": "1.2.0",
+          "outcome": {
+            "status": "processing"
+          }
+        }
+      ],
+      "status": "processing",
+      "createdAt": "now-3m"
+    },
+    {
+      "id": "task-seed-007",
+      "submitterId": "u-admin-001",
+      "items": [
+        {
+          "fileName": "gauss-core-01.zip",
+          "dbType": "gaussdb",
+          "collectorVersion": "1.2.0",
+          "outcome": {
+            "status": "done"
+          }
+        }
+      ],
+      "status": "done",
+      "createdAt": "now-1d"
+    },
+    {
+      "id": "task-seed-001",
+      "submitterId": "u-user-001",
+      "items": [
+        {
+          "fileName": "mysql-prod-01.zip",
+          "dbType": "mysql",
+          "collectorVersion": "1.2.0",
+          "outcome": {
+            "status": "done"
+          }
+        },
+        {
+          "fileName": "mysql-prod-02.zip",
+          "dbType": "mysql",
+          "collectorVersion": "1.2.0",
+          "outcome": {
+            "status": "done"
+          }
+        }
+      ],
+      "status": "done",
+      "createdAt": "now-2d"
+    },
+    {
+      "id": "task-seed-004",
+      "submitterId": "u-user-001",
+      "items": [
+        {
+          "fileName": "oracle-erp-01.zip",
+          "dbType": "oracle",
+          "collectorVersion": "1.2.0",
+          "outcome": {
+            "status": "done"
+          }
+        },
+        {
+          "fileName": "oracle-erp-02.zip",
+          "dbType": "oracle",
+          "collectorVersion": "1.2.0",
+          "outcome": {
+            "status": "failed",
+            "reason": "AWR 报告解析失败：文件不是有效的 AWR HTML"
+          }
+        },
+        {
+          "fileName": "mysql-crm-01.zip",
+          "dbType": "mysql",
+          "collectorVersion": "1.2.0",
+          "outcome": {
+            "status": "done"
+          }
+        }
+      ],
+      "status": "done",
+      "createdAt": "now-6d"
+    },
+    {
+      "id": "task-seed-010",
+      "submitterId": "u-user-001",
+      "items": [
+        {
+          "fileName": "oracle-fin-01.zip",
+          "dbType": "oracle",
+          "collectorVersion": "1.0.0",
+          "outcome": {
+            "status": "done"
+          }
+        },
+        {
+          "fileName": "mysql-fin-01.zip",
+          "dbType": "mysql",
+          "collectorVersion": "1.2.0",
+          "outcome": {
+            "status": "done"
+          }
+        }
+      ],
+      "status": "done",
+      "createdAt": "now-9d"
+    },
+    {
+      "id": "task-seed-002",
+      "submitterId": "u-user-001",
+      "items": [
+        {
+          "fileName": "oracle-core-rac.zip",
+          "dbType": "oracle",
+          "collectorVersion": "1.1.0",
+          "outcome": {
+            "status": "done"
+          }
+        }
+      ],
+      "status": "done",
+      "createdAt": "now-12d"
+    },
+    {
+      "id": "task-seed-005",
+      "submitterId": "u-user-001",
+      "items": [
+        {
+          "fileName": "mysql-legacy-01.zip",
+          "dbType": "mysql",
+          "collectorVersion": "1.2.0",
+          "outcome": {
+            "status": "failed",
+            "reason": "result.json 校验失败：缺少 meta 字段"
+          }
+        }
+      ],
+      "status": "failed",
+      "createdAt": "now-20d"
+    },
+    {
+      "id": "task-seed-009",
+      "submitterId": "u-disabled-001",
+      "items": [
+        {
+          "fileName": "oracle-ops-01.zip",
+          "dbType": "oracle",
+          "collectorVersion": "1.2.0",
+          "outcome": {
+            "status": "done"
+          }
+        }
+      ],
+      "status": "done",
+      "createdAt": "now-25d"
+    },
+    {
+      "id": "task-seed-008",
+      "submitterId": "u-admin-001",
+      "items": [
+        {
+          "fileName": "mysql-dw-01.zip",
+          "dbType": "mysql",
+          "collectorVersion": "1.1.0",
+          "outcome": {
+            "status": "done"
+          }
+        }
+      ],
+      "status": "done",
+      "createdAt": "now-38d"
+    },
+    {
+      "id": "task-seed-006",
+      "submitterId": "u-user-001",
+      "items": [
+        {
+          "fileName": "oracle-hr-01.zip",
+          "dbType": "oracle",
+          "collectorVersion": "1.1.0",
+          "outcome": {
+            "status": "done"
+          }
+        },
+        {
+          "fileName": "oracle-hr-02.zip",
+          "dbType": "oracle",
+          "collectorVersion": "1.1.0",
+          "outcome": {
+            "status": "done"
+          }
+        }
+      ],
+      "status": "done",
+      "createdAt": "now-45d"
+    }
+  ]
+}

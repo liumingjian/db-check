@@ -74,31 +74,15 @@ export function setApiBase(base: string | null): void {
   sessionStorage.setItem(API_BASE_MANUAL_STORAGE_KEY, "1");
 }
 
-export function apiUrl(path: string): string {
-  const base = getApiBase();
-  const p = path.startsWith("/") ? path : `/${path}`;
-  return new URL(p, base).toString();
-}
-
-export function wsUrl(path: string): string {
-  if (typeof window === "undefined") return path;
-  const u = new URL(getApiBase());
-  u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
-  u.pathname = path;
-  u.search = "";
-  u.hash = "";
-  return u.toString();
-}
-
 function currentOrigin(): string {
   if (typeof window === "undefined") return "unknown";
   return window.location.origin;
 }
 
-function networkErrorMessage(action: string, cause: unknown): string {
+function networkErrorMessage(action: string, apiBase: string, cause: unknown): string {
   return [
     `${action}: 浏览器无法连接 db-web API。`,
-    `当前 API 地址: ${getApiBase() || "未配置"}`,
+    `当前 API 地址: ${apiBase || "未配置"}`,
     `当前页面 Origin: ${currentOrigin()}`,
     "请确认 db-web 已启动、API Base 指向后端、ALLOWED_ORIGINS 包含当前页面 Origin。",
     `原始错误: ${String(cause)}`,
@@ -114,25 +98,87 @@ function errorCodeFor(status: number): ApiErrorCode {
 }
 
 /**
- * Sends one request to db-web carrying the session token and maps transport
- * and HTTP failures onto `ApiError`. `action` names the operation in messages.
+ * The message for a failed response. db-web's error envelope is
+ * `{"code", "message"}` with a Chinese message the console shows as-is; any
+ * other body (a proxy, for one)
+ * falls back to the raw status and body.
  */
-export async function httpRequest(
-  action: string,
-  path: string,
-  token: string,
-  init: RequestInit = {},
-): Promise<Response> {
-  let resp: Response;
+function errorMessageFor(action: string, status: number, body: string): string {
   try {
-    resp = await fetch(apiUrl(path), {
-      ...init,
-      headers: { ...init.headers, Authorization: `Bearer ${token}` },
-    });
-  } catch (e) {
-    throw new ApiError("failed", networkErrorMessage(action, e));
+    const parsed: unknown = JSON.parse(body);
+    if (parsed && typeof parsed === "object" && "message" in parsed && typeof parsed.message === "string") {
+      return parsed.message;
+    }
+  } catch {
+    // Not the envelope.
   }
-  if (resp.ok) return resp;
-  const text = (await resp.text().catch(() => "")).trim();
-  throw new ApiError(errorCodeFor(resp.status), `${action}: HTTP ${resp.status}${text ? ` ${text}` : ""}`);
+  return `${action}: HTTP ${status}${body ? ` ${body}` : ""}`;
+}
+
+/** A POST to db-web: what it does (`action`, for fallback messages), where, as whom, and its JSON body, if any. */
+export interface JsonPost {
+  action: string;
+  path: string;
+  token: string | null;
+  body?: unknown;
+}
+
+/** How each domain's HTTP implementation reaches db-web. */
+export interface HttpClient {
+  /**
+   * Sends one request, with the session token unless it is `null`, and maps
+   * transport and HTTP failures onto `ApiError`. `action` names the
+   * operation in fallback messages.
+   */
+  request(action: string, path: string, token: string | null, init?: RequestInit): Promise<Response>;
+  /** Like `request`, as a POST sending `body` (if any) as JSON. */
+  post(req: JsonPost): Promise<Response>;
+  /** The WebSocket URL for an API path. */
+  wsUrl(path: string): string;
+}
+
+/**
+ * A client for db-web at `baseUrl` or, without one, at the base the browser
+ * resolves (`getApiBase`). The contract tests pass the test server's URL.
+ */
+export function createHttpClient(baseUrl?: string): HttpClient {
+  const base = () => baseUrl ?? getApiBase();
+
+  async function request(action: string, path: string, token: string | null, init: RequestInit = {}) {
+    const headers = new Headers(init.headers);
+    if (token !== null) headers.set("Authorization", `Bearer ${token}`);
+    let resp: Response;
+    try {
+      resp = await fetch(new URL(path, base()).toString(), { ...init, headers });
+    } catch (e) {
+      throw new ApiError("failed", networkErrorMessage(action, base(), e));
+    }
+    if (resp.ok) return resp;
+    const text = (await resp.text().catch(() => "")).trim();
+    throw new ApiError(errorCodeFor(resp.status), errorMessageFor(action, resp.status, text));
+  }
+
+  return {
+    request,
+
+    post({ action, path, token, body }) {
+      if (body === undefined) return request(action, path, token, { method: "POST" });
+      return request(action, path, token, {
+        method: "POST",
+        body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+
+    wsUrl(path) {
+      // With neither a base nor a window there is no origin to resolve against.
+      if (baseUrl === undefined && typeof window === "undefined") return path;
+      const u = new URL(base());
+      u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
+      u.pathname = path;
+      u.search = "";
+      u.hash = "";
+      return u.toString();
+    },
+  };
 }

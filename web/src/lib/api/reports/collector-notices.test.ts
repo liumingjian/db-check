@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { ReportItemInput } from "@/lib/api/contract";
-import { contractImplementations, zipFile } from "@/lib/api/testing";
+import { contractImplementationsWithReal, zipFile } from "@/lib/api/testing";
 
 function item(name: string, collectorVersion: string | null): ReportItemInput {
-  return { zip: zipFile(name), dbType: "mysql", collectorVersion, diagnostics: [] };
+  return { zip: zipFile(name, "mysql", collectorVersion), dbType: "mysql", collectorVersion, diagnostics: [] };
 }
 
 /** Seed releases: 1.3.0-rc1 pre-release, 1.2.0 latest, 1.1.0 deprecated, 1.0.0 revoked. */
 const SEED_REVOKE_REASON = "Oracle 采集会在 11g 上锁表，请勿使用";
 
-describe.each(contractImplementations)("%s collector version notices", (_name, makeApi) => {
+describe.each(contractImplementationsWithReal)("%s collector version notices", (_name, makeApi) => {
   it("warns about the seed item from a revoked collector version, with the reason", async () => {
     const api = makeApi();
     const { token } = await api.auth.signIn("user", "user");

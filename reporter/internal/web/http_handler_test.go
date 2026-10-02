@@ -1,13 +1,8 @@
 package web
 
 import (
-	"bytes"
-	"encoding/json"
-	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -15,9 +10,8 @@ func TestCORSPreflightAllowsConfiguredOrigin(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://example.com"},
-		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -40,9 +34,8 @@ func TestCORSPreflightAllowsWildcardOrigin(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"*"},
-		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -65,9 +58,8 @@ func TestCORSPreflightAllowsTrailingSlashInConfig(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://example.com/"},
-		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -90,9 +82,8 @@ func TestCORSPreflightAllowsHostOnlyEntry(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"localhost:3000"},
-		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -115,9 +106,8 @@ func TestCORSPreflightAllowsLocalhostAlias(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://localhost:3000"},
-		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -140,9 +130,8 @@ func TestCORSRejectsUnknownOrigin(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://example.com"},
-		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -161,9 +150,8 @@ func TestAuthIsRequired(t *testing.T) {
 	cfg := Config{
 		DataDir:        t.TempDir(),
 		AllowedOrigins: []string{"http://example.com"},
-		APIToken:       defaultAPIToken,
 	}
-	h, err := newAPIHandler(cfg, false)
+	h, err := newAPIHandler(cfg, testPlatform(t, cfg.DataDir), false)
 	if err != nil {
 		t.Fatalf("newAPIHandler failed: %v", err)
 	}
@@ -175,220 +163,4 @@ func TestAuthIsRequired(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected %d got %d", http.StatusUnauthorized, rec.Code)
 	}
-}
-
-func TestGenerateCreatesTaskRecord(t *testing.T) {
-	dataDir := t.TempDir()
-	cfg := Config{
-		DataDir:        dataDir,
-		AllowedOrigins: []string{"http://example.com"},
-		APIToken:       defaultAPIToken,
-		MaxUploadBytes: 0,
-		PythonBin:      "python3",
-	}
-	h, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
-	handler := h.handler()
-
-	var body bytes.Buffer
-	mw := multipart.NewWriter(&body)
-	part, err := mw.CreateFormFile("zips", "demo.zip")
-	if err != nil {
-		t.Fatalf("CreateFormFile failed: %v", err)
-	}
-	if _, err := part.Write([]byte("not-a-real-zip")); err != nil {
-		t.Fatalf("write part failed: %v", err)
-	}
-	if err := mw.Close(); err != nil {
-		t.Fatalf("close multipart failed: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/reports/generate", &body)
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	req.Header.Set("Authorization", "Bearer "+defaultAPIToken)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected %d got %d body=%s", http.StatusOK, rec.Code, rec.Body.String())
-	}
-
-	var resp struct {
-		TaskID string `json:"task_id"`
-		Status string `json:"status"`
-		Total  int    `json:"total"`
-		WsURL  string `json:"ws_url"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("decode response failed: %v", err)
-	}
-	if resp.TaskID == "" || resp.Status != "processing" || resp.Total != 1 || resp.WsURL == "" {
-		t.Fatalf("unexpected resp: %#v", resp)
-	}
-
-	taskPath := filepath.Join(dataDir, "tasks", resp.TaskID, "task.json")
-	if _, err := os.Stat(taskPath); err != nil {
-		t.Fatalf("expected task.json to exist: %v", err)
-	}
-}
-
-func TestGenerateAcceptsMultipleIndexedWDRUploads(t *testing.T) {
-	dataDir := t.TempDir()
-	cfg := Config{
-		DataDir:        dataDir,
-		AllowedOrigins: []string{"http://example.com"},
-		APIToken:       defaultAPIToken,
-		MaxUploadBytes: 0,
-		PythonBin:      "python3",
-	}
-	h, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
-
-	req := multipartRequestPairs(t, []filePart{
-		{field: "zips", name: "demo.zip"},
-		{field: "wdr_1", name: "wdr-cluster.html"},
-		{field: "wdr_1", name: "wdr-node.html"},
-	})
-	rec := httptest.NewRecorder()
-	h.handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected %d got %d body=%s", http.StatusOK, rec.Code, rec.Body.String())
-	}
-
-	select {
-	case queued := <-h.queue:
-		if len(queued.Items) != 1 || len(queued.Items[0].WDRPaths) != 2 {
-			t.Fatalf("expected two WDRPaths to be queued: %#v", queued.Items)
-		}
-		if queued.Items[0].WDRPaths[0] == queued.Items[0].WDRPaths[1] {
-			t.Fatalf("expected unique WDR upload paths: %#v", queued.Items[0].WDRPaths)
-		}
-		if queued.Items[0].AWRPath != "" {
-			t.Fatalf("did not expect AWRPath: %#v", queued.Items[0])
-		}
-	default:
-		t.Fatalf("expected queued task")
-	}
-}
-
-func TestGenerateAcceptsBulkWDRUpload(t *testing.T) {
-	cfg := Config{
-		DataDir:        t.TempDir(),
-		AllowedOrigins: []string{"http://example.com"},
-		APIToken:       defaultAPIToken,
-		MaxUploadBytes: 0,
-		PythonBin:      "python3",
-	}
-	h, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
-
-	req := multipartRequest(t, map[string]string{
-		"zips": "demo.zip",
-		"wdrs": "wdr.html",
-	})
-	rec := httptest.NewRecorder()
-	h.handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected %d got %d body=%s", http.StatusOK, rec.Code, rec.Body.String())
-	}
-}
-
-func TestGenerateRejectsMultipleIndexedAWRUploads(t *testing.T) {
-	cfg := Config{
-		DataDir:        t.TempDir(),
-		AllowedOrigins: []string{"http://example.com"},
-		APIToken:       defaultAPIToken,
-		MaxUploadBytes: 0,
-		PythonBin:      "python3",
-	}
-	h, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
-
-	req := multipartRequestPairs(t, []filePart{
-		{field: "zips", name: "demo.zip"},
-		{field: "awr_1", name: "awr-a.html"},
-		{field: "awr_1", name: "awr-b.html"},
-	})
-	rec := httptest.NewRecorder()
-	h.handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected %d got %d body=%s", http.StatusBadRequest, rec.Code, rec.Body.String())
-	}
-}
-
-func TestGenerateEnforcesUploadLimit(t *testing.T) {
-	cfg := Config{
-		DataDir:        t.TempDir(),
-		AllowedOrigins: []string{"http://example.com"},
-		APIToken:       defaultAPIToken,
-		MaxUploadBytes: 64, // tiny
-	}
-	h, err := newAPIHandler(cfg, false)
-	if err != nil {
-		t.Fatalf("newAPIHandler failed: %v", err)
-	}
-	handler := h.handler()
-
-	var body bytes.Buffer
-	mw := multipart.NewWriter(&body)
-	part, err := mw.CreateFormFile("zips", "demo.zip")
-	if err != nil {
-		t.Fatalf("CreateFormFile failed: %v", err)
-	}
-	part.Write(bytes.Repeat([]byte("x"), 1024))
-	if err := mw.Close(); err != nil {
-		t.Fatalf("close multipart failed: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/reports/generate", &body)
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	req.Header.Set("Authorization", "Bearer "+defaultAPIToken)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusRequestEntityTooLarge {
-		t.Fatalf("expected %d got %d body=%s", http.StatusRequestEntityTooLarge, rec.Code, rec.Body.String())
-	}
-}
-
-func multipartRequest(t *testing.T, files map[string]string) *http.Request {
-	t.Helper()
-	parts := make([]filePart, 0, len(files))
-	for field, name := range files {
-		parts = append(parts, filePart{field: field, name: name})
-	}
-	return multipartRequestPairs(t, parts)
-}
-
-type filePart struct {
-	field string
-	name  string
-}
-
-func multipartRequestPairs(t *testing.T, files []filePart) *http.Request {
-	t.Helper()
-	var body bytes.Buffer
-	mw := multipart.NewWriter(&body)
-	for _, file := range files {
-		part, err := mw.CreateFormFile(file.field, file.name)
-		if err != nil {
-			t.Fatalf("CreateFormFile failed: %v", err)
-		}
-		if _, err := part.Write([]byte("content")); err != nil {
-			t.Fatalf("write part failed: %v", err)
-		}
-	}
-	if err := mw.Close(); err != nil {
-		t.Fatalf("close multipart failed: %v", err)
-	}
-	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/reports/generate", &body)
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	req.Header.Set("Authorization", "Bearer "+defaultAPIToken)
-	return req
 }

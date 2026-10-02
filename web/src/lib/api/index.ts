@@ -1,21 +1,12 @@
 /**
  * The API the UI uses. `NEXT_PUBLIC_API_MODE` (inlined at build time) selects
- * the implementation: `mock` (default) keeps all data in this browser's local
- * storage; `real` talks to db-web. There is no fallback between the two.
+ * the implementation: `real` (default) talks to db-web; `mock` keeps all data
+ * in this browser's local storage. There is no fallback between the two.
  */
 import type { DbCheckApi } from "@/lib/api/contract";
 import { createHttpApi } from "@/lib/api/http";
 import { createMockApi } from "@/lib/api/mock";
-
-export type ApiMode = "mock" | "real";
-
-function readApiMode(): ApiMode {
-  const raw = (process.env.NEXT_PUBLIC_API_MODE ?? "").trim() || "mock";
-  if (raw !== "mock" && raw !== "real") {
-    throw new Error(`NEXT_PUBLIC_API_MODE must be "mock" or "real", got "${raw}"`);
-  }
-  return raw;
-}
+import { type ApiMode, parseApiMode } from "@/lib/api/mode";
 
 /** Defers to `window.localStorage` per call, so importing this module is safe during prerendering. */
 const browserLocalStorage: Storage = {
@@ -29,7 +20,7 @@ const browserLocalStorage: Storage = {
   setItem: (key, value) => window.localStorage.setItem(key, value),
 };
 
-export const apiMode: ApiMode = readApiMode();
+export const apiMode: ApiMode = parseApiMode(process.env.NEXT_PUBLIC_API_MODE);
 
 const mockApi = apiMode === "mock" ? createMockApi({ storage: browserLocalStorage }) : null;
 

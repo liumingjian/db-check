@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { contractImplementations } from "@/lib/api/testing";
+import { contractImplementationsWithReal } from "@/lib/api/testing";
 
-describe.each(contractImplementations)("%s downloads contract", (_name, makeApi) => {
+describe.each(contractImplementationsWithReal)("%s downloads contract", (_name, makeApi) => {
   it("records one download record per package download", async () => {
     const api = makeApi();
     const engineer = await api.auth.signIn("user", "user");
@@ -63,6 +63,12 @@ describe.each(contractImplementations)("%s downloads contract", (_name, makeApi)
     await expect(api.downloads.download(admin.token, "9.9.9", "linux-amd64")).rejects.toMatchObject({
       code: "not_found",
     });
+  });
+
+  it.each(["lisi", "zhaoliu"])("refuses download records to applicant %s", async (username) => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn(username, username);
+    await expect(api.downloads.records(token)).rejects.toMatchObject({ code: "forbidden" });
   });
 
   it("keeps download records from engineers", async () => {

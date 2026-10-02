@@ -6,7 +6,7 @@ TMP_BIN_DIR := $(ROOT_DIR)/bin
 GO_CACHE ?= /tmp/go-cache
 COLLECTOR_BIN := $(TMP_BIN_DIR)/db-collector
 
-.PHONY: help init-python build build-collector build-osprobes test-reporter test-integration test-e2e release clean \
+.PHONY: help init-python build build-collector build-osprobes test-go test-reporter test-integration test-e2e release clean \
 	web-install web-build build-db-web \
 	pm2-start pm2-start-prod pm2-restart pm2-stop pm2-delete pm2-status pm2-logs pm2-logs-api pm2-logs-web pm2-smoke
 
@@ -36,6 +36,12 @@ build-collector: ## 编译 db-collector 到 bin
 	@GOCACHE=$(GO_CACHE) go build -o "$(COLLECTOR_BIN)" ./collector/cmd/db-collector
 	@printf "built %s\n" "$(COLLECTOR_BIN)"
 
+test-go: ## 检查 gofmt 并运行全部 Go 测试（先生成嵌入式 OS helper 资产）
+	@./scripts/build_embedded_osprobes.sh
+	@unformatted="$$(gofmt -l collector reporter)"; \
+		if [ -n "$$unformatted" ]; then printf "[ERROR] gofmt -w needed:\n%s\n" "$$unformatted" >&2; exit 1; fi
+	@GOCACHE=$(GO_CACHE) go test ./...
+
 test-reporter: ## 在 .venv 中运行 reporter 单元测试
 	@test -n "$$VIRTUAL_ENV" || { echo "[ERROR] python3 must run inside an activated virtual environment (VIRTUAL_ENV is empty)" >&2; exit 1; }
 	@python3 -m unittest discover -s tests/reporter -p 'test_*.py'
@@ -48,7 +54,7 @@ test-e2e: ## 在 .venv 中运行 Docker e2e
 	@test -n "$$VIRTUAL_ENV" || { echo "[ERROR] python3 must run inside an activated virtual environment (VIRTUAL_ENV is empty)" >&2; exit 1; }
 	@tests/e2e/run_docker_e2e.sh
 
-release: ## 构建多平台发布包并生成 tar.gz 到 dist/
+release: ## 构建多平台发布包并生成 .zip 到 dist/
 	@./scripts/build_release_packages.sh
 
 clean: ## 清理本地临时构建产物

@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { ReportItemInput } from "@/lib/api/contract";
-import { contractImplementations, watchToEnd, zipFile } from "@/lib/api/testing";
+import { contractImplementationsWithReal,watchToEnd, zipFile } from "@/lib/api/testing";
 import type { DbType } from "@/lib/types";
 
 function item(name: string, dbType: DbType = "mysql", collectorVersion: string | null = "1.2.0"): ReportItemInput {
-  return { zip: zipFile(name), dbType, collectorVersion, diagnostics: [] };
+  return { zip: zipFile(name, dbType, collectorVersion), dbType, collectorVersion, diagnostics: [] };
 }
 
 function isNewestFirst(isoTimes: string[]): boolean {
   return isoTimes.every((at, i) => i === 0 || Date.parse(isoTimes[i - 1]) >= Date.parse(at));
 }
 
-describe.each(contractImplementations)("%s reports contract", (_name, makeApi) => {
+describe.each(contractImplementationsWithReal)("%s reports contract", (_name, makeApi) => {
   it("refuses to generate without a valid session", async () => {
     const api = makeApi();
     await expect(api.reports.generate("not-a-session", { items: [item("mysql-prod-01.zip")] })).rejects.toMatchObject({
@@ -38,6 +38,25 @@ describe.each(contractImplementations)("%s reports contract", (_name, makeApi) =
 
     const report = await api.reports.download(token, submitted.taskId);
     expect(report.size).toBeGreaterThan(0);
+  });
+
+  it.each(["lisi", "zhaoliu"])("refuses report downloads to applicant %s", async (username) => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn(username, username);
+    await expect(api.reports.download(token, "t-any")).rejects.toMatchObject({ code: "forbidden" });
+  });
+
+  it("refuses an empty submission", async () => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn("user", "user");
+    await expect(api.reports.generate(token, { items: [] })).rejects.toMatchObject({ code: "invalid" });
+  });
+
+  it("refuses to download a task that is still generating", async () => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn("user", "user");
+    const { taskId } = await api.reports.generate(token, { items: [item("mysql-prod-01.zip")] });
+    await expect(api.reports.download(token, taskId)).rejects.toMatchObject({ code: "invalid" });
   });
 
   it("records the task under the signed-in submitter, with each item's database type and collector version", async () => {
@@ -160,15 +179,29 @@ describe.each(contractImplementations)("%s reports contract", (_name, makeApi) =
     await expect(api.reports.listAll("not-a-session")).rejects.toMatchObject({ code: "unauthorized" });
   });
 
+  it("refuses to list without a valid session", async () => {
+    const api = makeApi();
+    await expect(api.reports.listOwn("not-a-session")).rejects.toMatchObject({ code: "unauthorized" });
+  });
+
+  it("reports an unknown task as not found", async () => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn("user", "user");
+    await expect(api.reports.download(token, "no-such-task")).rejects.toMatchObject({ code: "not_found" });
+    await expect(api.reports.getTask(token, "no-such-task")).rejects.toMatchObject({ code: "not_found" });
+  });
+
   it("expires a task's files 30 days after submission and refuses to download them", async () => {
     let now = Date.parse("2026-10-01T08:00:00Z");
     const api = makeApi({ now: () => now });
-    const { token } = await api.auth.signIn("user", "user");
-    const { taskId } = await api.reports.generate(token, { items: [item("mall.zip")] });
-    await watchToEnd(api, token, taskId);
-    const listed = async () => (await api.reports.listOwn(token)).find((t) => t.id === taskId);
+    const submitted = await api.auth.signIn("user", "user");
+    const { taskId } = await api.reports.generate(submitted.token, { items: [item("mall.zip")] });
+    await watchToEnd(api, submitted.token, taskId);
 
     now = Date.parse("2026-10-31T07:59:00Z");
+    // Sessions last 7 days on the server, so sign in again a month later.
+    const { token } = await api.auth.signIn("user", "user");
+    const listed = async () => (await api.reports.listOwn(token)).find((t) => t.id === taskId);
     expect(await listed()).toMatchObject({ expired: false });
     await expect(api.reports.download(token, taskId)).resolves.toBeInstanceOf(Blob);
 
@@ -177,28 +210,14 @@ describe.each(contractImplementations)("%s reports contract", (_name, makeApi) =
     await expect(api.reports.download(token, taskId)).rejects.toMatchObject({ code: "invalid" });
   });
 
-  it("refuses to list without a valid session", async () => {
-    const api = makeApi();
-    await expect(api.reports.listOwn("not-a-session")).rejects.toMatchObject({ code: "unauthorized" });
-  });
-
-  it("refuses an empty submission", async () => {
+  it("lists the seeded tasks older than 30 days as expired, and downloads only the others", async () => {
     const api = makeApi();
     const { token } = await api.auth.signIn("user", "user");
-    await expect(api.reports.generate(token, { items: [] })).rejects.toMatchObject({ code: "invalid" });
-  });
+    const mine = await api.reports.listOwn(token);
+    expect(mine.find((t) => t.id === "task-seed-001")).toMatchObject({ status: "done", expired: false });
+    expect(mine.find((t) => t.id === "task-seed-006")).toMatchObject({ status: "done", expired: true });
 
-  it("refuses to download a task that is still generating", async () => {
-    const api = makeApi();
-    const { token } = await api.auth.signIn("user", "user");
-    const { taskId } = await api.reports.generate(token, { items: [item("mysql-prod-01.zip")] });
-    await expect(api.reports.download(token, taskId)).rejects.toMatchObject({ code: "invalid" });
-  });
-
-  it("reports an unknown task as not found", async () => {
-    const api = makeApi();
-    const { token } = await api.auth.signIn("user", "user");
-    await expect(api.reports.download(token, "no-such-task")).rejects.toMatchObject({ code: "not_found" });
-    await expect(api.reports.getTask(token, "no-such-task")).rejects.toMatchObject({ code: "not_found" });
+    await expect(api.reports.download(token, "task-seed-001")).resolves.toBeInstanceOf(Blob);
+    await expect(api.reports.download(token, "task-seed-006")).rejects.toMatchObject({ code: "invalid" });
   });
 });

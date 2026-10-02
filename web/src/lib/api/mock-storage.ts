@@ -1,8 +1,8 @@
 /**
  * Persistence for the mock implementation. Each domain keeps its own
  * collection under its own storage key, seeded and stored on first read, so
- * domains evolve their seed and shape independently and a seed built
- * relative to `now` keeps its dates from then on.
+ * domains evolve their shape independently and a seed built relative to
+ * `now` keeps its dates from then on.
  */
 const KEY_PREFIX = "dbcheck_mock_";
 

@@ -1,9 +1,8 @@
-import { ApiError } from "@/lib/api/errors";
-import { httpRequest, wsUrl } from "@/lib/api/http-client";
-import type { ReportEvent, ReportsApi } from "@/lib/api/reports/contract";
+import type { HttpClient } from "@/lib/api/http-client";
+import type { ReportEvent, ReportsApi, ReportTask } from "@/lib/api/reports/contract";
 import type { GenerateResponse } from "@/lib/types";
 
-export function createHttpReports(): ReportsApi {
+export function createHttpReports(client: HttpClient): ReportsApi {
   return {
     async generate(token, { items }) {
       const form = new FormData();
@@ -14,21 +13,25 @@ export function createHttpReports(): ReportsApi {
         const selected = dbType === "gaussdb" ? diagnostics : diagnostics.slice(0, 1);
         selected.forEach((file) => form.append(`${field}_${idx + 1}`, file, file.name));
       });
-      const resp = await httpRequest("生成接口失败", "/api/reports/generate", token, { method: "POST", body: form });
+      const resp = await client.request("生成接口失败", "/api/reports/generate", token, { method: "POST", body: form });
       const body = (await resp.json()) as GenerateResponse;
       return { taskId: body.task_id, total: body.total };
     },
 
-    async listOwn() {
-      throw new ApiError("failed", "后端尚未提供报告任务列表接口");
+    async listOwn(token) {
+      const resp = await client.request("读取我的报告失败", "/api/reports/mine", token);
+      return (await resp.json()) as ReportTask[];
     },
 
-    async listAll() {
-      throw new ApiError("failed", "后端尚未提供报告任务列表接口");
+    async listAll(token, { submitterId } = {}) {
+      const query = submitterId ? `?${new URLSearchParams({ submitterId })}` : "";
+      const resp = await client.request("读取全部报告失败", `/api/reports${query}`, token);
+      return (await resp.json()) as ReportTask[];
     },
 
-    async getTask() {
-      throw new ApiError("failed", "后端尚未提供报告任务查询接口");
+    async getTask(token, taskId) {
+      const resp = await client.request("读取报告任务失败", `/api/reports/tasks/${encodeURIComponent(taskId)}`, token);
+      return (await resp.json()) as ReportTask;
     },
 
     watch(token, taskId, onEvent) {
@@ -37,7 +40,7 @@ export function createHttpReports(): ReportsApi {
         if (!stopped) onEvent(event);
       };
       // The backend authenticates WebSockets with the token as subprotocol.
-      const ws = new WebSocket(wsUrl(`/api/reports/ws/${encodeURIComponent(taskId)}`), [token]);
+      const ws = new WebSocket(client.wsUrl(`/api/reports/ws/${encodeURIComponent(taskId)}`), [token]);
       ws.onmessage = (ev) => {
         try {
           emit(JSON.parse(String(ev.data)) as ReportEvent);
@@ -53,7 +56,7 @@ export function createHttpReports(): ReportsApi {
     },
 
     async download(token, taskId) {
-      const resp = await httpRequest("下载失败", `/api/reports/download/${encodeURIComponent(taskId)}`, token);
+      const resp = await client.request("下载失败", `/api/reports/download/${encodeURIComponent(taskId)}`, token);
       return resp.blob();
     },
   };

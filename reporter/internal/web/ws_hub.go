@@ -29,26 +29,19 @@ func newTaskHub(maxLogs int) *taskHub {
 	}
 }
 
-func (h *taskHub) snapshot(taskID string) (lastSeq int64, logs [][]byte) {
+// subscribeWithReplay returns the kept logs and subscribes to every later
+// event, atomically, so nothing falls between the two.
+func (h *taskHub) subscribeWithReplay(taskID string) (lastSeq int64, logs [][]byte, ch <-chan []byte, cancel func()) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	state := h.state(taskID)
-	out := make([][]byte, 0, len(state.logs))
+	logs = make([][]byte, 0, len(state.logs))
 	for _, b := range state.logs {
-		cp := make([]byte, len(b))
-		copy(cp, b)
-		out = append(out, cp)
+		logs = append(logs, append([]byte(nil), b...))
 	}
-	return state.nextSeq, out
-}
-
-func (h *taskHub) subscribe(taskID string) (ch <-chan []byte, cancel func()) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	state := h.state(taskID)
 	sub := &wsSubscriber{ch: make(chan []byte, 256)}
 	state.subs[sub] = struct{}{}
-	return sub.ch, func() {
+	return state.nextSeq, logs, sub.ch, func() {
 		h.mu.Lock()
 		defer h.mu.Unlock()
 		if _, ok := state.subs[sub]; ok {
@@ -150,11 +143,11 @@ func withSeq(msg any, seq int64) map[string]any {
 			"current_file": m.CurrentFile,
 		}
 	case *wsDoneMessage:
-		return map[string]any{
-			"type":         m.Type,
-			"seq":          seq,
-			"download_url": m.DownloadURL,
+		done := map[string]any{"type": m.Type, "seq": seq}
+		if m.DownloadURL != "" {
+			done["download_url"] = m.DownloadURL
 		}
+		return done
 	case *wsErrorMessage:
 		return map[string]any{
 			"type":    m.Type,

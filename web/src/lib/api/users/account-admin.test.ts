@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { DbCheckApi } from "@/lib/api/contract";
-import { contractImplementations } from "@/lib/api/testing";
+import { contractImplementationsWithReal } from "@/lib/api/testing";
 
-/** Account administration on approved users: disable, enable, promote, demote, and password reset. */
-describe.each(contractImplementations)("%s users contract: account administration", (_name, makeApi) => {
-  async function adminToken(api: DbCheckApi) {
-    return (await api.auth.signIn("admin", "admin")).token;
-  }
+async function adminToken(api: DbCheckApi) {
+  return (await api.auth.signIn("admin", "admin")).token;
+}
 
+/** Account administration on approved users: disable, enable, promote, and demote. */
+describe.each(contractImplementationsWithReal)("%s users contract: account administration", (_name, makeApi) => {
   describe("disable and enable", () => {
     it("disables an active engineer with a reason, stamped with the acting admin", async () => {
       const api = makeApi();
@@ -23,7 +23,7 @@ describe.each(contractImplementations)("%s users contract: account administratio
       const { token } = await api.auth.signIn("user", "user");
       await api.users.disable(await adminToken(api), "u-user-001", "已转岗");
       await expect(api.auth.currentUser(token)).rejects.toMatchObject({ code: "unauthorized" });
-      await expect(api.releases.list(token)).rejects.toMatchObject({ code: "unauthorized" });
+      await expect(api.users.myProfile(token)).rejects.toMatchObject({ code: "unauthorized" });
     });
 
     it("refuses to disable without a reason", async () => {
@@ -74,17 +74,19 @@ describe.each(contractImplementations)("%s users contract: account administratio
       await expect(api.users.promote(await adminToken(api), id)).rejects.toMatchObject({ code: "invalid" });
     });
 
-    it("demotes another admin to engineer, who loses the admin operations", async () => {
+    it("demotes another admin to engineer, whose open session loses the admin operations at once", async () => {
       const api = makeApi();
       const admin = await adminToken(api);
       await api.users.promote(admin, "u-user-001");
+      const { token } = await api.auth.signIn("user", "user");
+      await expect(api.users.list(token)).resolves.not.toHaveLength(0);
 
       const demoted = await api.users.demote(admin, "u-user-001");
 
       expect(demoted).toMatchObject({ role: "user" });
 
       expect(demoted.actions.at(-1)).toMatchObject({ action: "demote", by: "admin" });
-      const { token } = await api.auth.signIn("user", "user");
+      await expect(api.auth.currentUser(token)).resolves.toMatchObject({ role: "user" });
       await expect(api.users.list(token)).rejects.toMatchObject({ code: "forbidden" });
     });
 
@@ -92,6 +94,15 @@ describe.each(contractImplementations)("%s users contract: account administratio
       const api = makeApi();
       await expect(api.users.demote(await adminToken(api), "u-user-001")).rejects.toMatchObject({ code: "invalid" });
     });
+  });
+});
+
+/** Password reset, the forced change after it, and the voluntary change. */
+describe.each(contractImplementationsWithReal)("%s users contract: passwords", (_name, makeApi) => {
+  it("refuses a password reset to an engineer", async () => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn("user", "user");
+    await expect(api.users.resetPassword(token, "u-admin-001")).rejects.toMatchObject({ code: "forbidden" });
   });
 
   describe("password reset and forced change", () => {
@@ -107,17 +118,23 @@ describe.each(contractImplementations)("%s users contract: account administratio
       await expect(api.auth.signIn("user", temporaryPassword)).resolves.toMatchObject({ user: { mustChangePassword: true } });
     });
 
-    it("holds every session of a reset user to their own account until they change the password", async () => {
+    it("ends every session of the reset user", async () => {
       const api = makeApi();
       const { token: earlier } = await api.auth.signIn("user", "user");
+      await api.users.resetPassword(await adminToken(api), "u-user-001");
+
+      await expect(api.auth.currentUser(earlier)).rejects.toMatchObject({ code: "unauthorized" });
+      await expect(api.users.myProfile(earlier)).rejects.toMatchObject({ code: "unauthorized" });
+    });
+
+    it("holds a reset user's new session to their own account until they change the password", async () => {
+      const api = makeApi();
       const { temporaryPassword } = await api.users.resetPassword(await adminToken(api), "u-user-001");
       const { token } = await api.auth.signIn("user", temporaryPassword);
 
-      for (const t of [earlier, token]) {
-        await expect(api.auth.currentUser(t)).resolves.toMatchObject({ mustChangePassword: true });
-        await expect(api.users.myProfile(t)).resolves.toMatchObject({ username: "user" });
-        await expect(api.releases.list(t)).rejects.toMatchObject({ code: "forbidden" });
-      }
+      await expect(api.auth.currentUser(token)).resolves.toMatchObject({ mustChangePassword: true });
+      await expect(api.users.myProfile(token)).resolves.toMatchObject({ username: "user" });
+      await expect(api.releases.list(token)).rejects.toMatchObject({ code: "forbidden" });
     });
 
     it("ends the forced change once the user sets a new password", async () => {
@@ -176,6 +193,9 @@ describe.each(contractImplementations)("%s users contract: account administratio
     });
   });
 
+});
+
+describe.each(contractImplementationsWithReal)("%s users contract: account administration guards", (_name, makeApi) => {
   describe("admin guards", () => {
     it.each([
       ["demote", (api: DbCheckApi, token: string, id: string) => api.users.demote(token, id)],
@@ -217,7 +237,6 @@ describe.each(contractImplementations)("%s users contract: account administratio
         () => api.users.enable(token, "u-disabled-001"),
         () => api.users.promote(token, "u-user-001"),
         () => api.users.demote(token, "u-admin-001"),
-        () => api.users.resetPassword(token, "u-admin-001"),
       ]) {
         await expect(act()).rejects.toMatchObject({ code: "forbidden" });
       }

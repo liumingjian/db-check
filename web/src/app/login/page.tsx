@@ -65,18 +65,12 @@ function SignInForm() {
           </YellowButton>
         </form>
 
-        {apiMode === "mock" && (
-          <p className="mt-6 text-sm text-muted-foreground">
-            还没有账号？
-            <Link href="/register" className="ml-1 font-semibold text-foreground hover:text-primary">
-              申请账号 →
-            </Link>
-          </p>
-        )}
-
-        {apiMode === "real" && (
-          <p className="mt-6 text-xs text-muted-foreground">后端暂未提供账号体系，密码处请填写 db-web 的 API Token（DBCHECK_API_TOKEN）。</p>
-        )}
+        <p className="mt-6 text-sm text-muted-foreground">
+          还没有账号？
+          <Link href="/register" className="ml-1 font-semibold text-foreground hover:text-primary">
+            申请账号 →
+          </Link>
+        </p>
 
         {apiMode === "mock" && (
           <div className="mt-12 border-t border-border pt-6">
