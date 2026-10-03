@@ -9,6 +9,7 @@ from reporter.content.oracle_performance_sections import build_performance_and_s
 from reporter.content.oracle_security_sections import build_security_section
 from reporter.content.oracle_sql_sections import build_sql_analysis_section
 from reporter.content.oracle_storage_sections import build_storage_and_log_section
+from reporter.content.oracle_specialized_sections import build_specialized_section
 from reporter.model.report_view import SectionBlock
 
 
@@ -20,6 +21,7 @@ def build_oracle_database_sections(result: dict[str, object]) -> tuple[SectionBl
         build_sql_analysis_section(result),
         build_security_section(result),
         build_backup_section(result),
+        build_specialized_section(result),
     ]
     db = result.get("db") if isinstance(result, dict) else None
     if isinstance(db, dict) and isinstance(db.get("awr"), dict):
