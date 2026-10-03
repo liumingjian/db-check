@@ -7,7 +7,7 @@
     "target_versions": ["11g", "19c"],
     "updated_at": "2026-03-12",
     "target": "自建 Oracle 11g / 19c",
-    "total_checks": 50,
+    "total_checks": 63,
     "priority_summary": {
       "P0": 10,
       "P1": 14,
