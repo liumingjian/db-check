@@ -35,13 +35,16 @@ func newMetricsCollector(db *sql.DB, cfg cli.Config) *metricsCollector {
 }
 
 func (c *metricsCollector) collectAll(ctx context.Context) map[string]any {
+	version, topology := c.collectDeployment(ctx)
 	return map[string]any{
-		"basic_info":   c.collectBasicInfo(ctx),
-		"config_check": c.collectConfigCheck(ctx),
-		"storage":      c.collectStorage(ctx),
-		"backup":       c.collectBackup(ctx),
-		"performance":  c.collectPerformance(ctx),
-		"sql_analysis": c.collectSQLAnalysis(ctx),
-		"security":     c.collectSecurity(ctx),
+		"version_info":        version,
+		"deployment_topology": topology,
+		"basic_info":          c.collectBasicInfo(ctx),
+		"config_check":        c.collectConfigCheck(ctx),
+		"storage":             c.collectStorage(ctx),
+		"backup":              c.collectBackup(ctx),
+		"performance":         c.collectPerformance(ctx),
+		"sql_analysis":        c.collectSQLAnalysis(ctx),
+		"security":            c.collectSecurity(ctx),
 	}
 }
