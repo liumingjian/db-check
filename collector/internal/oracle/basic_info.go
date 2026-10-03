@@ -36,7 +36,7 @@ func (c *metricsCollector) collectConfigCheck(ctx context.Context) map[string]an
 		"spfile": c.queryString(
 			ctx,
 			"oracle.config.spfile",
-			`SELECT value AS "spfile" FROM gv$parameter WHERE name='spfile' AND inst_id=1`,
+			`SELECT value AS "spfile" FROM v$parameter WHERE name='spfile'`,
 		),
 		"sga_target_mb": c.queryString(
 			ctx,
