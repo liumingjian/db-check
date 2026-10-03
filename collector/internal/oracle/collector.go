@@ -49,6 +49,10 @@ func (c *metricsCollector) collectAll(ctx context.Context) map[string]any {
 		"performance":         c.collectPerformance(ctx),
 		"sql_analysis":        c.collectSQLAnalysis(ctx),
 		"security":            c.collectSecurity(ctx),
+		"data_guard":          c.collectDataGuard(ctx, topology),
+		"asm":                 c.collectASM(ctx, topology),
+		"rac":                 c.collectRAC(ctx, topology),
+		"host_checks":         c.collectHostChecks(ctx, topology),
 	}
 	payload["inspection_account"] = c.inspectionAccount
 	payload["collection_availability"] = c.availability

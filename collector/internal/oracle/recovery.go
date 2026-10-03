@@ -18,7 +18,7 @@ SELECT dest_name AS "dest_name",
        target AS "target",
        archiver AS "archiver",
        error AS "error"
-  FROM v$archive_dest_status
+  FROM v$archive_dest
  WHERE destination IS NOT NULL`
 
 const recoveryAreaQuery = `
@@ -37,9 +37,8 @@ SELECT dest_name AS "dest_name",
        error AS "error"
   FROM v$archive_dest_status
  WHERE destination IS NOT NULL
-   AND error IS NOT NULL
-   AND TRIM(error) <> ''
-   AND UPPER(error) <> 'NO ERROR'`
+   AND TRIM(error) IS NOT NULL
+   AND UPPER(TRIM(error)) <> 'NO ERROR'`
 
 const archiveLogSummaryQuery = `
 SELECT COUNT(*) AS "archive_count",

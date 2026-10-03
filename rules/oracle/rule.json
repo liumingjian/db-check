@@ -7,7 +7,7 @@
     "target_versions": ["11g", "19c"],
     "updated_at": "2026-03-12",
     "target": "自建 Oracle 11g / 19c",
-    "total_checks": 57,
+    "total_checks": 70,
     "priority_summary": {
       "P0": 12,
       "P1": 17,
@@ -401,6 +401,43 @@
         {"check_id": "8.2", "name": "SQL 补丁最新操作失败", "source_module": "db_security", "extract": {"json_path": "db.security.failed_patch_attempts", "aggregation": "raw"}, "evaluation": {"method": "row_count"}, "optimization_advice": "请 DBA 检查 datapatch 日志并修复最后一次非 SUCCESS 的补丁操作。失败 APPLY 不证明已安装，失败 ROLLBACK 不移除之前成功安装的补丁。"},
         {"check_id": "8.3", "name": "组件注册状态", "source_module": "db_security", "extract": {"json_path": "db.security.invalid_components", "aggregation": "raw"}, "evaluation": {"method": "row_count"}, "optimization_advice": "请 DBA 核对 DBA_REGISTRY 非 VALID 组件，按组件安装或升级日志修复。"},
         {"check_id": "8.4", "name": "补丁操作历史", "source_module": "db_security", "extract": {"json_path": "db.security.patch_history", "aggregation": "raw"}, "evaluation": {"method": "info"}, "optimization_advice": "历史记录不等于当前安装清单。11g 没有执行状态，需客户 DBA 提供 Oracle Home 清单确认。"}
+      ]
+    },
+    {
+      "dimension_id": 9,
+      "name": "Data Guard",
+      "checks": [
+        {"check_id": "9.1", "name": "传输延迟", "priority": "P0", "source_module": "db_basic", "extract": {"json_path": "db.data_guard.transport_lag_seconds", "aggregation": "raw"}, "evaluation": {"na_when": {"json_path": "db.deployment_topology.role", "operator": "==", "value": "primary", "reason": "primary 不评估 standby 延迟"}}, "thresholds": {"warning": {"operator": ">", "value": 60}, "critical": {"operator": ">", "value": 300}}, "optimization_advice": "本项目延迟基线为 60/300 秒。请 DBA 检查网络和归档传输；单次 datum_time 不证明数据持续更新。"},
+        {"check_id": "9.2", "name": "应用延迟", "priority": "P0", "source_module": "db_basic", "extract": {"json_path": "db.data_guard.apply_lag_seconds", "aggregation": "raw"}, "evaluation": {"na_when": {"json_path": "db.deployment_topology.role", "operator": "==", "value": "primary", "reason": "primary 不评估 standby 延迟"}}, "thresholds": {"warning": {"operator": ">", "value": 60}, "critical": {"operator": ">", "value": 300}}, "optimization_advice": "本项目延迟基线为 60/300 秒。请 DBA 在应用实例检查恢复进程、磁盘和日志缺口。"},
+        {"check_id": "9.3", "name": "归档阻塞缺口", "priority": "P0", "source_module": "db_basic", "extract": {"json_path": "db.data_guard.archive_gap", "aggregation": "raw"}, "evaluation": {"method": "row_count", "na_when": {"json_path": "db.deployment_topology.role", "operator": "==", "value": "primary", "reason": "primary 不评估 standby 缺口"}, "thresholds": {"critical": {"operator": ">", "value": 0}}}, "optimization_advice": "请 DBA 补齐缺失归档并恢复应用。V$ARCHIVE_GAP 仅显示当前阻塞缺口。"},
+        {"check_id": "9.4", "name": "Data Guard 保护模式", "priority": "P1", "source_module": "db_basic", "extract": {"json_path": "db.data_guard.protection_mode", "aggregation": "raw"}, "evaluation": {"na_when": {"json_path": "db.deployment_topology.role", "operator": "==", "value": "primary", "reason": "此检查仅评估 standby"}}, "thresholds": {"warning": {"operator": "==", "value": "MAXIMUM PERFORMANCE"}}, "optimization_advice": "最大性能模式存在数据丢失窗口，请 DBA 对照批准的容灾 RPO 确认保护模式。"},
+        {"check_id": "9.5", "name": "standby 归档目的地错误", "priority": "P0", "source_module": "db_basic", "extract": {"json_path": "db.data_guard.destination_errors", "aggregation": "raw"}, "evaluation": {"method": "row_count", "na_when": {"json_path": "db.deployment_topology.role", "operator": "==", "value": "primary", "reason": "primary 错误由 6.3 检查"}, "thresholds": {"critical": {"operator": ">", "value": 0}}}, "optimization_advice": "请 DBA 按归档目的地 error 检查连接、权限与空间。"}
+      ]
+    },
+    {
+      "dimension_id": 10,
+      "name": "ASM 存储",
+      "checks": [
+        {"check_id": "10.1", "name": "ASM 使用率", "priority": "P0", "source_module": "db_basic", "extract": {"json_path": "db.asm.diskgroups.items[*].used_pct", "aggregation": "max"}, "evaluation": {"na_when": {"json_path": "db.deployment_topology.is_asm", "operator": "==", "value": false, "reason": "非 ASM 存储"}}, "thresholds": {"warning": {"operator": ">", "value": 80}, "critical": {"operator": ">", "value": 90}}, "optimization_advice": "请 DBA 扩容或清理磁盘组；同时核对考虑冗余后的 USABLE_FILE_MB，原始空闲率不能代表可用容量。"},
+        {"check_id": "10.2", "name": "ASM 离线磁盘", "priority": "P0", "source_module": "db_basic", "extract": {"json_path": "db.asm.diskgroups.items[*].offline_disks", "aggregation": "max"}, "evaluation": {"na_when": {"json_path": "db.deployment_topology.is_asm", "operator": "==", "value": false, "reason": "非 ASM 存储"}}, "thresholds": {"critical": {"operator": ">", "value": 0}}, "optimization_advice": "请 DBA 检查磁盘路径与存储故障，确认冗余与重平衡状态。"},
+        {"check_id": "10.3", "name": "ASM 磁盘组状态", "priority": "P0", "source_module": "db_basic", "extract": {"json_path": "db.asm.diskgroups.items[*].unhealthy", "aggregation": "max"}, "evaluation": {"na_when": {"json_path": "db.deployment_topology.is_asm", "operator": "==", "value": false, "reason": "非 ASM 存储"}}, "thresholds": {"critical": {"operator": ">", "value": 0}}, "optimization_advice": "CONNECTED 和 MOUNTED 为正常连接状态；请 DBA 检查其他状态的磁盘组。"},
+        {"check_id": "10.4", "name": "ASM 冗余可用容量", "priority": "P0", "source_module": "db_basic", "extract": {"json_path": "db.asm.diskgroups.items[*].usable_file_mb", "aggregation": "min"}, "evaluation": {"na_when": {"json_path": "db.deployment_topology.is_asm", "operator": "==", "value": false, "reason": "非 ASM 存储"}}, "thresholds": {"critical": {"operator": "<=", "value": 0}}, "optimization_advice": "冗余保护后的可用容量不足，请 DBA 检查 REQUIRED_MIRROR_FREE_MB 并扩容。"}
+      ]
+    },
+    {
+      "dimension_id": 11,
+      "name": "RAC 实例",
+      "checks": [
+        {"check_id": "11.1", "name": "RAC 可见实例状态", "priority": "P0", "source_module": "db_basic", "extract": {"json_path": "db.rac.instances.items[*].unhealthy", "aggregation": "max"}, "evaluation": {"na_when": {"json_path": "db.deployment_topology.is_rac", "operator": "==", "value": false, "reason": "非 RAC"}}, "thresholds": {"critical": {"operator": ">", "value": 0}}, "optimization_advice": "GV$INSTANCE 仅显示已运行实例，无法发现全部停机节点。请结合 clusterware 资源清单核对预期节点。"},
+        {"check_id": "11.2", "name": "RAC 各实例参数", "priority": "P2", "source_module": "db_basic", "extract": {"json_path": "db.rac.parameters", "aggregation": "raw"}, "evaluation": {"method": "info", "na_when": {"json_path": "db.deployment_topology.is_rac", "operator": "==", "value": false, "reason": "非 RAC"}}, "optimization_advice": "按 inst_id 核对当前生效参数；各实例值可能因业务配置而不同。"}
+      ]
+    },
+    {
+      "dimension_id": 12,
+      "name": "Oracle 主机服务",
+      "checks": [
+        {"check_id": "12.1", "name": "Listener 状态", "priority": "P0", "source_module": "db_basic", "extract": {"json_path": "db.host_checks.listener.unhealthy", "aggregation": "raw"}, "thresholds": {"critical": {"operator": "==", "value": true}}, "optimization_advice": "请 Oracle 软件属主执行 lsnrctl status，检查监听及服务注册。该命令检查主机默认 listener，其他 listener 需手工核查。"},
+        {"check_id": "12.2", "name": "Clusterware 状态", "priority": "P0", "source_module": "db_basic", "extract": {"json_path": "db.host_checks.clusterware.unhealthy", "aggregation": "raw"}, "evaluation": {"na_when": {"json_path": "db.deployment_topology.is_rac", "operator": "==", "value": false, "reason": "非 RAC"}}, "thresholds": {"critical": {"operator": "==", "value": true}}, "optimization_advice": "请 Grid 软件属主执行 crsctl check crs 和 crsctl status resource -t，检查离线节点及资源；计划停用资源需人工确认。"}
       ]
     },
     {
