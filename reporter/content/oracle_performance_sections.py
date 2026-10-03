@@ -14,9 +14,16 @@ def build_performance_and_session_section(result: dict[str, object]) -> SectionB
         ("活跃会话采样数", format_number(len(unwrap_items(performance.get("active_session_details"))), 0)),
         ("阻塞链数量", format_number(len(unwrap_items(performance.get("blocking_chains"))), 0)),
         ("长事务数量", format_number(len(unwrap_items(performance.get("long_transactions"))), 0)),
+        ("最高 Latch 未命中率", format_percent(first_row(performance.get("latch_miss_ratios")).get("miss_pct"))),
+        ("解析时间 / DB time", format_percent(first_row(performance.get("time_model_ratios")).get("parse_pct"))),
     )
     return SectionBlock(
         title="2.2.3 性能与会话",
+        paragraphs=(
+            "等待耗时、Latch misses/gets 与解析时间/DB time 来自当前连接实例启动以来累计统计，比例不是当前采样增量，不能单凭此报告断定当前性能故障。等待事件仅展示按累计等待排序的 TopN 项；Time Model 比例读取完整统计，不受 TopN 截断影响。",
+            "平均等待单位为毫秒，Oracle 百分之一秒值乘以 10。等待 10/50ms、Latch 1/5%、解析占比 10/20% 是本项目排查基线；有限资源使用率复用 80/90% 容量基线，零或缺失分母及 UNLIMITED 上限不计算健康比例。请结合业务时段复采或由 DBA 核查增量。",
+            "UNDO 错误是最近 TopN 个统计周期中的 ORA-01555 和空间不足计数。表与索引非串行并行度包含 DEFAULT，仅提示复核配置与业务需求。",
+        ),
         tables=(
             key_value_table("性能指标摘要", summary_rows),
             _metric_overview_table(performance),
@@ -82,8 +89,8 @@ def _blocking_chains_table(performance: dict[str, object]) -> TableBlock:
 
 
 def _resource_limits_table(performance: dict[str, object]) -> TableBlock:
-    rows = tuple((str(row_value(item, "inst_id")), str(row_value(item, "resource_name")), str(row_value(item, "current_utilization")).strip(), str(row_value(item, "max_utilization")).strip(), str(row_value(item, "limit_value")).strip()) for item in unwrap_items(performance.get("resource_limits")))
-    return full_table("资源限制", ("实例", "资源", "当前值", "峰值", "上限"), rows or (("待补充", "", "", "", ""),))
+    rows = tuple((str(row_value(item, "inst_id")), str(row_value(item, "resource_name")), str(row_value(item, "current_utilization")).strip(), str(row_value(item, "max_utilization")).strip(), str(row_value(item, "limit_value")).strip(), format_percent(item.get("usage_pct"))) for item in unwrap_items(performance.get("resource_limits")))
+    return full_table("资源限制", ("实例", "资源", "当前值", "峰值", "上限", "当前使用率"), rows or (("待补充", "", "", "", "", ""),))
 
 
 def _redo_switch_table(performance: dict[str, object]) -> TableBlock:

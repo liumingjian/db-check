@@ -51,7 +51,8 @@ SELECT * FROM (
          txncount AS "txncount",
          maxquerylen AS "maxquerylen",
          ssolderrcnt AS "ssolderrcnt",
-         nospaceerrcnt AS "nospaceerrcnt"
+         nospaceerrcnt AS "nospaceerrcnt",
+         ssolderrcnt + nospaceerrcnt AS "error_count"
     FROM v$undostat
    ORDER BY begin_time DESC
 ) WHERE ROWNUM <= ` + formatTopN(topN)
