@@ -30,7 +30,7 @@ def build_oracle_topology_section(result: dict[str, Any]) -> SectionBlock:
             (str(item.get("name", "")), str(item.get("open_mode", "")), bytes_to_mb(item.get("size_bytes")))
             for item in unwrap_items(topology.get("pdbs"))
         )
-        note = "" if state == "collected" else "PDB 清单不完整。请 DBA 使用巡检账号连接 CDB$ROOT 并授予 SYS.V_$PDBS 查询权限后重新采集。当前表只列出可见的 PDB。"
+        note = "" if state == "collected" else str(topology.get("pdb_list_remediation") or "PDB 清单不完整。请 DBA 在 CDB$ROOT 核对 SYS.V_$PDBS 授权与 CONTAINER_DATA，提供完整清单或使用 SYSDBA 重新采集来确认容器可见性。当前表只列出可见的 PDB。")
         tables.append(full_table("可插拔数据库清单", ("PDB 名称", "状态", "大小(MB)"), pdb_rows, status=state, note=note))
     return SectionBlock(
         title="部署形态",
@@ -45,7 +45,7 @@ def build_oracle_topology_section(result: dict[str, Any]) -> SectionBlock:
 
 def _verification_level(family: str) -> str:
     if family in ("11gR2", "19c"):
-        return "已提供版本分支与容器环境；本实现的远程 Mac 端到端 smoke 待验证"
+        return "2026-10-03 在 Mac 完成单机、primary、非 ASM 容器端到端 smoke 验证通过；RAC、ASM 与 standby 未经容器验证"
     if family in ("12c", "21c", "23ai"):
         return "已提供版本分支，未经过容器验证；18c 归入 12c 系列"
     return "版本未识别或不在支持范围内，兼容性未验证"
