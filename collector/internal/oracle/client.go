@@ -30,13 +30,18 @@ func openDB(ctx context.Context, cfg cli.Config) (*sql.DB, error) {
 }
 
 func buildDSN(cfg cli.Config) string {
-	options := map[string]string{
-		"SID": strings.TrimSpace(cfg.DBName),
+	options := map[string]string{}
+	service := strings.TrimSpace(cfg.OracleServiceName)
+	if service == "" {
+		options["SID"] = strings.TrimSpace(cfg.DBName)
+	}
+	if cfg.OracleSYSDBA || strings.EqualFold(strings.TrimSpace(cfg.DBUsername), "SYS") {
+		options["DBA PRIVILEGE"] = "SYSDBA"
 	}
 	return go_ora.BuildUrl(
 		strings.TrimSpace(cfg.DBHost),
 		cfg.DBPort,
-		"",
+		service,
 		cfg.DBUsername,
 		cfg.DBPassword,
 		options,

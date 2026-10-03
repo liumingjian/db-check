@@ -78,7 +78,7 @@ MySQL 示例：
   --dbname mysql
 ```
 
-Oracle 示例：
+Oracle SID 示例：
 
 ```bash
 ./bin/db-collector \
@@ -89,6 +89,20 @@ Oracle 示例：
   --db-password oraclepwd \
   --dbname ORCL
 ```
+
+Oracle service name 示例（可连接 PDB）：
+
+```bash
+./bin/db-collector \
+  --db-type oracle \
+  --db-host 127.0.0.1 \
+  --db-port 1521 \
+  --db-username system \
+  --db-password oraclepwd \
+  --oracle-service-name ORCLPDB1
+```
+
+`--dbname` 保持表示 Oracle SID，与 `--oracle-service-name` 二选一。使用有 SYSDBA 权限的账号时，可加 `--oracle-sysdba`；用户名为 `SYS` 时自动使用 SYSDBA，不区分大小写。SID 和 service name 连接都支持 SYSDBA。仅巡检当前连接的 container，不切换 PDB。
 
 GaussDB 示例：
 

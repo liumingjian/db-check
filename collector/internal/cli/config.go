@@ -29,6 +29,8 @@ type Config struct {
 	DBUsername        string
 	DBPassword        string
 	DBName            string
+	OracleServiceName string
+	OracleSYSDBA      bool
 	GaussUser         string
 	GaussEnvFile      string
 	Local             bool
@@ -96,7 +98,9 @@ func Usage() string {
   --db-port/-P                数据库端口，mysql 默认 3306，oracle 默认 1521，gaussdb 默认 8000
   --db-username/-u            数据库用户名（非 --os-only 必填）
   --db-password/-p            数据库密码（非 --os-only 必填）
-  --dbname/-d                 数据库名；Oracle 路径下表示 SID/实例名（非 --os-only 必填）
+  --dbname/-d                 数据库名；Oracle 表示 SID，与 --oracle-service-name 二选一
+  --oracle-service-name       Oracle service name，可用于连接 PDB
+  --oracle-sysdba             Oracle 使用 SYSDBA；用户 SYS 自动启用
   --gauss-user                已废弃；SQL-first GaussDB 采集不会使用该参数
   --gauss-env-file            已废弃；SQL-first GaussDB 采集不会使用该参数
   --local                     本地 OS 采集模式
