@@ -83,6 +83,7 @@ func (c *metricsCollector) precheckPrivileges(ctx context.Context, major int) ma
 	if major >= 12 {
 		objects = append(objects, "V_$PDBS", "V_$DIAG_ALERT_EXT", "DBA_REGISTRY_SQLPATCH")
 	}
+	objects = append(objects, "DBA_TEMP_FILES", "DBA_SEGMENTS", "DBA_RECYCLEBIN", "GV_$TEMPSEG_USAGE")
 	probes := []map[string]any{}
 	for _, object := range objects {
 		rows, err := c.db.QueryContext(ctx, "SELECT * FROM SYS."+object+" WHERE 1=0")
