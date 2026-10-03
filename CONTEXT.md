@@ -26,6 +26,24 @@ _Avoid_: Enabled, published, archived, beta
 An audit entry stating which user downloaded which release package and when.
 _Avoid_: Download log, access log
 
+### Oracle inspection
+
+**Deployment topology (部署形态)**:
+The shape of an Oracle installation as detected by the collector, never declared by the engineer: standalone or **RAC**, container database or not, **primary** or **standby** role, and whether storage is **ASM**. It is recorded in every Oracle report.
+_Avoid_: Mode, deployment mode, architecture
+
+**Inspection account (巡检账号)**:
+The read-only database account an engineer supplies to the collector. Its required grants are documented, and the collector checks them before collecting.
+_Avoid_: DBA account, monitoring user
+
+**Check state**:
+The outcome of one check: **normal**, **warning**, **critical**, **not applicable**, **unevaluated**, plus **insufficient privilege** (the inspection account could not read the data) and **not collected** (the data needs access the collector did not have, such as the host). Neither of the last two may read as normal.
+_Avoid_: Status, result
+
+**Licensed-feature data**:
+Diagnostic data that requires an extra Oracle licence (Diagnostics Pack: AWR history, ASH, ADDM). The collector never reads it; engineers may upload an AWR report instead.
+_Avoid_: AWR data when the collector's own queries are meant
+
 ### Reports
 
 **Report task (报告)**:
