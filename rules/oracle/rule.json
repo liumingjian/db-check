@@ -4,9 +4,9 @@
     "rule_version": "1.0.0",
     "rule_name": "Oracle 数据库巡检规则模板",
     "db_type": "oracle",
-    "target_versions": ["11g", "19c"],
-    "updated_at": "2026-03-12",
-    "target": "自建 Oracle 11g / 19c",
+    "target_versions": ["11gR2", "12c", "19c", "21c", "23ai"],
+    "updated_at": "2026-10-03",
+    "target": "自建 Oracle 11gR2 / 12c（含 18c）/ 19c / 21c / 23ai；11gR2、19c 本实现 smoke 待验证，12c、21c、23ai 未经过容器验证",
     "total_checks": 70,
     "priority_summary": {
       "P0": 23,

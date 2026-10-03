@@ -24,6 +24,8 @@
 1. [README.md](/Users/lmj/projects/ai-project/db-check/README.md)
 2. [业务全景与实现流程](/Users/lmj/projects/ai-project/db-check/docs/architecture/业务全景与实现流程.md)
 3. [模板说明](/Users/lmj/projects/ai-project/db-check/docs/templates/README.md)
+4. [Oracle 支持范围与使用说明](oracle-support.md)
+5. [Oracle 巡检账号与覆盖缺口](oracle-inspection-account.md)
 
 ### 如果你负责架构或方案评审
 

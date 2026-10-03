@@ -27,6 +27,8 @@ tests/e2e/run_docker_e2e.sh --mysql-version 5.6 --mysql-version 5.7 --mysql-vers
 
 Oracle E2E 用法：
 
+Issue #48 的 Oracle 变更要求所有代码测试由指定的远程 Mac executor 执行。11gR2、19c 本实现 smoke 尚待验证；12c、21c、23ai 未经过容器验证，18c 属于 12c 系列。先确认执行机，再运行命令。验证级别、完整检查命令、产物验收与主机工具限制见 [Oracle 验证计划](../../docs/oracle-support.md#远程-mac-验证计划)。
+
 ```bash
 source .venv/bin/activate
 tests/e2e/run_docker_e2e.sh --db-type oracle --oracle-version 11g
