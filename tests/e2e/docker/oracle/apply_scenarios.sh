@@ -136,6 +136,20 @@ BEGIN
 END;
 /
 SELECT COUNT(*) FROM ${SCHEMA_USER}.DBCHECK_E2E_CASE;
+-- Configure the fixture recovery area in an existing Oracle-owned directory.
+DECLARE
+  recovery_destination VARCHAR2(4000);
+BEGIN
+  SELECT value INTO recovery_destination FROM v\$parameter WHERE name='db_recovery_file_dest';
+  IF recovery_destination IS NULL THEN
+    SELECT REGEXP_REPLACE(name, '/[^/]+$', '') INTO recovery_destination FROM v\$datafile WHERE ROWNUM=1;
+    EXECUTE IMMEDIATE 'ALTER SYSTEM SET db_recovery_file_dest_size=2G SCOPE=BOTH';
+    EXECUTE IMMEDIATE 'ALTER SYSTEM SET db_recovery_file_dest=' || DBMS_ASSERT.ENQUOTE_LITERAL(recovery_destination) || ' SCOPE=BOTH';
+  END IF;
+END;
+/
+-- A fresh database needs a completed redo switch for its history check.
+ALTER SYSTEM SWITCH LOGFILE;
 SQL
 )"
   mkdir -p "$STATE_DIR"
