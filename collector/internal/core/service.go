@@ -254,13 +254,17 @@ func buildManifest(runID string, dbType string, start time.Time, end time.Time, 
 
 func buildResult(version string, cfg cli.Config, start time.Time, end time.Time, osData map[string]any, dbData map[string]any) model.Result {
 	intervalPtr, periodPtr, expected, mode := collectConfig(cfg)
+	dbName := cfg.DBName
+	if cfg.DBType == "oracle" && strings.TrimSpace(cfg.OracleServiceName) != "" {
+		dbName = strings.TrimSpace(cfg.OracleServiceName)
+	}
 	meta := model.ResultMeta{
 		SchemaVersion:    "2.0",
 		CollectorVersion: version,
 		DBType:           cfg.DBType,
 		DBHost:           hostForResult(cfg),
 		DBPort:           cfg.DBPort,
-		DBName:           cfg.DBName,
+		DBName:           dbName,
 		Timezone:         start.Format("Z07:00"),
 		CollectTime:      end.Format(time.RFC3339),
 	}

@@ -52,6 +52,13 @@ func hasOSSampling(state parsedState) bool {
 }
 
 func validateDBRequirements(cfg Config) error {
+	service := strings.TrimSpace(cfg.OracleServiceName)
+	if cfg.DBType != "oracle" && (service != "" || cfg.OracleSYSDBA) {
+		return errors.New("--oracle-service-name 和 --oracle-sysdba 仅适用于 Oracle")
+	}
+	if cfg.DBType == "oracle" && service != "" && strings.TrimSpace(cfg.DBName) != "" {
+		return errors.New("--dbname 与 --oracle-service-name 互斥")
+	}
 	if cfg.OSOnly {
 		return nil
 	}
@@ -64,7 +71,13 @@ func validateDBRequirements(cfg Config) error {
 	if strings.TrimSpace(cfg.DBPassword) == "" {
 		return errors.New("缺少 --db-password")
 	}
+	if cfg.DBType == "oracle" && service != "" {
+		return nil
+	}
 	if strings.TrimSpace(cfg.DBName) == "" {
+		if cfg.DBType == "oracle" {
+			return errors.New("缺少 --dbname 或 --oracle-service-name")
+		}
 		return errors.New("缺少 --dbname")
 	}
 	return nil
