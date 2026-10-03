@@ -136,6 +136,8 @@ BEGIN
 END;
 /
 SELECT COUNT(*) FROM ${SCHEMA_USER}.DBCHECK_E2E_CASE;
+-- A fresh database needs a completed redo switch for its history check.
+ALTER SYSTEM SWITCH LOGFILE;
 SQL
 )"
   mkdir -p "$STATE_DIR"
