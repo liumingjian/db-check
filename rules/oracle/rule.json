@@ -9,9 +9,9 @@
     "target": "自建 Oracle 11g / 19c",
     "total_checks": 70,
     "priority_summary": {
-      "P0": 12,
-      "P1": 17,
-      "P2": 10,
+      "P0": 23,
+      "P1": 18,
+      "P2": 11,
       "P3": 1
     }
   },

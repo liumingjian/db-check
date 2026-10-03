@@ -9,7 +9,7 @@ func (c *metricsCollector) collectPerformance(ctx context.Context) map[string]an
 			"oracle.performance.active_sessions",
 			`SELECT inst_id AS "inst_id", COUNT(1) AS "active_sessions" FROM gv$session WHERE status='ACTIVE' GROUP BY inst_id`,
 		)),
-		"resource_limits":     rowsPayload(c.queryRows(ctx, "oracle.performance.resource_limits", resourceLimitsQuery)),
+		"resource_limits":     rowsPayload(c.queryPerformanceRows(ctx, "oracle.performance.resource_limits", resourceLimitsQuery, "usage_pct")),
 		"redo_switch_daily":   rowsPayload(c.queryRows(ctx, "oracle.performance.redo_switch_daily", redoSwitchDailyQuery)),
 		"instance_efficiency": rowsPayload(c.queryRows(ctx, "oracle.performance.instance_efficiency", instanceEfficiencyQuery)),
 		"tablespace_io_stats": rowsPayload(c.queryRows(

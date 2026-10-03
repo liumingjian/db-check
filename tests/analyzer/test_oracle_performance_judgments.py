@@ -46,6 +46,10 @@ class OraclePerformanceJudgmentTests(unittest.TestCase):
         performance['latch_miss_ratios'] = {'items': [{'miss_pct': None}]}
         performance['resource_limits'] = {'items': [{'limit_value': 'UNLIMITED', 'usage_pct': None}]}
         performance['time_model_ratios'] = {'items': [{'parse_pct': None}]}
+        self.result['db']['collection_availability'] = {
+            'db.performance.' + source: {'readable': False, 'reason': 'No usable denominator or sample',
+                                         'remediation': 'Confirm timing and resource limits, then recollect.'}
+            for source in ('latch_miss_ratios', 'resource_limits', 'time_model_ratios')}
         states = self.states()
         for check_id in ('4.12', '4.13', '4.14'):
             self.assertIn(check_id, states)

@@ -7,7 +7,7 @@ import (
 
 func (c *metricsCollector) collectWaitMetrics(ctx context.Context) map[string]any {
 	return map[string]any{
-		"wait_events": rowsPayload(c.queryRows(ctx, "oracle.performance.wait_events", waitEventsQuery(c.cfg.TopN))),
+		"wait_events": rowsPayload(c.queryPerformanceRows(ctx, "oracle.performance.wait_events", waitEventsQuery(c.cfg.TopN), "avg_wait_ms")),
 		"latch_data":  rowsPayload(c.queryRows(ctx, "oracle.performance.latch_data", latchDataQuery(c.cfg.TopN))),
 		"time_model":  rowsPayload(c.queryRows(ctx, "oracle.performance.time_model", timeModelQuery(c.cfg.TopN))),
 	}
