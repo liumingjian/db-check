@@ -44,7 +44,13 @@ DIMENSION_LABELS = make_dimension_labels(BUSINESS_DIMENSIONS)
 
 
 def group_abnormal_items(summary: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
-    return common_group_abnormal_items(summary, display_dimension_name)
+    augmented = dict(summary)
+    augmented["abnormal_items"] = list(summary.get("abnormal_items", [])) + [{**gap, "level": "warning", "coverage_gap": True} for gap in coverage_gaps(summary)]
+    return common_group_abnormal_items(augmented, display_dimension_name)
+
+
+def coverage_gaps(summary: dict[str, Any]) -> list[dict[str, Any]]:
+    return [item for item in summary.get("unevaluated_items", []) if isinstance(item, dict) and item.get("reason_type") in {"insufficient_privilege", "not_collected"}]
 
 
 def business_dimensions() -> tuple[tuple[str, set[str]], ...]:
@@ -56,6 +62,8 @@ def display_dimension_name(name: str) -> str:
 
 
 def health_summary(label: str, result: dict[str, Any], items: list[dict[str, Any]]) -> tuple[str, str]:
+    if any(item.get("coverage_gap") for item in items):
+        return (top_level(items), "巡检覆盖不完整，缺失数据不能判定正常。请按报告末尾建议授权或补采。")
     if items:
         return (top_level(items), join_unique([risk_description(item) for item in items[:3]]))
     return ("normal", _default_summary(label, result))
@@ -74,7 +82,7 @@ def conclusion_rows(result: dict[str, Any], summary: dict[str, Any]) -> tuple[tu
     focus = focus_dimensions(abnormal_items)
     return (
         ("综合风险等级", emphasize(overall_risk_label(str(summary.get("overall_risk", "low"))))),
-        ("风险项统计", risk_stat_text(summary)),
+        ("风险项统计", risk_stat_text(summary) + f"；覆盖缺口 {len(coverage_gaps(summary))} 项"),
         ("重点关注维度", emphasize(focus)),
         ("关键指标摘要", _key_metrics_text(result)),
         ("结论建议", _recommendation(summary, focus)),
@@ -94,6 +102,9 @@ def conclusion_paragraphs(result: dict[str, Any], summary: dict[str, Any]) -> tu
         f"其中 {critical_text}、{warning_text}、{normal_text}。"
     )
     paragraph_2 = _conclusion_sentence(str(summary.get("overall_risk", "low")), focus)
+    if coverage_gaps(summary):
+        paragraph_1 += f" 权限不足或未采集 {len(coverage_gaps(summary))} 项，巡检覆盖不完整。"
+        paragraph_2 = "巡检覆盖不完整，无法对缺失数据作正常结论。请先按报告末尾补采建议补齐证据，再判断相关风险。" + (paragraph_2 if abnormal_items else "")
     paragraph_3 = (
         f"关键指标方面，{_key_metrics_text(result)}。"
         "本结论基于本次真实采集窗口内的 Oracle 数据库与系统观测结果生成。"
@@ -181,6 +192,8 @@ def _key_metrics_text(result: dict[str, Any]) -> str:
 
 
 def _recommendation(summary: dict[str, Any], focus: str) -> str:
+    if coverage_gaps(summary):
+        return "巡检覆盖不完整，请先完成报告末尾的授权与补采建议，再重新生成报告。"
     overall = str(summary.get("overall_risk", "low"))
     if overall == "high":
         return f"建议围绕 {emphasize(focus)} 立即开展高风险项整改，并优先保障数据库可恢复性与业务连续性。"

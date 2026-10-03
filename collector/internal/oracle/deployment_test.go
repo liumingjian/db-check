@@ -50,6 +50,8 @@ type deploymentFixture struct {
 	pdbs                                    [][]driver.Value
 	fail                                    bool
 	missingCDB                              bool
+	queries                                 *[]string
+	pdbError                                bool
 }
 
 func TestDeploymentDetectsRACStandbyASMAndListsPDBs(t *testing.T) {
@@ -122,6 +124,9 @@ func (deploymentConn) Close() error                        { return nil }
 func (deploymentConn) Begin() (driver.Tx, error)           { return nil, errors.New("unsupported") }
 func (c deploymentConn) QueryContext(_ context.Context, query string, _ []driver.NamedValue) (driver.Rows, error) {
 	f := c.fixture
+	if f.queries != nil {
+		*f.queries = append(*f.queries, query)
+	}
 	if f.fail {
 		return nil, errors.New("ORA-00942: table or view does not exist")
 	}
@@ -141,7 +146,7 @@ func (c deploymentConn) QueryContext(_ context.Context, query string, _ []driver
 	case strings.Contains(query, "SYS_CONTEXT"):
 		value = f.container
 	case strings.Contains(query, "v$pdbs"):
-		return &deploymentRows{columns: []string{"con_id", "name", "open_mode", "restricted", "size_bytes"}, values: f.pdbs}, nil
+		return &deploymentRows{columns: []string{"con_id", "name", "open_mode", "restricted", "size_bytes"}, values: f.pdbs, failAfterRows: f.pdbError}, nil
 	case strings.Contains(query, "v$datafile"):
 		value = f.asm
 	default:
@@ -151,14 +156,18 @@ func (c deploymentConn) QueryContext(_ context.Context, query string, _ []driver
 }
 
 type deploymentRows struct {
-	columns []string
-	values  [][]driver.Value
+	columns       []string
+	values        [][]driver.Value
+	failAfterRows bool
 }
 
 func (r *deploymentRows) Columns() []string { return r.columns }
 func (r *deploymentRows) Close() error      { return nil }
 func (r *deploymentRows) Next(dest []driver.Value) error {
 	if len(r.values) == 0 {
+		if r.failAfterRows {
+			return errors.New("ORA-03113: connection lost while reading rows")
+		}
 		return io.EOF
 	}
 	copy(dest, r.values[0])

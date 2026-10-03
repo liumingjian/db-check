@@ -495,6 +495,8 @@ Makefile 的职责边界：
 
 ## 常见问题
 
+Oracle 巡检账号授权与补采操作见 [巡检账号说明](docs/oracle-inspection-account.md)。
+
 ### 1. Web 报告服务提示缺少 `jsonschema` 或 `python-docx`
 
 在已激活的虚拟环境中执行：

@@ -26,6 +26,7 @@ func (c *metricsCollector) collectDeployment(ctx context.Context) (map[string]an
 		family = "23ai"
 	}
 	multitenant := major >= 12
+	c.inspectionAccount = c.precheckPrivileges(ctx, major)
 	version := map[string]any{
 		"version": raw, "major": major, "family": family,
 		"capabilities": map[string]any{
@@ -70,6 +71,12 @@ func (c *metricsCollector) collectDeployment(ctx context.Context) (map[string]an
 	} else {
 		topology["pdb_list_state"] = "not_collected"
 		topology["pdb_list_remediation"] = "Ask the DBA to grant SELECT on SYS.V_$INSTANCE and rerun collection to detect multitenant capabilities."
+	}
+	if topology["pdb_list_state"] == "not_collected" {
+		path := "db.deployment_topology.pdbs"
+		if previous, ok := c.availability[path].(map[string]any); !ok || previous["readable"] != false {
+			c.markUnavailable("oracle.topology.pdbs", "PDB 清单不完整或部署形态未知", topology["pdb_list_remediation"].(string))
+		}
 	}
 	return version, topology
 }

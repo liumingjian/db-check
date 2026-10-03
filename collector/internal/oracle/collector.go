@@ -10,9 +10,11 @@ import (
 type Collector struct{}
 
 type metricsCollector struct {
-	db     *sql.DB
-	cfg    cli.Config
-	errors []string
+	db                *sql.DB
+	cfg               cli.Config
+	errors            []string
+	availability      map[string]any
+	inspectionAccount map[string]any
 }
 
 func (Collector) Collect(ctx context.Context, cfg cli.Config, _ string, _ core.ArtifactWriter) (map[string]any, error) {
@@ -31,12 +33,12 @@ func (Collector) Collect(ctx context.Context, cfg cli.Config, _ string, _ core.A
 }
 
 func newMetricsCollector(db *sql.DB, cfg cli.Config) *metricsCollector {
-	return &metricsCollector{db: db, cfg: cfg, errors: []string{}}
+	return &metricsCollector{db: db, cfg: cfg, errors: []string{}, availability: map[string]any{}}
 }
 
 func (c *metricsCollector) collectAll(ctx context.Context) map[string]any {
 	version, topology := c.collectDeployment(ctx)
-	return map[string]any{
+	payload := map[string]any{
 		"version_info":        version,
 		"deployment_topology": topology,
 		"basic_info":          c.collectBasicInfo(ctx),
@@ -47,4 +49,7 @@ func (c *metricsCollector) collectAll(ctx context.Context) map[string]any {
 		"sql_analysis":        c.collectSQLAnalysis(ctx),
 		"security":            c.collectSecurity(ctx),
 	}
+	payload["inspection_account"] = c.inspectionAccount
+	payload["collection_availability"] = c.availability
+	return payload
 }

@@ -5,9 +5,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from analyzer.evaluator.applicability import direct_na_reason, gate_na_map
+from analyzer.evaluator.applicability import direct_na_reason, gate_gap_map, gate_na_map
 from analyzer.evaluator.check_catalog import collect_checks, module_for_check_id
 from analyzer.evaluator.path_eval import aggregate, evaluate_check, extract_values
+from analyzer.evaluator.availability import check_gap
 
 
 def _failure_meta(exit_code: int) -> tuple[str, str]:
@@ -109,7 +110,14 @@ def _evaluate_checks(
     abnormal_items: list[dict[str, Any]] = []
     unevaluated_items: list[dict[str, Any]] = []
     na_items: list[dict[str, Any]] = []
+    gated_gaps = gate_gap_map(checks, result)
     for check in checks:
+        if check["check_id"] in gated_gaps and check["check_id"] not in gated_na and direct_na_reason(check, result) is None:
+            unevaluated_items.append({"check_id": check["check_id"], "name": check["name"],
+                                     "dimension_name": check["dimension_name"],
+                                     "source_module": check["source_module"] or module_for_check_id(check["check_id"]),
+                                     **gated_gaps[check["check_id"]]})
+            continue
         _evaluate_single_check(
             check,
             result,
@@ -148,11 +156,19 @@ def _evaluate_single_check(
     if reason is not None:
         na_items.append({"check_id": check_id, "reason_type": "not_applicable", "reason": reason})
         return
+    gap = check_gap(check, result)
+    if gap is not None:
+        unevaluated_items.append({"check_id": check_id, "name": check["name"],
+                                 "dimension_name": check["dimension_name"], "source_module": module, **gap})
+        return
     if _append_module_unavailable(check_id, module_status, module, unevaluated_items):
         return
     observed, reason = _extract_observed_value(check, result)
     if reason is not None:
-        unevaluated_items.append({"check_id": check_id, "reason_type": "failed", "reason": reason, "source_module": module})
+        modern_oracle = "collection_availability" in result.get("db", {}) and module != "os"
+        unevaluated_items.append({"check_id": check_id, "reason_type": "not_collected" if modern_oracle else "failed", "reason": reason, "source_module": module,
+                                 "name": check["name"], "dimension_name": check["dimension_name"],
+                                 "advice": "未取得可判断的数据，请客户 DBA 核对采集错误及该数据库能力后，在原连接容器重新采集。"})
         return
     row_count = _derive_row_count(observed)
     level, reason = evaluate_check(check, observed, row_count)
@@ -230,6 +246,8 @@ def _append_evaluation(
 
 def _finalize_counts(counts: dict[str, int], unevaluated_items: list[dict[str, Any]], na_items: list[dict[str, Any]]) -> None:
     counts["unevaluated"] = len(unevaluated_items)
+    for reason_type in ("insufficient_privilege", "not_collected"):
+        counts[reason_type] = sum(item.get("reason_type") == reason_type for item in unevaluated_items)
     counts["not_applicable"] = len(na_items)
     counts["total_checks"] = counts["normal"] + counts["warning"] + counts["critical"] + counts["unevaluated"] + counts["not_applicable"]
 
@@ -237,6 +255,6 @@ def _finalize_counts(counts: dict[str, int], unevaluated_items: list[dict[str, A
 def _risk_from_counts(counts: dict[str, int]) -> str:
     if counts["critical"] > 0:
         return "high"
-    if counts["warning"] > 0:
+    if counts["warning"] > 0 or counts.get("insufficient_privilege", 0) or counts.get("not_collected", 0):
         return "medium"
     return "low"

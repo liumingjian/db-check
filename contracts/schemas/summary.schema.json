@@ -36,7 +36,9 @@
         "warning": {"type": "integer", "minimum": 0},
         "critical": {"type": "integer", "minimum": 0},
         "unevaluated": {"type": "integer", "minimum": 0},
-        "not_applicable": {"type": "integer", "minimum": 0}
+        "not_applicable": {"type": "integer", "minimum": 0},
+        "insufficient_privilege": {"type": "integer", "minimum": 0},
+        "not_collected": {"type": "integer", "minimum": 0}
       },
       "additionalProperties": true
     },
@@ -48,7 +50,7 @@
         "required": ["check_id", "reason_type", "reason"],
         "properties": {
           "check_id": {"type": "string", "minLength": 1},
-          "reason_type": {"type": "string", "enum": ["failed", "skipped"]},
+          "reason_type": {"type": "string", "enum": ["failed", "skipped", "insufficient_privilege", "not_collected"]},
           "reason": {"type": "string", "minLength": 1},
           "source_module": {"type": "string"}
         },

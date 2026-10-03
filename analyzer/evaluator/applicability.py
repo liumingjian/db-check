@@ -5,11 +5,14 @@ from __future__ import annotations
 from typing import Any
 
 from analyzer.evaluator.path_eval import aggregate, compare_values, extract_values
+from analyzer.evaluator.availability import check_gap
 
 
 def gate_na_map(checks: list[dict[str, Any]], result: dict[str, Any]) -> dict[str, str]:
     gated: dict[str, str] = {}
     for check in checks:
+        if check_gap(check, result) is not None:
+            continue
         reason = gate_failure_reason(check, result)
         if reason is None:
             continue
@@ -18,7 +21,25 @@ def gate_na_map(checks: list[dict[str, Any]], result: dict[str, Any]) -> dict[st
     return gated
 
 
+def gate_gap_map(checks: list[dict[str, Any]], result: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    gaps: dict[str, dict[str, Any]] = {}
+    for check in checks:
+        if evaluation_meta(check).get("method") != "gate":
+            continue
+        gap = check_gap(check, result)
+        if gap is not None:
+            for target in _gate_targets(checks, check):
+                gaps[target] = gap
+    return gaps
+
+
 def direct_na_reason(check: dict[str, Any], result: dict[str, Any]) -> str | None:
+    if check_gap(check, result) is not None:
+        condition = evaluation_meta(check).get("na_when")
+        if isinstance(condition, dict) and str(condition.get("json_path", "")).startswith("db.deployment_topology"):
+            values = extract_values(result, str(condition["json_path"]))
+            if not values or values[0] in (None, "unknown", ""):
+                return None
     sample_reason = sample_requirement_reason(check, result)
     if sample_reason is not None:
         return sample_reason
