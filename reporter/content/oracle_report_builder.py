@@ -6,6 +6,7 @@ from typing import Any
 
 from reporter.content.helpers import full_table, key_value_table
 from reporter.content.oracle_database_sections import build_oracle_database_sections
+from reporter.content.oracle_topology_section import build_oracle_topology_section
 from reporter.content.oracle_summary_text import (
     business_dimensions,
     conclusion_paragraphs,
@@ -36,6 +37,7 @@ def build_oracle_report_view(result: dict[str, Any], summary: dict[str, Any], me
     generated_at = str(summary.get("generated_at") or result.get("meta", {}).get("collect_time", ""))
     title = _resolve_title(meta)
     sections = (
+        build_oracle_topology_section(result),
         _build_doc_control(meta),
         build_summary_section(result, summary, meta, ORACLE_SUMMARY_STRATEGY),
         _build_detail_section(result),
