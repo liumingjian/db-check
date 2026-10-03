@@ -11,7 +11,7 @@
 - Oracle `11gR2 / 12c / 19c / 21c / 23ai`，18c 归入 12c 系列
 - GaussDB `505.2.1.SPC1000`
 
-MySQL、Oracle 与 GaussDB 提供以下完整链路。Oracle 本实现的 11gR2、19c 端到端 smoke 待远程 Mac 验证；12c、21c、23ai 未经过容器验证。版本分支已实现不等于数据库 SQL 已验证，详见 [Oracle 支持范围与使用说明](docs/oracle-support.md)。
+MySQL、Oracle 与 GaussDB 提供以下完整链路。Oracle 11gR2、19c 已于 2026-10-03 在 Mac 通过单机、primary、非 ASM 容器端到端 smoke；12c、18c、21c、23ai 未经过容器验证。版本分支已实现不等于所有部署形态已验证，详见 [Oracle 支持范围与使用说明](docs/oracle-support.md)。
 - `db-collector` 采集数据库指标；只有显式提供 `--local`、`--os-only` 或远程 OS 参数时才采集 OS 指标
 - Web 上传采集 ZIP 后自动识别 `db_type`，生成 `summary.json`、`report-meta.json`、`report-view.json` 和 `report.docx`
 - 第一章“巡检总结”使用统一模板，关键指标会在 Word 报告中加粗高亮显示
@@ -390,9 +390,9 @@ dist/
 
 当前 Docker e2e 提供以下数据库环境：
 - MySQL `5.6 / 5.7 / 8.0`
-- Oracle `11gR2 / 19c`，本实现 smoke 待验证；12c、21c、23ai 未经过容器验证
+- Oracle `11gR2 / 19c`，两版 smoke 已通过；12c、18c、21c、23ai 未经过容器验证
 
-Issue #48 要求所有执行代码的测试通过指定的远程 Mac executor 运行。执行机尚未确认时不得在当前机器执行下列 Oracle 测试。验收步骤与证据要求见 [Oracle 验证计划](docs/oracle-support.md#远程-mac-验证计划)。
+Issue #48 的测试已在确认的 Darwin/arm64 Mac 执行环境运行，复用现有 Python `.venv`。验证记录、命令与适用范围见 [Oracle Mac 验证记录](docs/oracle-support.md#mac-验证记录)。
 
 GaussDB 当前不承诺 Docker e2e。原因是可用镜像、内核版本和 openGauss 兼容行为与正式安装形态存在差异，当前以真实环境回归为准。
 
