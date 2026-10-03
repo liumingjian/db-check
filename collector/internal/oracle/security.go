@@ -3,7 +3,7 @@ package oracle
 import "context"
 
 func (c *metricsCollector) collectSecurity(ctx context.Context) map[string]any {
-	return map[string]any{
+	payload := map[string]any{
 		"disabled_constraints": rowsPayload(c.queryRows(ctx, "oracle.security.disabled_constraints", disabledConstraintsQuery)),
 		"disabled_triggers":    rowsPayload(c.queryRows(ctx, "oracle.security.disabled_triggers", disabledTriggersQuery)),
 		"expired_users": rowsPayload(c.queryRows(
@@ -27,6 +27,7 @@ func (c *metricsCollector) collectSecurity(ctx context.Context) map[string]any {
 			`SELECT grantee AS "grantee", granted_role AS "granted_role", admin_option AS "admin_option", default_role AS "default_role" FROM dba_role_privs WHERE granted_role='DBA' OR granted_role='SYSDBA'`,
 		)),
 	}
+	return mergeMaps(payload, c.collectSecurityDepth(ctx))
 }
 
 const disabledConstraintsQuery = `

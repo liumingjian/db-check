@@ -7,11 +7,11 @@
     "target_versions": ["11g", "19c"],
     "updated_at": "2026-03-12",
     "target": "自建 Oracle 11g / 19c",
-    "total_checks": 28,
+    "total_checks": 50,
     "priority_summary": {
-      "P0": 8,
-      "P1": 12,
-      "P2": 6,
+      "P0": 10,
+      "P1": 14,
+      "P2": 8,
       "P3": 1
     }
   },
@@ -283,6 +283,15 @@
           "extract": {"json_path": "db.security.expired_users", "aggregation": "raw"},
           "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}}},
           "optimization_advice": "核对过期账号是否为应急账号或废弃账号，避免影响维护作业"
+        },
+        {"check_id": "5.5", "name": "默认口令账号", "source_module": "db_security", "extract": {"json_path": "db.security.default_password_users", "aggregation": "raw"}, "evaluation": {"method": "row_count", "thresholds": {"critical": {"operator": ">", "value": 0}}}, "optimization_advice": "请 DBA 修改默认口令，锁定无需使用的账号；Collector 不读取口令内容。"},
+        {"check_id": "5.6", "name": "弱口令配置文件策略", "source_module": "db_security", "extract": {"json_path": "db.security.weak_password_profiles", "aggregation": "raw"}, "evaluation": {"method": "row_count"}, "optimization_advice": "为开放账号设置口令验证函数、有效期和失败登录锁定；DEFAULT 限制已按默认配置文件解析。"},
+        {"check_id": "5.7", "name": "PUBLIC 危险系统权限", "source_module": "db_security", "extract": {"json_path": "db.security.public_system_privileges", "aggregation": "raw"}, "evaluation": {"method": "row_count", "thresholds": {"critical": {"operator": ">", "value": 0}}}, "optimization_advice": "请 DBA 核对依赖后撤销 PUBLIC 的 ANY 及管理类系统权限，改为显式授权。"},
+        {"check_id": "5.8", "name": "审计设置", "source_module": "db_security", "extract": {"json_path": "db.security.audit_trail", "aggregation": "raw"}, "thresholds": {"warning": {"operator": "==", "value": "NONE"}}, "optimization_advice": "请 DBA 启用所需审计并验证实际记录；AUDIT_TRAIL 非 NONE 仅说明传统审计配置，不能证明审计策略覆盖。"},
+        {"check_id": "5.9", "name": "TDE 表空间加密", "source_module": "db_security", "extract": {"json_path": "db.security.encrypted_tablespaces", "aggregation": "raw"}, "thresholds": {"warning": {"operator": "==", "value": 0}}, "optimization_advice": "没有加密表空间，需按数据保护要求评估 TDE；本项不判断列加密，钱包状态另见明细。"},
+        {"check_id": "5.10", "name": "数据库链接凭据风险", "source_module": "db_security", "extract": {"json_path": "db.security.database_links", "aggregation": "raw"}, "evaluation": {"method": "row_count"}, "optimization_advice": "固定用户名提示链接可能存储凭据，请 DBA 核对链接类型和权限并轮换凭据。DBA_DB_LINKS 不提供口令存在字段，此判断是推断，不能证明凭据存在或排除其他链接风险。"},
+        {"check_id": "5.11", "name": "配置文件资源限制开关", "source_module": "db_security", "extract": {"json_path": "db.security.resource_limit", "aggregation": "raw"}, "thresholds": {"warning": {"operator": "==", "value": "FALSE"}}, "optimization_advice": "请 DBA 评估启用 RESOURCE_LIMIT，并核查各账号配置文件的会话和 CPU 等资源上限。此开关不影响口令限制。"},
+        {"check_id": "5.12", "name": "配置文件无限资源上限", "source_module": "db_security", "extract": {"json_path": "db.security.unlimited_resource_profiles", "aggregation": "raw"}, "evaluation": {"method": "row_count"}, "optimization_advice": "开放账号的会话数、会话 CPU、连接时长或空闲时长无限制。请 DBA 按业务要求设置资源上限并评估启用 RESOURCE_LIMIT。"
         }
       ]
     },
@@ -316,6 +325,11 @@
           "extract": {"json_path": "db.backup.archive_destination_errors", "aggregation": "raw"},
           "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "critical": {"operator": ">", "value": 0}}},
           "optimization_advice": "立即检查 archive destination 错误，避免归档无法落盘或传输失败"
+        },
+        {"check_id": "6.4", "name": "最近成功数据备份时间", "source_module": "db_backup", "extract": {"json_path": "db.backup.successful_backup_age_hours", "aggregation": "raw"}, "thresholds": {"warning": {"operator": ">", "value": 48}, "critical": {"operator": ">", "value": 168}}, "optimization_advice": "超过 48 小时告警，超过 7 天或没有成功 DB FULL/DB INCR 记录为严重。此为本项目保守基线，非已验证的双平台阈值。请核对控制文件保留期、RMAN catalog 和备份恢复验证。"},
+        {"check_id": "6.5", "name": "最近七天 RMAN 失败作业", "source_module": "db_backup", "extract": {"json_path": "db.backup.failed_jobs", "aggregation": "raw"}, "evaluation": {"method": "row_count", "thresholds": {"critical": {"operator": ">", "value": 0}}}, "optimization_advice": "请 DBA 检查 FAILED 或 COMPLETED WITH ERRORS 的 RMAN 日志，补做备份并验证恢复。"},
+        {"check_id": "6.6", "name": "闪回数据库状态", "source_module": "db_backup", "extract": {"json_path": "db.backup.flashback_on", "aggregation": "raw"}, "thresholds": {"warning": {"operator": "!=", "value": "YES"}}, "optimization_advice": "请 DBA 依据恢复目标评估开启 Flashback Database 和恢复区容量；RESTORE POINT ONLY 不等于持续闪回开启。"},
+        {"check_id": "6.7", "name": "已知数据块损坏", "source_module": "db_backup", "extract": {"json_path": "db.backup.block_corruption", "aggregation": "raw"}, "evaluation": {"method": "row_count", "thresholds": {"critical": {"operator": ">", "value": 0}}}, "optimization_advice": "请 DBA 立即执行 RMAN VALIDATE 并制定块恢复方案；空视图仅表示没有登记的损坏，不能代替全库校验。"
         }
       ]
     },
@@ -335,6 +349,16 @@
           "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}},
           "optimization_advice": "按告警错误码和时间查看原始日志并排查重复报错；统计仅覆盖最近七天最新 200 条匹配记录。"
         }
+      ]
+    },
+    {
+      "dimension_id": 8,
+      "name": "补丁与组件",
+      "checks": [
+        {"check_id": "8.1", "name": "当前 SQL 补丁清单", "source_module": "db_security", "extract": {"json_path": "db.security.installed_sql_patches", "aggregation": "raw"}, "evaluation": {"method": "row_count", "thresholds": {"warning": {"operator": "==", "value": 0}}}, "optimization_advice": "按每个补丁最后一次成功操作判断，成功 ROLLBACK 已移除。不代表 Oracle Home 二进制清单或补丁最新程度，请 DBA 提供 opatch lsinventory 并对照批准基线。"},
+        {"check_id": "8.2", "name": "SQL 补丁最新操作失败", "source_module": "db_security", "extract": {"json_path": "db.security.failed_patch_attempts", "aggregation": "raw"}, "evaluation": {"method": "row_count"}, "optimization_advice": "请 DBA 检查 datapatch 日志并修复最后一次非 SUCCESS 的补丁操作。失败 APPLY 不证明已安装，失败 ROLLBACK 不移除之前成功安装的补丁。"},
+        {"check_id": "8.3", "name": "组件注册状态", "source_module": "db_security", "extract": {"json_path": "db.security.invalid_components", "aggregation": "raw"}, "evaluation": {"method": "row_count"}, "optimization_advice": "请 DBA 核对 DBA_REGISTRY 非 VALID 组件，按组件安装或升级日志修复。"},
+        {"check_id": "8.4", "name": "补丁操作历史", "source_module": "db_security", "extract": {"json_path": "db.security.patch_history", "aggregation": "raw"}, "evaluation": {"method": "info"}, "optimization_advice": "历史记录不等于当前安装清单。11g 没有执行状态，需客户 DBA 提供 Oracle Home 清单确认。"}
       ]
     },
     {
