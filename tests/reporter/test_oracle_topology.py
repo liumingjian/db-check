@@ -6,6 +6,22 @@ from reporter.content.oracle_report_builder import build_oracle_report_view
 
 
 class OracleTopologyReportTests(unittest.TestCase):
+    def test_opening_reports_version_verification_without_claiming_smoke_pass(self) -> None:
+        for family in ("11gR2", "12c", "19c", "21c", "23ai", "unknown"):
+            with self.subTest(family=family):
+                opening = build_oracle_report_view(
+                    {"db": {"version_info": {"family": family}}}, {}, {},
+                ).sections[0]
+                verification = dict(opening.tables[0].rows)["版本验证级别"]
+                if family in ("11gR2", "19c"):
+                    self.assertIn("端到端 smoke 待验证", verification)
+                elif family in ("12c", "21c", "23ai"):
+                    self.assertIn("未经过容器验证", verification)
+                else:
+                    self.assertIn("版本未识别", verification)
+                self.assertNotIn("验证通过", verification)
+                self.assertIn("不采集 AWR、ASH、ADDM", "".join(opening.paragraphs))
+
     def test_report_opens_with_detected_topology_and_every_visible_pdb(self) -> None:
         result = {"db": {
             "version_info": {"version": "19.3.0.0.0", "major": 19, "family": "19c"},

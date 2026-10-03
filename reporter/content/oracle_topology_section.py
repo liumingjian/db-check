@@ -16,6 +16,7 @@ def build_oracle_topology_section(result: dict[str, Any]) -> SectionBlock:
     family = version.get("family", "未知")
     rows = (
         ("数据库版本", f"{family} / {raw_version}"),
+        ("版本验证级别", _verification_level(family)),
         ("实例部署", _facet(topology.get("is_rac"), "RAC", "单机")),
         ("容器数据库", _facet(topology.get("is_cdb"), "是", "否")),
         ("数据库角色", str(topology.get("database_role") or "未知")),
@@ -33,9 +34,21 @@ def build_oracle_topology_section(result: dict[str, Any]) -> SectionBlock:
         tables.append(full_table("可插拔数据库清单", ("PDB 名称", "状态", "大小(MB)"), pdb_rows, status=state, note=note))
     return SectionBlock(
         title="部署形态",
-        paragraphs=("仅巡检当前连接容器，未切换到其他 PDB 执行检查。",),
+        paragraphs=(
+            "仅巡检当前连接容器，未切换到其他 PDB 执行检查。PDB 清单仅表示账号可见范围。",
+            "版本验证级别描述本实现的验证范围，不代表本次采集的所有 SQL 已成功。"
+            "权限不足与未采集项见报告末尾。Collector 不采集 AWR、ASH、ADDM；AWR 仅作为工程师上传的输入。",
+        ),
         tables=tuple(tables),
     )
+
+
+def _verification_level(family: str) -> str:
+    if family in ("11gR2", "19c"):
+        return "已提供版本分支与容器环境；本实现的远程 Mac 端到端 smoke 待验证"
+    if family in ("12c", "21c", "23ai"):
+        return "已提供版本分支，未经过容器验证；18c 归入 12c 系列"
+    return "版本未识别或不在支持范围内，兼容性未验证"
 
 
 def _facet(value: Any, yes: str, no: str) -> str:
