@@ -121,6 +121,30 @@
           "extract": {"json_path": "db.storage.invalid_indexes", "aggregation": "raw"},
           "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}}},
           "optimization_advice": "重建 unusable 索引，避免执行计划退化"
+        },
+        {
+          "check_id": "3.5", "name": "临时表空间活跃使用率", "priority": "P0", "source_module": "db_storage",
+          "extract": {"json_path": "db.storage.temp_usage_max_pct", "aggregation": "raw"},
+          "thresholds": {"warning": {"operator": ">", "value": 80}, "critical": {"operator": ">", "value": 90}},
+          "optimization_advice": "请 DBA 检查排序和临时段使用 SQL，按临时文件自动扩展上限确认容量，必要时增加 TEMPFILE。"
+        },
+        {
+          "check_id": "3.6", "name": "SYSAUX 使用率", "priority": "P1", "source_module": "db_storage",
+          "extract": {"json_path": "db.storage.sysaux_usage_pct", "aggregation": "raw"},
+          "thresholds": {"warning": {"operator": ">", "value": 85}, "critical": {"operator": ">", "value": 90}},
+          "optimization_advice": "请 DBA 检查 SYSAUX 各组件占用，使用组件支持的清理方法或扩容，勿直接删除系统对象。"
+        },
+        {
+          "check_id": "3.7", "name": "最大段容量占比", "priority": "P2", "source_module": "db_storage",
+          "extract": {"json_path": "db.storage.largest_segment_usage_pct", "aggregation": "raw"},
+          "thresholds": {"warning": {"operator": ">", "value": 80}, "critical": {"operator": ">", "value": 90}},
+          "optimization_advice": "查看最大段明细，确认业务增长与数据保留计划；该占比以所在表空间自动扩展最大容量为分母。"
+        },
+        {
+          "check_id": "3.8", "name": "回收站可回收空间", "priority": "P2", "source_module": "db_storage",
+          "extract": {"json_path": "db.storage.recyclebin_size_gb", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}},
+          "optimization_advice": "请 DBA 确认回收站对象不再需要闪回恢复后，按业务审批清理对应对象以释放空间。存在可回收空间是提示，不表示容量不足。"
         }
       ]
     },
@@ -292,6 +316,24 @@
           "extract": {"json_path": "db.backup.archive_destination_errors", "aggregation": "raw"},
           "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "critical": {"operator": ">", "value": 0}}},
           "optimization_advice": "立即检查 archive destination 错误，避免归档无法落盘或传输失败"
+        }
+      ]
+    },
+    {
+      "dimension_id": 7,
+      "name": "告警日志",
+      "checks": [
+        {
+          "check_id": "7.1", "name": "告警日志严重 ORA 错误", "priority": "P0", "source_module": "db_storage",
+          "extract": {"json_path": "db.alert_log.critical_count", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": 0}, "critical": {"operator": ">", "value": 0}},
+          "optimization_advice": "请 DBA 检查 ORA-00600、ORA-07445 的诊断文件并联系 Oracle 支持；ORA-01555 检查 UNDO 与长查询，ORA-04031 检查内存与共享池。统计仅覆盖最近七天最新 200 条匹配记录。"
+        },
+        {
+          "check_id": "7.2", "name": "告警日志其他 ORA 错误", "priority": "P1", "source_module": "db_storage",
+          "extract": {"json_path": "db.alert_log.warning_count", "aggregation": "raw"},
+          "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}},
+          "optimization_advice": "按告警错误码和时间查看原始日志并排查重复报错；统计仅覆盖最近七天最新 200 条匹配记录。"
         }
       ]
     },
