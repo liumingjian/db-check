@@ -51,26 +51,20 @@ func (c *metricsCollector) collectStorage(ctx context.Context) map[string]any {
 
 const tablespaceUsageQuery = `
 SELECT d.tablespace_name AS "tablespace_name",
-       d.max_space AS "max_size_gb",
-       d.space AS "total_size_gb",
-       d.space - NVL(f.free_space, 0) AS "used_size_gb",
-       ROUND(((d.space - NVL(f.free_space, 0)) / CASE WHEN d.max_space = 0 THEN 1 ELSE d.max_space END) * 100, 2) AS "real_percent"
+       ROUND(d.max_bytes / POWER(1024,3), 2) AS "max_size_gb",
+       ROUND(d.total_bytes / POWER(1024,3), 2) AS "total_size_gb",
+       ROUND((d.total_bytes - NVL(f.free_bytes, 0)) / POWER(1024,3), 2) AS "used_size_gb",
+       (d.total_bytes - NVL(f.free_bytes, 0)) / NULLIF(d.max_bytes, 0) * 100 AS "real_percent"
   FROM (
         SELECT tablespace_name,
-               SUM(max_space) AS max_space,
-               SUM(space) AS space
-          FROM (
-                SELECT tablespace_name,
-                       ROUND(DECODE(autoextensible, 'YES', SUM(maxbytes)/(1024*1024*1024), SUM(bytes)/(1024*1024*1024)), 2) AS max_space,
-                       ROUND(SUM(bytes)/(1024*1024*1024), 2) AS space
-                  FROM dba_data_files
-                 GROUP BY tablespace_name, autoextensible
-               )
+               SUM(CASE WHEN autoextensible='YES' THEN GREATEST(bytes,NVL(maxbytes,bytes)) ELSE bytes END) AS max_bytes,
+               SUM(bytes) AS total_bytes
+          FROM dba_data_files
          GROUP BY tablespace_name
        ) d
   LEFT JOIN (
         SELECT tablespace_name,
-               ROUND(SUM(bytes)/(1024*1024*1024), 2) AS free_space
+               SUM(bytes) AS free_bytes
           FROM dba_free_space
          GROUP BY tablespace_name
        ) f

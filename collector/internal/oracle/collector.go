@@ -44,6 +44,7 @@ func (c *metricsCollector) collectAll(ctx context.Context) map[string]any {
 		"basic_info":          c.collectBasicInfo(ctx),
 		"config_check":        c.collectConfigCheck(ctx),
 		"storage":             c.collectStorage(ctx),
+		"alert_log":           c.collectAlertLog(ctx, version),
 		"backup":              c.collectBackup(ctx),
 		"performance":         c.collectPerformance(ctx),
 		"sql_analysis":        c.collectSQLAnalysis(ctx),
