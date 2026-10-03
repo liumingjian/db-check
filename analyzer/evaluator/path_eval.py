@@ -13,14 +13,16 @@ def _coerce_number(value: Any) -> float | None:
                 return _coerce_number(value[key])
         return None
     if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return float(value)
+        number = float(value)
+        return number if math.isfinite(number) else None
     if not isinstance(value, str):
         return None
     text = value.strip()
     if not text:
         return None
     try:
-        return float(text)
+        number = float(text)
+        return number if math.isfinite(number) else None
     except ValueError:
         return None
 
@@ -90,6 +92,8 @@ def aggregate(values: list[Any], mode: str) -> Any:
     numeric_values = [n for n in nums if n is not None]
     if not numeric_values:
         return None
+    if len(numeric_values) != len(values) and normalized_mode != "count":
+        return None
     if normalized_mode == "avg":
         return sum(numeric_values) / len(numeric_values)
     if normalized_mode == "max":
@@ -147,6 +151,9 @@ def evaluate_thresholds(thresholds: dict[str, Any], observed: Any, row_count: in
     critical_rule = _threshold_rule(thresholds, "critical")
     warning_rule = _threshold_rule(thresholds, "warning")
     normal_rule = _threshold_rule(thresholds, "normal")
+    for rule in (critical_rule, warning_rule, normal_rule):
+        if rule is not None and (observed is None or (_coerce_number(rule.get("value")) is not None and _coerce_number(observed) is None)):
+            return "unevaluated", "missing or invalid threshold observation"
 
     critical_hit, critical_defined, critical_reason = _apply_threshold("critical", critical_rule, observed)
     if critical_hit:
@@ -164,18 +171,64 @@ def evaluate_thresholds(thresholds: dict[str, Any], observed: Any, row_count: in
     return _default_observed_level(observed, row_count, "informational metric without machine threshold")
 
 
-def evaluate_check(check: dict[str, Any], observed: Any, row_count: int | None) -> tuple[str, str]:
+def matches(predicate: dict[str, Any], observed: Any, result: dict[str, Any]) -> bool | None:
+    if "any" in predicate or "all" in predicate:
+        key = "any" if "any" in predicate else "all"
+        values = [matches(p, observed, result) for p in predicate[key]]
+        if key == "any" and True in values:
+            return True
+        if key == "all" and False in values:
+            return False
+        return None if None in values else key == "all"
+    if "not" in predicate:
+        value = matches(predicate["not"], observed, result)
+        return None if value is None else not value
+    values = extract_values(observed, predicate["field"])
+    if not values or values[0] is None:
+        return None
+    value, expected = values[0], predicate.get("value")
+    op = predicate.get("operator", "==")
+    if op == "in":
+        return value in expected
+    if op == "contains_any":
+        return any(token in str(value).upper() for token in expected)
+    return compare_values(op, value, expected)
+
+
+def evaluate_check(check: dict[str, Any], observed: Any, row_count: int | None, result: dict[str, Any] | None = None) -> tuple[str, str]:
     evaluation = check.get("evaluation", {}) if isinstance(check.get("evaluation"), dict) else {}
     method = str(evaluation.get("method") or "").strip().lower()
     thresholds = evaluation.get("thresholds") if isinstance(evaluation.get("thresholds"), dict) else None
     if not thresholds:
         thresholds = check.get("thresholds") if isinstance(check.get("thresholds"), dict) else {}
+    result = result or {}
+    if evaluation.get("critical_when"):
+        hit = matches(evaluation["critical_when"], observed, result)
+        if hit is True:
+            return "critical", "critical condition matched"
+        if hit is None:
+            return "unevaluated", "critical condition evidence missing"
+    if evaluation.get("value_field"):
+        values = extract_values(observed, evaluation["value_field"])
+        observed = values[0] if values else None
     if method in {"", "threshold"}:
         return evaluate_thresholds(thresholds, observed, row_count)
     if method == "exists":
         exists = (row_count or 0) > 0 if row_count is not None else observed is not None
         return ("warning", "exists check matched") if exists else ("normal", "exists check not matched")
     if method == "row_count":
+        if evaluation.get("filter"):
+            rows = observed.get("items") if isinstance(observed, dict) else observed
+            if not isinstance(rows, list):
+                return "unevaluated", "row evidence missing"
+            predicate = evaluation["filter"]
+            for variant in evaluation.get("filter_variants", []):
+                if matches(variant["when"], result, result) is True:
+                    predicate = variant["filter"]
+            hits = [matches(predicate, row, result) for row in rows]
+            if None in hits:
+                return "unevaluated", "row condition evidence missing"
+            row_count = sum(hits)
         actual_rows = row_count if row_count is not None else (0 if observed is None else 1)
         if thresholds:
             return evaluate_thresholds(thresholds, actual_rows, actual_rows)

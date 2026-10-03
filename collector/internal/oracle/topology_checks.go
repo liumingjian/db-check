@@ -60,12 +60,10 @@ func (c *metricsCollector) collectDataGuard(ctx context.Context, topology map[st
 				}
 			}
 		}
-		if !valid {
-			if evidence, ok := c.availability["db.data_guard.lag"].(map[string]any); ok && evidence["readable"] == false {
-				c.availability[datasetPath(scope)] = evidence
-			} else {
-				c.markUnavailable(scope, "延迟数据缺失或无法解析", "请 DBA 在实际应用日志的 standby 实例查询 V$DATAGUARD_STATS，检查日志传输与应用进程后重新采集。")
-			}
+		if evidence, ok := c.availability["db.data_guard.lag"].(map[string]any); ok && evidence["readable"] == false {
+			c.availability[datasetPath(scope)] = evidence
+		} else if !valid {
+			c.markUnavailable(scope, "延迟数据缺失或无法解析", "请 DBA 在实际应用日志的 standby 实例查询 V$DATAGUARD_STATS，检查日志传输与应用进程后重新采集。")
 		}
 	}
 	payload["archive_gap"] = rowsPayload(c.queryRows(ctx, "oracle.data_guard.archive_gap", `SELECT thread# AS "thread", low_sequence# AS "low_sequence", high_sequence# AS "high_sequence" FROM v$archive_gap`))
@@ -83,7 +81,7 @@ func (c *metricsCollector) collectASM(ctx context.Context, topology map[string]a
 	if !c.topologyEnabled(topology, "is_asm", true, "oracle.asm.diskgroups") {
 		return map[string]any{}
 	}
-	rows := c.queryRows(ctx, "oracle.asm.diskgroups", `SELECT name AS "name", state AS "state", CASE WHEN state IN ('MOUNTED','CONNECTED') THEN 0 ELSE 1 END AS "unhealthy", type AS "redundancy", total_mb AS "total_mb", free_mb AS "free_mb", usable_file_mb AS "usable_file_mb", required_mirror_free_mb AS "required_mirror_free_mb", offline_disks AS "offline_disks", (total_mb-free_mb)/NULLIF(total_mb,0)*100 AS "used_pct" FROM v$asm_diskgroup_stat ORDER BY name`)
+	rows := c.queryRows(ctx, "oracle.asm.diskgroups", `SELECT name AS "name", state AS "state", type AS "redundancy", total_mb AS "total_mb", free_mb AS "free_mb", usable_file_mb AS "usable_file_mb", required_mirror_free_mb AS "required_mirror_free_mb", offline_disks AS "offline_disks", (total_mb-free_mb)/NULLIF(total_mb,0)*100 AS "used_pct" FROM v$asm_diskgroup_stat ORDER BY name`)
 	if len(rows) == 0 {
 		if evidence, ok := c.availability["db.asm.diskgroups"].(map[string]any); !ok || evidence["readable"] != false {
 			c.markUnavailable("oracle.asm.diskgroups", "ASM 磁盘组信息为空", "请 DBA 确认数据库实例能访问 V$ASM_DISKGROUP_STAT，并在 ASM 实例检查磁盘组。")
@@ -102,7 +100,7 @@ func (c *metricsCollector) collectRAC(ctx context.Context, topology map[string]a
 		return map[string]any{}
 	}
 	return map[string]any{
-		"instances":  rowsPayload(c.queryRows(ctx, "oracle.rac.instances", `SELECT inst_id AS "inst_id", instance_name AS "instance_name", host_name AS "host_name", status AS "status", database_status AS "database_status", active_state AS "active_state", CASE WHEN status='OPEN' AND database_status='ACTIVE' AND active_state='NORMAL' THEN 0 ELSE 1 END AS "unhealthy" FROM gv$instance ORDER BY inst_id`)),
+		"instances":  rowsPayload(c.queryRows(ctx, "oracle.rac.instances", `SELECT inst_id AS "inst_id", instance_name AS "instance_name", host_name AS "host_name", status AS "status", database_status AS "database_status", active_state AS "active_state" FROM gv$instance ORDER BY inst_id`)),
 		"parameters": rowsPayload(c.queryRows(ctx, "oracle.rac.parameters", `SELECT inst_id AS "inst_id", name AS "name", value AS "value", isdefault AS "isdefault" FROM gv$parameter ORDER BY inst_id, name`)),
 	}
 }
@@ -127,25 +125,50 @@ func (c *metricsCollector) collectHostChecks(ctx context.Context, topology map[s
 		defer runner.Close()
 	}
 	for name, command := range commands {
-		var output string
-		var err error
-		if runner != nil {
-			output, err = runner.Run(command)
-		} else if c.cfg.Local {
-			commandCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			bytes, runErr := exec.CommandContext(commandCtx, "sh", "-c", command).CombinedOutput()
-			cancel()
-			output, err = string(bytes), runErr
-		} else {
-			c.markUnavailable("oracle.host_checks."+name, "未提供数据库主机访问通道", remediation)
-			continue
+		if result := c.collectHostCommand(ctx, runner, name, command, remediation); result != nil {
+			payload[name] = result
 		}
-		if err != nil || strings.TrimSpace(output) == "" {
-			c.markUnavailable("oracle.host_checks."+name, fmt.Sprintf("主机命令未成功完成：%v", err), remediation)
-			continue
-		}
-		upper := strings.ToUpper(output)
-		payload[name] = map[string]any{"output": output, "unhealthy": strings.Contains(upper, "OFFLINE") || strings.Contains(upper, "TNS-") || strings.Contains(upper, "CRS-4535")}
 	}
 	return payload
+}
+
+func (c *metricsCollector) collectHostCommand(ctx context.Context, runner osinfo.CommandRunner, name, command, remediation string) map[string]any {
+	var output string
+	var err error
+	if runner != nil {
+		output, err = runHostCommand(ctx, runner, command)
+	} else if c.cfg.Local {
+		commandCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		bytes, runErr := exec.CommandContext(commandCtx, "sh", "-c", command).CombinedOutput()
+		cancel()
+		output, err = string(bytes), runErr
+	} else {
+		c.markUnavailable("oracle.host_checks."+name, "未提供数据库主机访问通道", remediation)
+		return nil
+	}
+	upper := strings.ToUpper(output)
+	observedFailure := strings.Contains(upper, "TNS-") || strings.Contains(upper, "CRS-")
+	if (err != nil && !observedFailure) || strings.TrimSpace(output) == "" {
+		c.markUnavailable("oracle.host_checks."+name, fmt.Sprintf("主机命令未成功完成：%v", err), remediation)
+		return nil
+	}
+	return map[string]any{"output": output, "command_succeeded": err == nil}
+}
+
+func runHostCommand(ctx context.Context, runner osinfo.CommandRunner, command string) (string, error) {
+	commandCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	type completion struct {
+		output string
+		err    error
+	}
+	done := make(chan completion, 1)
+	go func() { output, err := runner.Run(command); done <- completion{output, err} }()
+	select {
+	case result := <-done:
+		return result.output, result.err
+	case <-commandCtx.Done():
+		runner.Close()
+		return "", commandCtx.Err()
+	}
 }

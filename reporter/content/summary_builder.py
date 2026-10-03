@@ -92,8 +92,8 @@ def _health_row(
     strategy: SummaryStrategy,
 ) -> tuple[str, str, str]:
     items: list[dict[str, Any]] = []
-    for name in dimension_names:
-        items.extend(grouped.get(strategy.display_dimension_name(name), []))
+    for name in {strategy.display_dimension_name(name) for name in dimension_names}:
+        items.extend(grouped.get(name, []))
     level, finding = strategy.health_summary(label, result, items)
     return (label, level_text(level), finding)
 

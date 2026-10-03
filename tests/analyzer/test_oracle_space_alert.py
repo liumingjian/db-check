@@ -40,10 +40,10 @@ class OracleSpaceAlertTests(unittest.TestCase):
         self.assertEqual(self.states()['3.5']['reason_type'], 'insufficient_privilege')
 
     def test_alert_severity_and_11g_fallback(self):
-        self.result['db']['alert_log'] = {'critical_count': 4, 'warning_count': 1}
+        self.result['db']['alert_log'] = {'errors': {'items': [{'error_code': 'ORA-00600', 'count': 4}, {'error_code': 'ORA-00060', 'count': 1}]}}
         self.assertEqual(self.states()['7.1']['level'], 'critical')
         self.assertEqual(self.states()['7.2']['level'], 'warning')
-        self.result['db']['alert_log'] = {'critical_count': 0, 'warning_count': 0}
+        self.result['db']['alert_log'] = {'errors': {'items': []}}
         self.assertNotIn('7.1', self.states())
         self.assertNotIn('7.2', self.states())
         self.result['db']['version_info'] = {'major': 11}

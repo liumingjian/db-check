@@ -57,16 +57,17 @@ def _alert_log_table(result):
     alert = db_payload(result, "alert_log")
     gap = result.get("db", {}).get("collection_availability", {}).get("db.alert_log", {})
     missing = gap.get("readable") is False or not alert
-    rows = tuple((str(item.get("error_code", "")), "严重" if item.get("severity") == "critical" else "警告",
+    rows = tuple((str(item.get("error_code", "")),
                   format_number(item.get("count"), 0), str(item.get("latest_time", "")), str(item.get("latest_message", "")))
                  for item in unwrap_items(alert.get("errors")))
-    note = "最近七天最新 200 条包含 ORA 错误的记录，按错误码去重，每条记录同一错误码计一次。"
+    days, limit = alert.get("window_days", "未知"), alert.get("record_limit", "未知")
+    note = f"最近 {days} 天最新 {limit} 条包含 ORA 错误的记录，按错误码去重，每条记录同一错误码计一次。"
     if alert.get("limit_reached"):
-        note += "已达到 200 条上限，计数不代表七天内全部错误。"
+        note += f"已达到 {limit} 条上限，计数不代表窗口内全部错误。"
     if missing:
         note += str(gap.get("reason", "")) + " " + str(gap.get("remediation", "请 DBA 手工检查 ADRCI 或 alert 日志。"))
-    return full_table("告警日志 ORA 错误汇总", ("错误码", "级别", "匹配记录数", "最近时间", "最近消息"),
-                      rows or (("未采集" if missing else "无 ORA 错误", "", "", "", ""),),
+    return full_table("告警日志 ORA 错误汇总", ("错误码", "匹配记录数", "最近时间", "最近消息"),
+                      rows or (("未采集" if missing else "无 ORA 错误", "", "", ""),),
                       status="not_collected" if missing else "collected", note=note)
 
 

@@ -38,7 +38,7 @@ func TestPrivilegePrecheckPrecedesTopologyAndMetrics(t *testing.T) {
 }
 
 func TestSuccessfulEmptyRowsAreReadable(t *testing.T) {
-	c := deploymentCollector(t, deploymentFixture{version: "19.3", cdb: "YES", container: "CDB$ROOT"})
+	c := deploymentCollector(t, deploymentFixture{version: "19.3", cdb: "YES", container: "CDB$ROOT", isDBA: "TRUE"})
 	c.collectDeployment(context.Background())
 	item := c.availability["db.deployment_topology.pdbs"].(map[string]any)
 	if item["readable"] != true {

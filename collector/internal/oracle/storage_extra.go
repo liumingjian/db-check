@@ -3,15 +3,23 @@ package oracle
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 func (c *metricsCollector) collectStorageExtra(ctx context.Context) map[string]any {
+	tempQuery := tempUsageQuery
+	if c.majorVersion >= 12 {
+		tempQuery = strings.Replace(tempQuery, "FROM gv$tempseg_usage GROUP", "FROM gv$tempseg_usage WHERE con_id=TO_NUMBER(SYS_CONTEXT('USERENV','CON_ID')) GROUP", 1)
+	}
 	payload := map[string]any{
 		"table_fragments":    rowsPayload(c.queryRows(ctx, "oracle.storage.table_fragments", tableFragmentsQuery)),
-		"temp_usage":         rowsPayload(c.queryRows(ctx, "oracle.storage.temp_usage", tempUsageQuery)),
+		"temp_usage":         rowsPayload(c.queryRows(ctx, "oracle.storage.temp_usage", tempQuery)),
 		"sysaux_usage":       rowsPayload(c.queryRows(ctx, "oracle.storage.sysaux_usage", `SELECT * FROM (`+tablespaceUsageQuery+`) WHERE "tablespace_name"='SYSAUX'`)),
 		"largest_segments":   rowsPayload(c.queryRows(ctx, "oracle.storage.largest_segments", largestSegmentsQuery)),
 		"recyclebin_size_gb": c.queryFloat64(ctx, "oracle.storage.recyclebin_size_gb", `SELECT NVL(SUM(r.space*t.block_size),0)/POWER(1024,3) FROM dba_recyclebin r JOIN dba_tablespaces t ON t.tablespace_name=r.ts_name`),
+	}
+	if c.majorVersion == 0 {
+		c.markUnavailable("oracle.storage.temp_usage", "版本未知，无法确认 TEMP 容器范围", "请 DBA 修复 V_$INSTANCE 读取权限后重新采集。")
 	}
 	for _, item := range []struct{ source, target, field string }{
 		{"temp_usage", "temp_usage_max_pct", "real_percent"},
@@ -85,5 +93,5 @@ SELECT * FROM (
     FROM dba_tables t
     CROSS JOIN (SELECT value FROM v$parameter WHERE name = 'db_block_size') p
    WHERE blocks > 10240
-   ORDER BY used_pct
+   ORDER BY "used_pct"
 ) WHERE ROWNUM <= 20`

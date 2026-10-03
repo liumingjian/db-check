@@ -54,6 +54,18 @@ def check_gap(check: dict[str, Any], result: dict[str, Any]) -> dict[str, Any] |
     if gap:
         return gap
     meta = check.get('evaluation', {})
+    for dependency in meta.get('requires', []):
+        gap = path_gap(result, dependency)
+        if gap:
+            return gap
+    for dependency in meta.get('requires_known', []):
+        gap = path_gap(result, dependency)
+        values = extract_values(result, dependency)
+        if gap:
+            return gap
+        if not values or values[0] in (None, 'unknown', ''):
+            return {'reason_type': 'not_collected', 'reason': '必要的部署形态未确定',
+                    'advice': '请 DBA 修复部署形态探测权限后重新采集。'}
     for key in ('gate', 'na_when'):
         condition = meta.get(key)
         if isinstance(condition, dict):

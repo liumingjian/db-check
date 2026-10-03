@@ -17,7 +17,7 @@ def build_backup_section(result: dict[str, object]) -> SectionBlock:
     recovery_area = first_row(backup.get("recovery_area"))
     archive_summary = first_row(backup.get("archive_log_summary"))
     age = backup.get("successful_backup_age_hours")
-    age_text = "待补充" if age is None else "无成功数据备份记录" if isinstance(age, (int, float)) and age >= 1000000000 else format_number(age, 1)
+    age_text = "无成功数据备份记录" if backup.get("successful_data_backup") is False else "待补充" if age is None else format_number(age, 1)
     summary_rows = (
         ("归档模式", str(backup.get("archive_log_mode", ""))),
         ("RMAN 备份数", format_number(len(jobs), 0)),
