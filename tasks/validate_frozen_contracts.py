@@ -372,8 +372,8 @@ class Validator:
                     self.err(f"summary.unevaluated_items[{idx}] must be object")
                     continue
                 self._require_keys(item, ["check_id", "reason_type", "reason"], f"summary.unevaluated_items[{idx}]")
-                if item.get("reason_type") not in {"failed", "skipped"}:
-                    self.err(f"summary.unevaluated_items[{idx}].reason_type must be failed or skipped")
+                if item.get("reason_type") not in {"failed", "skipped", "insufficient_privilege", "not_collected"}:
+                    self.err(f"summary.unevaluated_items[{idx}].reason_type is invalid")
 
         na_items = summary.get("na_items", [])
         if isinstance(na_items, list):
@@ -386,6 +386,11 @@ class Validator:
                     self.err(f"summary.na_items[{idx}].reason_type must be not_applicable")
 
         if isinstance(counts, dict):
+            for reason_type in ("insufficient_privilege", "not_collected"):
+                if reason_type in counts and isinstance(unevaluated_items, list):
+                    expected = sum(isinstance(item, dict) and item.get("reason_type") == reason_type for item in unevaluated_items)
+                    if not isinstance(counts[reason_type], int) or counts[reason_type] < 0 or counts[reason_type] != expected:
+                        self.err(f"summary.counts.{reason_type} must equal its unevaluated subset count")
             if isinstance(unevaluated_items, list) and counts.get("unevaluated") != len(unevaluated_items):
                 self.err("summary.counts.unevaluated must equal len(summary.unevaluated_items)")
             if isinstance(na_items, list) and counts.get("not_applicable") != len(na_items):

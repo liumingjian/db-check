@@ -7,7 +7,7 @@
     "target_versions": ["11g", "19c"],
     "updated_at": "2026-03-12",
     "target": "自建 Oracle 11g / 19c",
-    "total_checks": 27,
+    "total_checks": 28,
     "priority_summary": {
       "P0": 8,
       "P1": 12,
@@ -294,6 +294,16 @@
           "optimization_advice": "立即检查 archive destination 错误，避免归档无法落盘或传输失败"
         }
       ]
+    },
+    {
+      "dimension_id": 13,
+      "name": "采集覆盖范围",
+      "checks": [{
+        "check_id": "13.1", "name": "PDB 清单覆盖范围", "source_module": "db_basic",
+        "extract": {"json_path": "db.deployment_topology.pdbs", "aggregation": "raw"},
+        "evaluation": {"method": "info", "na_when": {"json_path": "db.deployment_topology.is_cdb", "operator": "==", "value": false, "reason": "非 CDB，无 PDB 清单"}},
+        "optimization_advice": "请 DBA 在 CDB$ROOT 授予 SYS.V_$PDBS 读取权限后重新采集。仅巡检当前连接容器。"
+      }]
     }
   ]
 }

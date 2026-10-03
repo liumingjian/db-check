@@ -26,6 +26,7 @@ class SummaryStrategy:
     impact_analysis: Callable[[dict[str, Any]], str]
     conclusion_rows: Callable[[dict[str, Any], dict[str, Any]], tuple[tuple[str, str], ...]]
     conclusion_paragraphs: Callable[[dict[str, Any], dict[str, Any]], tuple[str, ...]]
+    coverage_gaps: Callable[[dict[str, Any]], list[dict[str, Any]]] | None = None
 
 
 def build_summary_section(
@@ -100,7 +101,8 @@ def _health_row(
 def _build_risk_findings(summary: dict[str, Any], strategy: SummaryStrategy) -> SectionBlock:
     rows = tuple(_risk_row(item, strategy) for item in _abnormal_items(summary))
     if not rows:
-        rows = (("正常", "-", "未发现异常项", "-", "无需整改"),)
+        gaps = strategy.coverage_gaps(summary) if strategy.coverage_gaps else []
+        rows = (("中风险", "采集覆盖范围", "巡检覆盖不完整", "缺失数据无法判定健康", "见报告末尾补采建议"),) if gaps else (("正常", "-", "未发现异常项", "-", "无需整改"),)
     table = full_table("风险发现与整改建议", ("风险等级", "检查维度", "风险描述", "影响分析", "整改建议"), rows, status="derived")
     note = "仅列出存在风险的检查项，正常项不在此表展示。"
     return SectionBlock(title="1.4 风险发现与整改建议", status="derived", tables=(table,), note=note)
