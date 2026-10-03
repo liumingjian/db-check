@@ -19,7 +19,7 @@ SELECT * FROM (
   SELECT event AS "event",
          total_waits AS "waits",
          ROUND(time_waited_micro/1000, 2) AS "waited_ms",
-         ROUND(average_wait/100, 2) AS "avg_wait_ms"
+         CASE WHEN total_waits > 0 THEN average_wait*10 END AS "avg_wait_ms"
     FROM v$system_event
    WHERE wait_class NOT IN ('Idle')
    ORDER BY time_waited_micro DESC

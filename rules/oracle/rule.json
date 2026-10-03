@@ -7,11 +7,11 @@
     "target_versions": ["11g", "19c"],
     "updated_at": "2026-03-12",
     "target": "自建 Oracle 11g / 19c",
-    "total_checks": 50,
+    "total_checks": 57,
     "priority_summary": {
-      "P0": 10,
-      "P1": 14,
-      "P2": 8,
+      "P0": 12,
+      "P1": 17,
+      "P2": 10,
       "P3": 1
     }
   },
@@ -241,6 +241,48 @@
           "extract": {"json_path": "db.sql_analysis.high_version_count_sql", "aggregation": "raw"},
           "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}}},
           "optimization_advice": "检查 child cursor 暴涨、绑定不一致与执行计划抖动"
+        },
+        {
+          "check_id": "4.11", "name": "非空闲等待平均耗时", "priority": "P1", "source_module": "db_perf",
+          "extract": {"json_path": "db.performance.wait_events.items[*].avg_wait_ms", "aggregation": "max"},
+          "thresholds": {"warning": {"operator": ">", "value": 10}, "critical": {"operator": ">", "value": 50}},
+          "optimization_advice": "按事件检查 I/O、提交与锁等待；10/50ms 为本项目排查基线。数据是实例启动以来按累计等待排序的 Top 事件平均值，不代表当前瞬时延迟。"
+        },
+        {
+          "check_id": "4.12", "name": "Latch 请求未命中率", "priority": "P1", "source_module": "db_perf",
+          "extract": {"json_path": "db.performance.latch_miss_ratios.items[*].miss_pct", "aggregation": "max"},
+          "thresholds": {"warning": {"operator": ">", "value": 1}, "critical": {"operator": ">", "value": 5}},
+          "optimization_advice": "检查高 misses/gets 的 Latch 与 SQL 并发；1/5% 为本项目基线。比例使用实例启动以来累计请求，不是采样期间增量；零请求无法判断。"
+        },
+        {
+          "check_id": "4.13", "name": "实例有限资源当前使用率", "priority": "P0", "source_module": "db_perf",
+          "extract": {"json_path": "db.performance.resource_limits.items[*].usage_pct", "aggregation": "max"},
+          "thresholds": {"warning": {"operator": ">", "value": 80}, "critical": {"operator": ">", "value": 90}},
+          "optimization_advice": "按实例检查 processes、sessions 和 parallel_max_servers 当前值及上限，排查连接泄漏或并行任务。复用现有容量 80/90% 基线；UNLIMITED 与无效上限不能计算比例。"
+        },
+        {
+          "check_id": "4.14", "name": "解析时间占 DB time 比例", "priority": "P1", "source_module": "db_perf",
+          "extract": {"json_path": "db.performance.time_model_ratios.items[*].parse_pct", "aggregation": "max"},
+          "thresholds": {"warning": {"operator": ">", "value": 10}, "critical": {"operator": ">", "value": 20}},
+          "optimization_advice": "检查绑定变量、语句复用和硬解析；10/20% 为本项目基线。比例来自当前实例累计 Time Model，非当前采样增量；DB time 为零或缺失时不判断正常。"
+        },
+        {
+          "check_id": "4.15", "name": "最近 UNDO 统计错误", "priority": "P0", "source_module": "db_perf",
+          "extract": {"json_path": "db.performance.undo_stats.items[*].error_count", "aggregation": "sum"},
+          "thresholds": {"normal": {"operator": "==", "value": 0}, "critical": {"operator": ">", "value": 0}},
+          "optimization_advice": "请 DBA 检查采集的最近 TopN 个 UNDO 统计周期中的 ORA-01555 与空间不足记录，调整长查询、UNDO 容量或保留窗口；不是实例启动以来计数。"
+        },
+        {
+          "check_id": "4.16", "name": "表非串行并行度", "priority": "P2", "source_module": "db_security",
+          "extract": {"json_path": "db.security.table_degree_gt_one", "aggregation": "raw"},
+          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}}},
+          "optimization_advice": "核对表 DEGREE 大于 1 或 DEFAULT 的业务需求；这是配置复核提示，不证明性能故障。批量任务后确认是否需恢复 NOPARALLEL。"
+        },
+        {
+          "check_id": "4.17", "name": "索引非串行并行度", "priority": "P2", "source_module": "db_security",
+          "extract": {"json_path": "db.security.indexes_degree_gt_one", "aggregation": "raw"},
+          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}}},
+          "optimization_advice": "核对索引 DEGREE 大于 1 或 DEFAULT 的业务需求；索引重建后确认是否需恢复 NOPARALLEL，防止意外并行资源消耗。"
         }
       ]
     },
