@@ -26,7 +26,7 @@ class OracleSecurityDepthTests(unittest.TestCase):
             "installed_sql_patches": {"items": [{"patch_id": 123}]},
             "failed_patch_attempts": {"items": []}, "invalid_components": {"items": []},
             "patch_history": {"items": []},
-        }, "backup": {"successful_backup_age_hours": 12, "failed_jobs": {"items": []},
+        }, "backup": {"successful_data_backup": True, "successful_backup_age_hours": 12, "failed_jobs": {"items": []},
                        "flashback_on": "YES", "block_corruption": {"items": []}}}}
 
     def summary(self):
@@ -44,10 +44,10 @@ class OracleSecurityDepthTests(unittest.TestCase):
         security.update(audit_trail="NONE", resource_limit="FALSE", encrypted_tablespaces=0, installed_sql_patches={"items": []})
         self.result["db"]["backup"].update(successful_backup_age_hours=200, failed_jobs={"items": [{"status": "FAILED"}]}, flashback_on="NO", block_corruption={"items": [{"blocks": 1}]})
         levels = {item["check_id"]: item["level"] for item in self.summary()["abnormal_items"]}
-        self.assertEqual(levels, {"5.5": "critical", "5.6": "warning", "5.7": "critical", "5.8": "warning", "5.9": "warning", "5.10": "warning", "5.11": "warning", "5.12": "warning", "6.4": "critical", "6.5": "critical", "6.6": "warning", "6.7": "critical", "8.1": "warning", "8.2": "warning", "8.3": "warning"})
+        self.assertEqual(levels, {"5.5": "critical", "5.6": "critical", "5.7": "critical", "5.8": "critical", "5.9": "warning", "5.10": "warning", "5.11": "warning", "5.12": "warning", "6.4": "critical", "6.5": "critical", "6.6": "critical", "6.7": "critical", "8.1": "warning", "8.2": "warning", "8.3": "warning"})
 
     def test_backup_age_distinguishes_missing_stale_and_recent(self):
-        for age, level in ((1000000000, "critical"), (49, "warning"), (169, "critical")):
+        for age, level in ((49, "warning"), (169, "critical")):
             with self.subTest(age=age):
                 self.result["db"]["backup"]["successful_backup_age_hours"] = age
                 item = next(item for item in self.summary()["abnormal_items"] if item["check_id"] == "6.4")

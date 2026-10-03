@@ -149,7 +149,7 @@ func runCommand(session *ssh.Session, command string) (string, error) {
 	session.Stderr = &stderr
 	err := session.Run(command)
 	if err != nil {
-		return "", fmt.Errorf("remote command failed: %w: %s", err, strings.TrimSpace(stderr.String()))
+		return stdout.String() + stderr.String(), fmt.Errorf("remote command failed: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	return stdout.String(), nil
 }

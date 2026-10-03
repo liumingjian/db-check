@@ -26,7 +26,7 @@ class OraclePerformanceJudgmentTests(unittest.TestCase):
         for latency, level in ((10, None), (10.1, 'warning'), (50, 'warning'), (50.1, 'critical')):
             with self.subTest(latency=latency):
                 self.result['db']['performance']['wait_events'] = {'items': [{'event': 'db file sequential read', 'avg_wait_ms': latency}]}
-                item = self.states().get('4.11')
+                item = self.states().get('4.17')
                 self.assertEqual(item['level'] if item else None, level)
 
     def test_ratios_cover_latch_resource_and_time_model_boundaries(self):
@@ -37,7 +37,7 @@ class OraclePerformanceJudgmentTests(unittest.TestCase):
                 performance['resource_limits'] = {'items': [{'resource_name': 'sessions', 'usage_pct': resource}]}
                 performance['time_model_ratios'] = {'items': [{'parse_pct': parsing}]}
                 states = self.states()
-                for check_id in ('4.12', '4.13', '4.14'):
+                for check_id in ('4.18', '4.19', '4.20'):
                     item = states.get(check_id)
                     self.assertEqual(item['level'] if item else None, expected)
 
@@ -51,26 +51,26 @@ class OraclePerformanceJudgmentTests(unittest.TestCase):
                                          'remediation': 'Confirm timing and resource limits, then recollect.'}
             for source in ('latch_miss_ratios', 'resource_limits', 'time_model_ratios')}
         states = self.states()
-        for check_id in ('4.12', '4.13', '4.14'):
+        for check_id in ('4.18', '4.19', '4.20'):
             self.assertIn(check_id, states)
             self.assertNotIn(states[check_id].get('level'), ('normal', 'warning', 'critical'))
         self.result['db']['collection_availability'] = {
             'db.performance.latch_miss_ratios': {'readable': False, 'error_code': 'ORA-01031', 'reason': 'denied', 'remediation': 'Grant latch access.'},
             'db.performance.time_model_ratios': {'readable': False, 'error_code': 'ORA-03113', 'reason': 'lost connection'}}
-        self.assertEqual(self.states()['4.12']['reason_type'], 'insufficient_privilege')
-        self.assertEqual(self.states()['4.14']['reason_type'], 'not_collected')
+        self.assertEqual(self.states()['4.18']['reason_type'], 'insufficient_privilege')
+        self.assertEqual(self.states()['4.20']['reason_type'], 'not_collected')
 
     def test_undo_errors_and_parallel_degrees_produce_findings(self):
         self.result['db']['performance']['undo_stats'] = {'items': [{'error_count': 1}]}
         self.result['db']['security'].update(table_degree_gt_one={'items': [{'table_name': 'ORDERS', 'degree': 'DEFAULT'}]},
                                            indexes_degree_gt_one={'items': [{'index_name': 'ORDER_IDX', 'degree': '16'}]})
-        self.assertEqual(self.states()['4.15']['level'], 'critical')
-        self.assertEqual(self.states()['4.16']['level'], 'warning')
-        self.assertEqual(self.states()['4.17']['level'], 'warning')
+        self.assertEqual(self.states()['4.21']['level'], 'critical')
+        self.assertEqual(self.states()['4.22']['level'], 'warning')
+        self.assertEqual(self.states()['4.23']['level'], 'warning')
         self.result['db']['performance']['undo_stats'] = {'items': [{'error_count': 0}]}
         self.result['db']['security'].update(table_degree_gt_one={'items': []}, indexes_degree_gt_one={'items': []})
         states = self.states()
-        for check_id in ('4.15', '4.16', '4.17'):
+        for check_id in ('4.21', '4.22', '4.23'):
             self.assertNotIn(check_id, states)
 
     def test_original_27_identifiers_remain_in_original_dimension(self):

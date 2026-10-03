@@ -17,9 +17,9 @@ class OracleSpecializedTests(unittest.TestCase):
             "deployment_topology": {"role": "standby", "is_asm": True, "is_rac": True},
             "data_guard": {"transport_lag_seconds": 0, "apply_lag_seconds": 0, "archive_gap": {"items": []},
                            "protection_mode": "MAXIMUM AVAILABILITY", "destination_errors": {"items": []}},
-            "asm": {"diskgroups": {"items": [{"state": "CONNECTED", "unhealthy": 0, "used_pct": 50, "offline_disks": 0, "usable_file_mb": 500}]}},
-            "rac": {"instances": {"items": [{"inst_id": 2, "unhealthy": 0}]}, "parameters": {"items": [{"inst_id": 2, "name": "spfile", "value": "+DATA/spfile"}]}},
-            "host_checks": {"listener": {"unhealthy": False}, "clusterware": {"unhealthy": False}},
+            "asm": {"diskgroups": {"items": [{"state": "CONNECTED", "used_pct": 50, "offline_disks": 0, "usable_file_mb": 500}]}},
+            "rac": {"instances": {"items": [{"inst_id": 2, "status": "OPEN", "database_status": "ACTIVE", "active_state": "NORMAL"}]}, "parameters": {"items": [{"inst_id": 2, "name": "spfile", "value": "+DATA/spfile"}]}},
+            "host_checks": {"listener": {"output": "Listener ready", "command_succeeded": True}, "clusterware": {"output": "Cluster ready", "command_succeeded": True}},
         }
 
     def summary(self):
@@ -34,9 +34,9 @@ class OracleSpecializedTests(unittest.TestCase):
 
     def test_lag_gap_storage_instance_and_host_failures_are_critical(self):
         self.db["data_guard"].update(transport_lag_seconds=301, apply_lag_seconds=301, archive_gap={"items": [{"thread": 1}]}, destination_errors={"items": [{"error": "ORA-12514"}]})
-        self.db["asm"]["diskgroups"]["items"][0].update(used_pct=91, offline_disks=1, unhealthy=1, usable_file_mb=-1)
-        self.db["rac"]["instances"]["items"][0]["unhealthy"] = 1
-        self.db["host_checks"]["clusterware"]["unhealthy"] = True
+        self.db["asm"]["diskgroups"]["items"][0].update(used_pct=91, offline_disks=1, state="DISMOUNTED", usable_file_mb=-1)
+        self.db["rac"]["instances"]["items"][0]["active_state"] = "QUIESCED"
+        self.db["host_checks"]["clusterware"] = {"output": "CRS-4535", "command_succeeded": False}
         self.assertEqual({i["check_id"] for i in self.summary()["abnormal_items"]}, {"9.1", "9.2", "9.3", "9.5", "10.1", "10.2", "10.3", "10.4", "11.1", "12.2"})
 
     def test_missing_lag_and_host_access_never_read_normal(self):

@@ -33,7 +33,7 @@ def validate_artifacts(run_dir: Path, version: str) -> None:
         "db.performance.wait_events", "db.performance.latch_miss_ratios",
         "db.performance.resource_limits", "db.performance.time_model_ratios",
     }
-    allowed_ids = {"12.1", "13.1", "4.11", "4.12", "4.13", "4.14"}
+    allowed_ids = {"12.1", "13.1", "4.17", "4.18", "4.19", "4.20"}
     if version == "11g":
         allowed_paths.update({"db.alert_log", "db.security.installed_sql_patches", "db.security.failed_patch_attempts"})
         allowed_ids.update({"7.1", "7.2", "8.1", "8.2"})
@@ -51,7 +51,7 @@ def validate_artifacts(run_dir: Path, version: str) -> None:
                      "public_system_privileges", "audit_trail", "resource_limit", "encrypted_tablespaces",
                      "encryption_wallets", "database_links", "patch_history", "invalid_components",
                      "table_degree_gt_one", "indexes_degree_gt_one"),
-        "backup": ("successful_backup_age_hours", "failed_jobs", "flashback_on", "block_corruption", "archive_destination_errors"),
+        "backup": ("successful_backup_age_hours", "successful_data_backup", "failed_jobs", "flashback_on", "block_corruption", "archive_destination_errors"),
         "performance": ("wait_events", "latch_data", "latch_miss_ratios", "resource_limits", "time_model",
                         "time_model_ratios", "undo_stats"),
     }

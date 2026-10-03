@@ -171,7 +171,7 @@ def _evaluate_single_check(
                                  "advice": "未取得可判断的数据，请客户 DBA 核对采集错误及该数据库能力后，在原连接容器重新采集。"})
         return
     row_count = _derive_row_count(observed)
-    level, reason = evaluate_check(check, observed, row_count)
+    level, reason = evaluate_check(check, observed, row_count, result)
     _append_evaluation(check, module, observed, level, reason, counts, abnormal_items, unevaluated_items)
 
 
@@ -241,7 +241,10 @@ def _append_evaluation(
     elif level == "normal":
         counts["normal"] += 1
     else:
-        unevaluated_items.append({"check_id": check["check_id"], "reason_type": "failed", "reason": reason, "source_module": module})
+        missing = reason.startswith(("missing or invalid", "row condition evidence", "critical condition evidence", "row evidence"))
+        unevaluated_items.append({"check_id": check["check_id"], "reason_type": "not_collected" if missing else "failed", "reason": reason, "source_module": module,
+                                 "name": check["name"], "dimension_name": check["dimension_name"],
+                                 "advice": "请 DBA 核对缺失或无效指标并重新采集。" if missing else check.get("optimization_advice", "")})
 
 
 def _finalize_counts(counts: dict[str, int], unevaluated_items: list[dict[str, Any]], na_items: list[dict[str, Any]]) -> None:

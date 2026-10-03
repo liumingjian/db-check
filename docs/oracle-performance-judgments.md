@@ -1,18 +1,18 @@
 # Oracle performance judgments
 
-Checks 4.11 through 4.17 judge previously informational datasets. They preserve the original 27 identifiers.
+Checks 4.17 through 4.23 judge previously informational datasets. They preserve the original 27 identifiers.
 
 | Check | Metric | Warning | Critical |
 | --- | --- | --- | --- |
-| 4.11 | Maximum average non-idle wait within collected TopN events, milliseconds | >10 | >50 |
-| 4.12 | Maximum willing-to-wait latch misses/gets, percent | >1 | >5 |
-| 4.13 | Maximum current use/finite positive limit across collected resources and instances, percent | >80 | >90 |
-| 4.14 | Parse time elapsed/DB time, percent | >10 | >20 |
-| 4.15 | ORA-01555 plus no-space errors in collected recent UNDO intervals | None | >0 |
-| 4.16 | Tables configured for non-serial degree, including DEFAULT | Any row | None |
-| 4.17 | Indexes configured for non-serial degree, including DEFAULT | Any row | None |
+| 4.17 | Maximum average non-idle wait within collected TopN events, milliseconds | >10 | >50 |
+| 4.18 | Maximum willing-to-wait latch misses/gets, percent | >1 | >5 |
+| 4.19 | Maximum current use/finite positive limit across collected resources and instances, percent | >80 | >90 |
+| 4.20 | Parse time elapsed/DB time, percent | >10 | >20 |
+| 4.21 | ORA-01555 plus no-space errors in collected recent UNDO intervals | None | >0 |
+| 4.22 | Tables configured for non-serial degree, including DEFAULT | Any row | None |
+| 4.23 | Indexes configured for non-serial degree, including DEFAULT | Any row | None |
 
-The latency, latch and parsing thresholds are local investigation baselines, not verified thresholds from both reference platforms. The resource thresholds reuse the existing capacity baseline. Any recorded UNDO error warrants investigation; parallel degree is an advisory configuration review rather than proof of a performance fault. EasyDBA was inaccessible during reference research, so no conservative-of-two claim is made.
+The latency, latch and parsing thresholds are project investigation baselines. The resource thresholds reuse the existing capacity baseline. Neither reviewed reference supplies thresholds for these same metrics and units. Any recorded UNDO error warrants investigation; parallel degree is an advisory configuration review rather than proof of a performance fault. See [reference comparison](oracle-threshold-reference.md) for the pinned sources and verified comparisons. IDs 4.11–4.16 remain reserved for uploaded AWR checks; the Collector does not read licensed diagnostic data.
 
 ## Time and scope
 

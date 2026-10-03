@@ -45,10 +45,17 @@ class OracleAvailabilityTests(unittest.TestCase):
         self.assertEqual(counts['total_checks'], sum(counts[k] for k in ('normal', 'warning', 'critical', 'unevaluated', 'not_applicable')))
 
     def test_legacy_error_blocks_placeholder_and_unknown_gate_does_not_mark_na(self):
+        self.result['db']['deployment_topology']['is_asm'] = None
         self.result['db']['collect_errors'] = ['oracle.security.expired_users: ORA-00942: missing view']
         check = copy.deepcopy(self.rule['dimensions'][1]['checks'][0])
         check['evaluation'] = {'method': 'gate', 'gate': {'json_path': 'db.deployment_topology.is_asm', 'operator': '==', 'value': True}, 'na_check_ids': ['5.4']}
         self.rule['dimensions'][1]['checks'][0] = check
         summary = generate_summary(self.manifest, self.result, self.rule)
         self.assertNotIn('5.4', {x['check_id'] for x in summary['na_items']})
+        self.assertEqual(next(x for x in summary['unevaluated_items'] if x['check_id'] == '5.4')['reason_type'], 'not_collected')
+        check['evaluation'] = {'method': 'info'}
+        summary = generate_summary(self.manifest, self.result, self.rule)
         self.assertEqual(next(x for x in summary['unevaluated_items'] if x['check_id'] == '5.4')['reason_type'], 'insufficient_privilege')
+        check['evaluation'] = {'method': 'gate', 'gate': {'json_path': 'db.deployment_topology.is_asm', 'operator': '==', 'value': True}, 'na_check_ids': ['5.4']}
+        self.result['db']['deployment_topology']['is_asm'] = False
+        self.assertIn('5.4', {x['check_id'] for x in generate_summary(self.manifest, self.result, self.rule)['na_items']})

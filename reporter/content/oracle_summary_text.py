@@ -31,13 +31,13 @@ from reporter.content.summary_text_common import (
 
 BUSINESS_DIMENSIONS = (
     ("操作系统资源", {"操作系统资源"}),
-    ("数据库可用性", {"实例与架构基础"}),
+    ("数据库可用性", {"实例与架构基础", "告警日志", "RAC 实例", "Oracle 主机服务", "采集覆盖范围"}),
     ("数据库性能", {"性能与 SQL"}),
-    ("安全配置", {"安全与权限"}),
-    ("备份与恢复", {"备份与可恢复性"}),
+    ("安全配置", {"安全与权限", "补丁与组件"}),
+    ("备份与恢复", {"备份与可恢复性", "Data Guard"}),
     ("参数配置", set()),
     ("对象与索引", set()),
-    ("容量规划", {"存储与表空间"}),
+    ("容量规划", {"存储与表空间", "ASM 存储"}),
 )
 
 DIMENSION_LABELS = make_dimension_labels(BUSINESS_DIMENSIONS)

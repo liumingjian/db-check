@@ -32,19 +32,20 @@ class ReporterOrchestratorTests(unittest.TestCase):
             self.assertTrue((run_dir / "report.docx").exists())
             report_view = json.loads((run_dir / "report-view.json").read_text(encoding="utf-8"))
             self.assertEqual(report_view["title"], "report.docx")
-            summary_titles = [item["title"] for item in report_view["sections"][1]["children"]]
+            summary_section = next(section for section in report_view["sections"] if section["title"] == "第一章 巡检总结")
+            detail_section = next(section for section in report_view["sections"] if section["title"] == "第二章 巡检明细")
+            summary_titles = [item["title"] for item in summary_section["children"]]
             self.assertEqual(
                 summary_titles,
                 ["1.1 巡检告警定义", "1.2 巡检范围", "1.3 综合健康评估", "1.4 风险发现与整改建议", "1.5 巡检结论"],
             )
-            self.assertEqual(report_view["sections"][1]["title"], "第一章 巡检总结")
-            conclusion_table = report_view["sections"][1]["children"][4]["tables"][0]
+            conclusion_table = summary_section["children"][4]["tables"][0]
             self.assertEqual(conclusion_table["title"], "巡检结论摘要")
             self.assertEqual(conclusion_table["column_width_weights"], [20, 80])
             self.assertTrue(any("**" in row[1] for row in conclusion_table["rows"]))
-            detail_titles = [item["title"] for item in report_view["sections"][2]["children"]]
+            detail_titles = [item["title"] for item in detail_section["children"]]
             self.assertEqual(detail_titles, ["2.1 系统指标", "2.2 数据库指标"])
-            system_section = report_view["sections"][2]["children"][0]
+            system_section = detail_section["children"][0]
             system_child_titles = [item["title"] for item in system_section["children"]]
             self.assertEqual(
                 system_child_titles,
@@ -57,7 +58,7 @@ class ReporterOrchestratorTests(unittest.TestCase):
                     "2.1.6 网络接口明细",
                 ],
             )
-            db_child_titles = [item["title"] for item in report_view["sections"][2]["children"][1]["children"]]
+            db_child_titles = [item["title"] for item in detail_section["children"][1]["children"]]
             self.assertEqual(
                 db_child_titles,
                 [
@@ -67,6 +68,7 @@ class ReporterOrchestratorTests(unittest.TestCase):
                     "2.2.4 SQL 分析",
                     "2.2.5 安全与对象健康",
                     "2.2.6 备份与可恢复性",
+                    "2.2.7 Data Guard、ASM 与 RAC",
                 ],
             )
             system_rows = system_section["tables"][0]["rows"]
@@ -76,16 +78,16 @@ class ReporterOrchestratorTests(unittest.TestCase):
             self.assertNotIn("数据库进程 fd 使用率", labels)
             filesystem_table = system_section["children"][3]["tables"][0]
             self.assertEqual(filesystem_table["column_width_weights"], [10, 15, 10, 13, 12, 12, 10, 10, 8])
-            storage_section = report_view["sections"][2]["children"][1]["children"][1]
+            storage_section = detail_section["children"][1]["children"][1]
             storage_table_titles = [table["title"] for table in storage_section["tables"]]
             self.assertEqual(
                 storage_table_titles,
-                ["存储摘要", "表空间使用情况", "数据文件明细", "控制文件明细", "Redo日志明细", "待恢复数据文件", "表碎片分析", "无效对象", "不可用索引"],
+                ["存储摘要", "表空间使用情况", "临时表空间活跃使用量", "SYSAUX 使用情况", "最大段明细(前 20 项)", "告警日志 ORA 错误汇总", "数据文件明细", "控制文件明细", "Redo日志明细", "待恢复数据文件", "表碎片分析", "无效对象", "不可用索引"],
             )
             for table in storage_section["tables"]:
                 self.assertTrue(table["column_width_weights"], msg=f"missing widths for {table['title']}")
                 self.assertEqual(len(table["column_width_weights"]), len(table["columns"]), msg=f"invalid widths for {table['title']}")
-            performance_section = report_view["sections"][2]["children"][1]["children"][2]
+            performance_section = detail_section["children"][1]["children"][2]
             performance_titles = [table["title"] for table in performance_section["tables"]]
             self.assertEqual(
                 performance_titles,
@@ -108,17 +110,17 @@ class ReporterOrchestratorTests(unittest.TestCase):
                     "SGA Resize历史",
                 ],
             )
-            sql_section = report_view["sections"][2]["children"][1]["children"][3]
+            sql_section = detail_section["children"][1]["children"][3]
             sql_table_titles = [table["title"] for table in sql_section["tables"]]
             self.assertEqual(
                 sql_table_titles,
                 ["SQL 指标摘要", "Top SQL（按耗时）", "Top SQL（按逻辑读）", "Top SQL（按物理读）", "Top SQL（按执行次数）", "高解析SQL", "高版本SQL"],
             )
-            backup_section = report_view["sections"][2]["children"][1]["children"][5]
+            backup_section = detail_section["children"][1]["children"][5]
             backup_titles = [table["title"] for table in backup_section["tables"]]
             self.assertEqual(
                 backup_titles,
-                ["备份摘要", "最近备份记录", "归档目的地", "归档目的地异常", "归档日志摘要", "恢复区使用情况"],
+                ["备份摘要", "最近备份记录", "归档目的地", "归档目的地异常", "归档日志摘要", "恢复区使用情况", "最近七天 RMAN 失败作业", "已知数据块损坏"],
             )
             for table in _collect_tables(report_view["sections"]):
                 if not table["title"]:

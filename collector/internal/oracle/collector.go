@@ -15,6 +15,7 @@ type metricsCollector struct {
 	errors            []string
 	availability      map[string]any
 	inspectionAccount map[string]any
+	majorVersion      int
 }
 
 func (Collector) Collect(ctx context.Context, cfg cli.Config, _ string, _ core.ArtifactWriter) (map[string]any, error) {
@@ -38,6 +39,7 @@ func newMetricsCollector(db *sql.DB, cfg cli.Config) *metricsCollector {
 
 func (c *metricsCollector) collectAll(ctx context.Context) map[string]any {
 	version, topology := c.collectDeployment(ctx)
+	c.majorVersion = version["major"].(int)
 	payload := map[string]any{
 		"version_info":        version,
 		"deployment_topology": topology,

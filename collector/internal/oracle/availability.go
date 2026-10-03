@@ -64,6 +64,12 @@ func (c *metricsCollector) recordQuery(scope, query string, err error) {
 
 func grantObject(object string) string {
 	object = strings.TrimPrefix(strings.ToUpper(object), "SYS.")
+	if object == "GV$TEMPSEG_USAGE" {
+		return "SYS.GV_$SORT_USAGE"
+	}
+	if object == "V$TEMPSEG_USAGE" {
+		return "SYS.V_$SORT_USAGE"
+	}
 	if strings.HasPrefix(object, "GV$") {
 		object = "GV_$" + object[3:]
 	} else if strings.HasPrefix(object, "V$") {
@@ -83,7 +89,7 @@ func (c *metricsCollector) precheckPrivileges(ctx context.Context, major int) ma
 	if major >= 12 {
 		objects = append(objects, "V_$PDBS", "V_$DIAG_ALERT_EXT", "DBA_REGISTRY_SQLPATCH")
 	}
-	objects = append(objects, "DBA_TEMP_FILES", "DBA_SEGMENTS", "DBA_RECYCLEBIN", "GV_$TEMPSEG_USAGE")
+	objects = append(objects, "DBA_TEMP_FILES", "DBA_SEGMENTS", "DBA_RECYCLEBIN", "GV_$SORT_USAGE")
 	probes := []map[string]any{}
 	for _, object := range objects {
 		rows, err := c.db.QueryContext(ctx, "SELECT * FROM SYS."+object+" WHERE 1=0")

@@ -18,7 +18,7 @@ func TestAlertCollectionSummarizesEveryCodeAndDeduplicatesPerRecord(t *testing.T
 	defer db.Close()
 	c := newMetricsCollector(db, cli.Config{})
 	payload := c.collectAlertLog(context.Background(), map[string]any{"major": 19})
-	if payload["critical_count"] != 5 || payload["warning_count"] != 1 || payload["matching_records"] != 2 {
+	if payload["critical_count"] != nil || payload["warning_count"] != nil || payload["matching_records"] != 2 {
 		t.Fatalf("unexpected alert summary: %#v", payload)
 	}
 	items := payload["errors"].(map[string]any)["items"].([]map[string]any)
@@ -26,6 +26,9 @@ func TestAlertCollectionSummarizesEveryCodeAndDeduplicatesPerRecord(t *testing.T
 		t.Fatalf("expected five distinct codes: %#v", items)
 	}
 	for _, item := range items {
+		if item["severity"] != nil {
+			t.Fatal("Collector must retain factual codes without severity")
+		}
 		if item["error_code"] == "ORA-00600" && (item["count"] != 2 || item["latest_time"] != "2026-10-03") {
 			t.Fatalf("unexpected internal-error summary: %#v", item)
 		}

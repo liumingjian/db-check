@@ -52,11 +52,12 @@ type deploymentFixture struct {
 	missingCDB                              bool
 	queries                                 *[]string
 	pdbError                                bool
+	isDBA                                   string
 }
 
 func TestDeploymentDetectsRACStandbyASMAndListsPDBs(t *testing.T) {
 	c := deploymentCollector(t, deploymentFixture{
-		version: "19.3.0.0.0", rac: "TRUE", role: "PHYSICAL STANDBY", cdb: "YES", asm: "YES", container: "CDB$ROOT",
+		version: "19.3.0.0.0", rac: "TRUE", role: "PHYSICAL STANDBY", cdb: "YES", asm: "YES", container: "CDB$ROOT", isDBA: "TRUE",
 		pdbs: [][]driver.Value{{int64(2), "PDB$SEED", "READ ONLY", "NO", int64(104857600)}, {int64(3), "APP", "MOUNTED", "NO", int64(209715200)}},
 	})
 	_, topology := c.collectDeployment(context.Background())
@@ -143,6 +144,8 @@ func (c deploymentConn) QueryContext(_ context.Context, query string, _ []driver
 			return nil, errors.New("ORA-01031: insufficient privileges")
 		}
 		value = f.cdb
+	case strings.Contains(query, "ISDBA"):
+		value = f.isDBA
 	case strings.Contains(query, "SYS_CONTEXT"):
 		value = f.container
 	case strings.Contains(query, "v$pdbs"):

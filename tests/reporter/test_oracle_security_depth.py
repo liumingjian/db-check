@@ -17,7 +17,7 @@ class OracleSecurityDepthReportTests(unittest.TestCase):
         result = {"db": {"security": {
             "database_links": {"items": [{"owner": "APP", "db_link": "REMOTE", "username": "REMOTE_USER", "created": "2026-01-01"}]},
             "installed_sql_patches": {"items": [{"patch_id": 123, "patch_uid": 456, "description": "RU"}]},
-        }, "backup": {"successful_backup_age_hours": 1000000000, "flashback_on": "NO",
+        }, "backup": {"successful_data_backup": False, "successful_backup_age_hours": None, "flashback_on": "NO",
                        "block_corruption": {"items": [{"file_number": 2, "block_number": 7, "blocks": 1, "corruption_type": "CHECKSUM"}]}}}}
         sections = self.sections(result)
         security = next(section for section in sections if section.title == "2.2.5 安全与对象健康")

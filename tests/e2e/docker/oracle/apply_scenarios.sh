@@ -58,6 +58,11 @@ SQL
 wait_for_oracle() {
   local attempt
   for attempt in $(seq 1 120); do
+    # The 19c image accepts SQL during DBCA, before its final restart and PDB setup.
+    if [[ "$OVERRIDE_COMPOSE_FILE" == *oracle19c* ]] && ! compose_exec logs --no-color oracle 2>/dev/null | grep -q 'DATABASE IS READY TO USE'; then
+      sleep 5
+      continue
+    fi
     if run_sql "SELECT 1 FROM dual;" >/dev/null 2>&1; then
       echo "[INFO] oracle is ready after ${attempt} attempt(s)"
       return 0
