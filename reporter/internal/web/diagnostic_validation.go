@@ -55,8 +55,8 @@ func (h *apiHandler) handleValidateDiagnostics(w http.ResponseWriter, r *http.Re
 		return
 	}
 	checks := []DiagnosticCheck{}
-	for i, item := range items {
-		results, err := validateDiagnosticItem(r.Context(), validator, dir, form, i, item)
+	for _, item := range items {
+		results, err := validateDiagnosticItem(r.Context(), validator, diagnosticItemValidation{dir: dir, form: form, item: item})
 		if err != nil {
 			h.writeAPIError(w, err)
 			return
@@ -111,7 +111,7 @@ func (f uploadForm) diagnosticAttachments(dir string, position int) []diagnostic
 				uploadID = wdrUploadID(id, k)
 			}
 			name := filepath.Base(header.Filename)
-			attachments = append(attachments, diagnosticAttachment{kind, name, uploadPath(filepath.Join(dir, "uploads"), kind, uploadID, name)})
+			attachments = append(attachments, diagnosticAttachment{kind, name, uploadPath(filepath.Join(dir, "uploads"), uploadName{kind: kind, itemID: uploadID, name: name})})
 		}
 	}
 	return attachments
@@ -119,7 +119,7 @@ func (f uploadForm) diagnosticAttachments(dir string, position int) []diagnostic
 
 func prepareDiagnosticInput(dir string, item reports.Item, attachments []diagnosticAttachment) (ItemInput, []DiagnosticCheck, []int) {
 	id := strconv.Itoa(item.Position)
-	input := ItemInput{ID: id, Name: item.FileName, ZipPath: uploadPath(filepath.Join(dir, "uploads"), "zip", id, item.FileName)}
+	input := ItemInput{ID: id, Name: item.FileName, ZipPath: uploadPath(filepath.Join(dir, "uploads"), uploadName{kind: "zip", itemID: id, name: item.FileName})}
 	results := make([]DiagnosticCheck, len(attachments))
 	validPositions := []int{}
 	for k, attachment := range attachments {
@@ -143,11 +143,17 @@ func prepareDiagnosticInput(dir string, item reports.Item, attachments []diagnos
 	return input, results, validPositions
 }
 
-func validateDiagnosticItem(ctx context.Context, validator diagnosticValidator, dir string, form uploadForm, position int, item reports.Item) ([]DiagnosticCheck, error) {
-	attachments := form.diagnosticAttachments(dir, position)
-	input, results, validPositions := prepareDiagnosticInput(dir, item, attachments)
+type diagnosticItemValidation struct {
+	dir  string
+	form uploadForm
+	item reports.Item
+}
+
+func validateDiagnosticItem(ctx context.Context, validator diagnosticValidator, request diagnosticItemValidation) ([]DiagnosticCheck, error) {
+	attachments := request.form.diagnosticAttachments(request.dir, request.item.Position-1)
+	input, results, validPositions := prepareDiagnosticInput(request.dir, request.item, attachments)
 	if len(validPositions) > 0 {
-		validated, err := validator.ValidateDiagnostics(ctx, dir, input)
+		validated, err := validator.ValidateDiagnostics(ctx, request.dir, input)
 		if err != nil {
 			return nil, err
 		}
@@ -159,7 +165,7 @@ func validateDiagnosticItem(ctx context.Context, validator diagnosticValidator, 
 		}
 	}
 	for k := range results {
-		results[k].ItemPosition = position + 1
+		results[k].ItemPosition = request.item.Position
 		results[k].AttachmentPosition = k + 1
 		results[k].FileName = attachments[k].name
 	}
