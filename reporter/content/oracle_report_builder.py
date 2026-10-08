@@ -6,6 +6,7 @@ from typing import Any
 
 from reporter.content.helpers import full_table, key_value_table
 from reporter.content.oracle_database_sections import build_oracle_database_sections
+from reporter.content.oracle_topology_section import build_oracle_topology_section
 from reporter.content.oracle_summary_text import (
     business_dimensions,
     conclusion_paragraphs,
@@ -13,6 +14,7 @@ from reporter.content.oracle_summary_text import (
     display_dimension_name,
     group_abnormal_items,
     health_summary,
+    coverage_gaps,
     impact_analysis,
     risk_description,
 )
@@ -29,6 +31,7 @@ ORACLE_SUMMARY_STRATEGY = SummaryStrategy(
     impact_analysis=impact_analysis,
     conclusion_rows=conclusion_rows,
     conclusion_paragraphs=conclusion_paragraphs,
+    coverage_gaps=coverage_gaps,
 )
 
 
@@ -36,11 +39,24 @@ def build_oracle_report_view(result: dict[str, Any], summary: dict[str, Any], me
     generated_at = str(summary.get("generated_at") or result.get("meta", {}).get("collect_time", ""))
     title = _resolve_title(meta)
     sections = (
+        build_oracle_topology_section(result),
         _build_doc_control(meta),
         build_summary_section(result, summary, meta, ORACLE_SUMMARY_STRATEGY),
         _build_detail_section(result),
+        _build_coverage_section(result, summary),
     )
     return ReportView(title=title, generated_at=generated_at, sections=sections)
+
+
+def _build_coverage_section(result: dict[str, Any], summary: dict[str, Any]) -> SectionBlock:
+    gaps = coverage_gaps(summary)
+    rows = tuple((str(item.get("check_id", "")), str(item.get("name", item.get("check_id", ""))),
+                  "权限不足" if item.get("reason_type") == "insufficient_privilege" else "未采集",
+                  str(item.get("reason", "")), str(item.get("advice") or "请客户 DBA 检查采集错误，在原连接容器修复访问条件后重新采集。")) for item in gaps)
+    container = result.get("db", {}).get("deployment_topology", {}).get("connected_container") or "未知"
+    return SectionBlock(title="第三章 巡检覆盖缺口与补采建议", status="derived",
+                        paragraphs=(f"当前连接容器：{container}。仅巡检当前容器，授权后请使用原连接参数重新运行 Collector。",),
+                        tables=(full_table("覆盖缺口", ("检查 ID", "检查项", "检查状态", "原因", "操作建议"), rows or (("-", "-", "无覆盖缺口", "-", "-"),), status="derived"),))
 
 
 def _resolve_title(meta: dict[str, Any]) -> str:
@@ -81,8 +97,11 @@ def _list_table(title: str, columns: tuple[str, ...], items: list[dict[str, Any]
 
 
 def _build_detail_section(result: dict[str, Any]) -> SectionBlock:
+    evidence = result.get("db", {}).get("collection_availability", {})
+    missing = [path for path, item in evidence.items() if isinstance(item, dict) and item.get("readable") is not True]
     return SectionBlock(
         title="第二章 巡检明细",
+        note="以下数据源未成功读取，明细中的零值或空表不能解读为正常：" + "、".join(missing) if missing else "",
         children=(
             build_os_section(
                 result,

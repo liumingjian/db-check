@@ -4,15 +4,21 @@
     "rule_version": "1.0.0",
     "rule_name": "Oracle 数据库巡检规则模板",
     "db_type": "oracle",
-    "target_versions": ["11g", "19c"],
-    "updated_at": "2026-03-12",
-    "target": "自建 Oracle 11g / 19c",
-    "total_checks": 27,
+    "target_versions": [
+      "11gR2",
+      "12c",
+      "19c",
+      "21c",
+      "23ai"
+    ],
+    "updated_at": "2026-10-03",
+    "target": "自建 Oracle 11gR2 / 12c（含 18c）/ 19c / 21c / 23ai；11gR2、19c 本实现 smoke 待验证，12c、21c、23ai 未经过容器验证",
+    "total_checks": 70,
     "priority_summary": {
-      "P0": 8,
-      "P1": 12,
-      "P2": 6,
-      "P3": 1
+      "P0": 23,
+      "P1": 34,
+      "P2": 11,
+      "P3": 2
     }
   },
   "dimensions": [
@@ -25,8 +31,20 @@
           "name": "CPU 使用率",
           "priority": "P1",
           "source_module": "os",
-          "extract": {"json_path": "os.cpu.samples[*].usage_percent", "aggregation": "avg"},
-          "thresholds": {"warning": {"operator": ">", "value": 70}, "critical": {"operator": ">", "value": 90}},
+          "extract": {
+            "json_path": "os.cpu.samples[*].usage_percent",
+            "aggregation": "avg"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 70
+            },
+            "critical": {
+              "operator": ">",
+              "value": 90
+            }
+          },
           "optimization_advice": "排查高 CPU SQL 与异常进程"
         },
         {
@@ -34,8 +52,20 @@
           "name": "内存使用率",
           "priority": "P1",
           "source_module": "os",
-          "extract": {"json_path": "os.memory.samples[*].usage_percent", "aggregation": "avg"},
-          "thresholds": {"warning": {"operator": ">", "value": 85}, "critical": {"operator": ">", "value": 95}},
+          "extract": {
+            "json_path": "os.memory.samples[*].usage_percent",
+            "aggregation": "avg"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 85
+            },
+            "critical": {
+              "operator": ">",
+              "value": 95
+            }
+          },
           "optimization_advice": "检查 SGA/PGA 与主机内存分配"
         },
         {
@@ -43,8 +73,20 @@
           "name": "磁盘使用率",
           "priority": "P0",
           "source_module": "os",
-          "extract": {"json_path": "os.filesystem.samples[*].mountpoints[*].usage_percent", "aggregation": "max"},
-          "thresholds": {"warning": {"operator": ">", "value": 80}, "critical": {"operator": ">", "value": 90}},
+          "extract": {
+            "json_path": "os.filesystem.samples[*].mountpoints[*].usage_percent",
+            "aggregation": "max"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 80
+            },
+            "critical": {
+              "operator": ">",
+              "value": 90
+            }
+          },
           "optimization_advice": "检查数据目录、归档目录与备份目录容量"
         }
       ]
@@ -58,8 +100,13 @@
           "name": "RAC 架构识别",
           "priority": "P3",
           "source_module": "db_basic",
-          "extract": {"json_path": "db.basic_info.is_rac", "aggregation": "raw"},
-          "evaluation": {"method": "info"},
+          "extract": {
+            "json_path": "db.basic_info.is_rac",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "info"
+          },
           "optimization_advice": "确认单实例或 RAC 架构与实际部署一致"
         },
         {
@@ -67,8 +114,20 @@
           "name": "SPFILE 配置",
           "priority": "P1",
           "source_module": "db_basic",
-          "extract": {"json_path": "db.config_check.spfile", "aggregation": "raw"},
-          "thresholds": {"normal": {"operator": "!=", "value": ""}, "warning": {"operator": "==", "value": ""}},
+          "extract": {
+            "json_path": "db.config_check.spfile",
+            "aggregation": "raw"
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "!=",
+              "value": ""
+            },
+            "warning": {
+              "operator": "==",
+              "value": ""
+            }
+          },
           "optimization_advice": "建议使用 spfile 统一管理实例参数"
         },
         {
@@ -76,8 +135,20 @@
           "name": "ARCHIVELOG 模式",
           "priority": "P0",
           "source_module": "db_basic",
-          "extract": {"json_path": "db.backup.archive_log_mode", "aggregation": "raw"},
-          "thresholds": {"normal": {"operator": "==", "value": "ARCHIVELOG"}, "critical": {"operator": "!=", "value": "ARCHIVELOG"}},
+          "extract": {
+            "json_path": "db.backup.archive_log_mode",
+            "aggregation": "raw"
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "==",
+              "value": "ARCHIVELOG"
+            },
+            "critical": {
+              "operator": "!=",
+              "value": "ARCHIVELOG"
+            }
+          },
           "optimization_advice": "生产库必须开启归档模式以保证可恢复性"
         }
       ]
@@ -91,8 +162,20 @@
           "name": "表空间使用率",
           "priority": "P0",
           "source_module": "db_storage",
-          "extract": {"json_path": "db.storage.tablespace_usage.items[*].real_percent", "aggregation": "max"},
-          "thresholds": {"warning": {"operator": ">", "value": 80}, "critical": {"operator": ">", "value": 90}},
+          "extract": {
+            "json_path": "db.storage.tablespace_usage.items[*].real_percent",
+            "aggregation": "max"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 80
+            },
+            "critical": {
+              "operator": ">",
+              "value": 90
+            }
+          },
           "optimization_advice": "及时扩容高水位表空间或清理历史数据"
         },
         {
@@ -100,8 +183,23 @@
           "name": "待恢复数据文件",
           "priority": "P0",
           "source_module": "db_storage",
-          "extract": {"json_path": "db.storage.recover_files", "aggregation": "raw"},
-          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "critical": {"operator": ">", "value": 0}}},
+          "extract": {
+            "json_path": "db.storage.recover_files",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "critical": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
           "optimization_advice": "尽快处理 recover file，避免数据文件异常未恢复"
         },
         {
@@ -109,8 +207,23 @@
           "name": "无效对象数量",
           "priority": "P1",
           "source_module": "db_storage",
-          "extract": {"json_path": "db.storage.invalid_objects", "aggregation": "raw"},
-          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}}},
+          "extract": {
+            "json_path": "db.storage.invalid_objects",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
           "optimization_advice": "重新编译无效对象并排查依赖缺失"
         },
         {
@@ -118,9 +231,108 @@
           "name": "不可用索引数量",
           "priority": "P1",
           "source_module": "db_storage",
-          "extract": {"json_path": "db.storage.invalid_indexes", "aggregation": "raw"},
-          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}}},
+          "extract": {
+            "json_path": "db.storage.invalid_indexes",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
           "optimization_advice": "重建 unusable 索引，避免执行计划退化"
+        },
+        {
+          "check_id": "3.5",
+          "name": "临时表空间活跃使用率",
+          "priority": "P0",
+          "source_module": "db_storage",
+          "extract": {
+            "json_path": "db.storage.temp_usage_max_pct",
+            "aggregation": "raw"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 80
+            },
+            "critical": {
+              "operator": ">",
+              "value": 90
+            }
+          },
+          "optimization_advice": "请 DBA 检查排序和临时段使用 SQL，按临时文件自动扩展上限确认容量，必要时增加 TEMPFILE。"
+        },
+        {
+          "check_id": "3.6",
+          "name": "SYSAUX 使用率",
+          "priority": "P1",
+          "source_module": "db_storage",
+          "extract": {
+            "json_path": "db.storage.sysaux_usage_pct",
+            "aggregation": "raw"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 80
+            },
+            "critical": {
+              "operator": ">",
+              "value": 90
+            }
+          },
+          "optimization_advice": "请 DBA 检查 SYSAUX 各组件占用，使用组件支持的清理方法或扩容，勿直接删除系统对象。"
+        },
+        {
+          "check_id": "3.7",
+          "name": "最大段容量占比",
+          "priority": "P2",
+          "source_module": "db_storage",
+          "extract": {
+            "json_path": "db.storage.largest_segment_usage_pct",
+            "aggregation": "raw"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 80
+            },
+            "critical": {
+              "operator": ">",
+              "value": 90
+            }
+          },
+          "optimization_advice": "查看最大段明细，确认业务增长与数据保留计划；该占比以所在表空间自动扩展最大容量为分母。"
+        },
+        {
+          "check_id": "3.8",
+          "name": "回收站可回收空间",
+          "priority": "P2",
+          "source_module": "db_storage",
+          "extract": {
+            "json_path": "db.storage.recyclebin_size_gb",
+            "aggregation": "raw"
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "==",
+              "value": 0
+            },
+            "warning": {
+              "operator": ">",
+              "value": 0
+            }
+          },
+          "optimization_advice": "请 DBA 确认回收站对象不再需要闪回恢复后，按业务审批清理对应对象以释放空间。存在可回收空间是提示，不表示容量不足。"
         }
       ]
     },
@@ -133,8 +345,20 @@
           "name": "Redo 切换频率",
           "priority": "P2",
           "source_module": "db_perf",
-          "extract": {"json_path": "db.performance.redo_switch_daily.items[*].switch_count", "aggregation": "max"},
-          "thresholds": {"warning": {"operator": ">", "value": 50}, "critical": {"operator": ">", "value": 100}},
+          "extract": {
+            "json_path": "db.performance.redo_switch_daily.items[*].switch_count",
+            "aggregation": "max"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 50
+            },
+            "critical": {
+              "operator": ">",
+              "value": 100
+            }
+          },
           "optimization_advice": "检查日志文件大小、批量写入与 checkpoint 行为"
         },
         {
@@ -142,8 +366,23 @@
           "name": "高耗时 SQL",
           "priority": "P1",
           "source_module": "db_sql",
-          "extract": {"json_path": "db.sql_analysis.top_sql_by_elapsed_time", "aggregation": "raw"},
-          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}}},
+          "extract": {
+            "json_path": "db.sql_analysis.top_sql_by_elapsed_time",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
           "optimization_advice": "重点分析 elapsed time Top SQL 的执行计划与绑定变量"
         },
         {
@@ -151,8 +390,23 @@
           "name": "高逻辑读 SQL",
           "priority": "P2",
           "source_module": "db_sql",
-          "extract": {"json_path": "db.sql_analysis.top_sql_by_buffer_gets", "aggregation": "raw"},
-          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}}},
+          "extract": {
+            "json_path": "db.sql_analysis.top_sql_by_buffer_gets",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
           "optimization_advice": "检查 buffer gets Top SQL 是否存在大范围扫描"
         },
         {
@@ -160,8 +414,23 @@
           "name": "高物理读 SQL",
           "priority": "P2",
           "source_module": "db_sql",
-          "extract": {"json_path": "db.sql_analysis.top_sql_by_disk_reads", "aggregation": "raw"},
-          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}}},
+          "extract": {
+            "json_path": "db.sql_analysis.top_sql_by_disk_reads",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
           "optimization_advice": "检查 disk reads Top SQL 是否缺少索引或缓存命中率偏低"
         },
         {
@@ -169,8 +438,23 @@
           "name": "长事务",
           "priority": "P1",
           "source_module": "db_perf",
-          "extract": {"json_path": "db.performance.long_transactions", "aggregation": "raw"},
-          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}}},
+          "extract": {
+            "json_path": "db.performance.long_transactions",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
           "optimization_advice": "排查长事务占用 UNDO 与锁资源，确认是否存在未及时提交事务"
         },
         {
@@ -178,8 +462,23 @@
           "name": "阻塞链",
           "priority": "P0",
           "source_module": "db_perf",
-          "extract": {"json_path": "db.performance.blocking_chains", "aggregation": "raw"},
-          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "critical": {"operator": ">", "value": 0}}},
+          "extract": {
+            "json_path": "db.performance.blocking_chains",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "critical": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
           "optimization_advice": "立即定位阻塞会话与被阻塞对象，避免业务持续堆积"
         },
         {
@@ -187,8 +486,20 @@
           "name": "Redo Nowait",
           "priority": "P1",
           "source_module": "db_perf",
-          "extract": {"json_path": "db.performance.redo_nowait_pct", "aggregation": "raw"},
-          "thresholds": {"warning": {"operator": "<", "value": 99}, "critical": {"operator": "<", "value": 95}},
+          "extract": {
+            "json_path": "db.performance.redo_nowait_pct",
+            "aggregation": "raw"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": "<",
+              "value": 99
+            },
+            "critical": {
+              "operator": "<",
+              "value": 95
+            }
+          },
           "optimization_advice": "检查 redo buffer、日志写入压力与日志文件配置"
         },
         {
@@ -196,8 +507,20 @@
           "name": "UNDO 表空间使用率",
           "priority": "P1",
           "source_module": "db_perf",
-          "extract": {"json_path": "db.performance.undo_tablespace_usage.items[*].usage_percent", "aggregation": "max"},
-          "thresholds": {"warning": {"operator": ">", "value": 80}, "critical": {"operator": ">", "value": 90}},
+          "extract": {
+            "json_path": "db.performance.undo_tablespace_usage.items[*].usage_percent",
+            "aggregation": "max"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 80
+            },
+            "critical": {
+              "operator": ">",
+              "value": 90
+            }
+          },
           "optimization_advice": "检查长事务和闪回窗口设置，避免 UNDO 空间耗尽"
         },
         {
@@ -205,8 +528,23 @@
           "name": "高解析 SQL",
           "priority": "P2",
           "source_module": "db_sql",
-          "extract": {"json_path": "db.sql_analysis.high_parse_count_sql", "aggregation": "raw"},
-          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}}},
+          "extract": {
+            "json_path": "db.sql_analysis.high_parse_count_sql",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
           "optimization_advice": "收敛频繁硬解析 SQL，排查绑定变量与共享池复用问题"
         },
         {
@@ -214,9 +552,177 @@
           "name": "高版本 SQL",
           "priority": "P2",
           "source_module": "db_sql",
-          "extract": {"json_path": "db.sql_analysis.high_version_count_sql", "aggregation": "raw"},
-          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}}},
+          "extract": {
+            "json_path": "db.sql_analysis.high_version_count_sql",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
           "optimization_advice": "检查 child cursor 暴涨、绑定不一致与执行计划抖动"
+        },
+        {
+          "check_id": "4.17",
+          "name": "非空闲等待平均耗时",
+          "priority": "P1",
+          "source_module": "db_perf",
+          "extract": {
+            "json_path": "db.performance.wait_events.items[*].avg_wait_ms",
+            "aggregation": "max"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 10
+            },
+            "critical": {
+              "operator": ">",
+              "value": 50
+            }
+          },
+          "optimization_advice": "按事件检查 I/O、提交与锁等待；10/50ms 为本项目排查基线。数据是实例启动以来按累计等待排序的 Top 事件平均值，不代表当前瞬时延迟。"
+        },
+        {
+          "check_id": "4.18",
+          "name": "Latch 请求未命中率",
+          "priority": "P1",
+          "source_module": "db_perf",
+          "extract": {
+            "json_path": "db.performance.latch_miss_ratios.items[*].miss_pct",
+            "aggregation": "max"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 1
+            },
+            "critical": {
+              "operator": ">",
+              "value": 5
+            }
+          },
+          "optimization_advice": "检查高 misses/gets 的 Latch 与 SQL 并发；1/5% 为本项目基线。比例使用实例启动以来累计请求，不是采样期间增量；零请求无法判断。"
+        },
+        {
+          "check_id": "4.19",
+          "name": "实例有限资源当前使用率",
+          "priority": "P0",
+          "source_module": "db_perf",
+          "extract": {
+            "json_path": "db.performance.resource_limits.items[*].usage_pct",
+            "aggregation": "max"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 80
+            },
+            "critical": {
+              "operator": ">",
+              "value": 90
+            }
+          },
+          "optimization_advice": "按实例检查 processes、sessions 和 parallel_max_servers 当前值及上限，排查连接泄漏或并行任务。复用现有容量 80/90% 基线；UNLIMITED 与无效上限不能计算比例。"
+        },
+        {
+          "check_id": "4.20",
+          "name": "解析时间占 DB time 比例",
+          "priority": "P1",
+          "source_module": "db_perf",
+          "extract": {
+            "json_path": "db.performance.time_model_ratios.items[*].parse_pct",
+            "aggregation": "max"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 10
+            },
+            "critical": {
+              "operator": ">",
+              "value": 20
+            }
+          },
+          "optimization_advice": "检查绑定变量、语句复用和硬解析；10/20% 为本项目基线。比例来自当前实例累计 Time Model，非当前采样增量；DB time 为零或缺失时不判断正常。"
+        },
+        {
+          "check_id": "4.21",
+          "name": "最近 UNDO 统计错误",
+          "priority": "P0",
+          "source_module": "db_perf",
+          "extract": {
+            "json_path": "db.performance.undo_stats.items[*].error_count",
+            "aggregation": "sum"
+          },
+          "thresholds": {
+            "normal": {
+              "operator": "==",
+              "value": 0
+            },
+            "critical": {
+              "operator": ">",
+              "value": 0
+            }
+          },
+          "optimization_advice": "请 DBA 检查采集的最近 TopN 个 UNDO 统计周期中的 ORA-01555 与空间不足记录，调整长查询、UNDO 容量或保留窗口；不是实例启动以来计数。"
+        },
+        {
+          "check_id": "4.22",
+          "name": "表非串行并行度",
+          "priority": "P2",
+          "source_module": "db_security",
+          "extract": {
+            "json_path": "db.security.table_degree_gt_one",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
+          "optimization_advice": "核对表 DEGREE 大于 1 或 DEFAULT 的业务需求；这是配置复核提示，不证明性能故障。批量任务后确认是否需恢复 NOPARALLEL。"
+        },
+        {
+          "check_id": "4.23",
+          "name": "索引非串行并行度",
+          "priority": "P2",
+          "source_module": "db_security",
+          "extract": {
+            "json_path": "db.security.indexes_degree_gt_one",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
+          "optimization_advice": "核对索引 DEGREE 大于 1 或 DEFAULT 的业务需求；索引重建后确认是否需恢复 NOPARALLEL，防止意外并行资源消耗。"
         }
       ]
     },
@@ -229,8 +735,23 @@
           "name": "禁用约束",
           "priority": "P1",
           "source_module": "db_security",
-          "extract": {"json_path": "db.security.disabled_constraints", "aggregation": "raw"},
-          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}}},
+          "extract": {
+            "json_path": "db.security.disabled_constraints",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
           "optimization_advice": "确认业务上是否允许长期禁用约束"
         },
         {
@@ -238,8 +759,23 @@
           "name": "禁用触发器",
           "priority": "P1",
           "source_module": "db_security",
-          "extract": {"json_path": "db.security.disabled_triggers", "aggregation": "raw"},
-          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}}},
+          "extract": {
+            "json_path": "db.security.disabled_triggers",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
           "optimization_advice": "确认触发器禁用是否已审批并有补偿措施"
         },
         {
@@ -247,8 +783,23 @@
           "name": "高权限账号",
           "priority": "P2",
           "source_module": "db_security",
-          "extract": {"json_path": "db.security.dba_role_users", "aggregation": "raw"},
-          "evaluation": {"method": "row_count", "thresholds": {"warning": {"operator": ">", "value": 2}, "critical": {"operator": ">", "value": 5}}},
+          "extract": {
+            "json_path": "db.security.dba_role_users",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "warning": {
+                "operator": ">",
+                "value": 2
+              },
+              "critical": {
+                "operator": ">",
+                "value": 5
+              }
+            }
+          },
           "optimization_advice": "收敛 DBA/SYSDBA 账号数量并落实最小权限"
         },
         {
@@ -256,9 +807,183 @@
           "name": "过期账号",
           "priority": "P1",
           "source_module": "db_security",
-          "extract": {"json_path": "db.security.expired_users", "aggregation": "raw"},
-          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "warning": {"operator": ">", "value": 0}}},
+          "extract": {
+            "json_path": "db.security.expired_users",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
           "optimization_advice": "核对过期账号是否为应急账号或废弃账号，避免影响维护作业"
+        },
+        {
+          "check_id": "5.5",
+          "name": "默认口令账号",
+          "source_module": "db_security",
+          "extract": {
+            "json_path": "db.security.default_password_users",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "critical": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
+          "optimization_advice": "请 DBA 修改默认口令，锁定无需使用的账号；Collector 不读取口令内容。",
+          "priority": "P1"
+        },
+        {
+          "check_id": "5.6",
+          "name": "弱口令配置文件策略",
+          "source_module": "db_security",
+          "extract": {
+            "json_path": "db.security.weak_password_profiles",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "critical": {
+                "operator": ">=",
+                "value": 1
+              }
+            }
+          },
+          "optimization_advice": "为开放账号设置口令验证函数、有效期和失败登录锁定；DEFAULT 限制已按默认配置文件解析。",
+          "priority": "P1"
+        },
+        {
+          "check_id": "5.7",
+          "name": "PUBLIC 危险系统权限",
+          "source_module": "db_security",
+          "extract": {
+            "json_path": "db.security.public_system_privileges",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "critical": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
+          "optimization_advice": "请 DBA 核对依赖后撤销 PUBLIC 的 ANY 及管理类系统权限，改为显式授权。",
+          "priority": "P1"
+        },
+        {
+          "check_id": "5.8",
+          "name": "审计设置",
+          "source_module": "db_security",
+          "extract": {
+            "json_path": "db.security.audit_trail",
+            "aggregation": "raw"
+          },
+          "thresholds": {
+            "critical": {
+              "operator": "==",
+              "value": "NONE"
+            }
+          },
+          "optimization_advice": "请 DBA 启用所需审计并验证实际记录；AUDIT_TRAIL 非 NONE 仅说明传统审计配置，不能证明审计策略覆盖。",
+          "priority": "P1"
+        },
+        {
+          "check_id": "5.9",
+          "name": "TDE 表空间加密",
+          "source_module": "db_security",
+          "extract": {
+            "json_path": "db.security.encrypted_tablespaces",
+            "aggregation": "raw"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": "==",
+              "value": 0
+            }
+          },
+          "optimization_advice": "没有加密表空间，需按数据保护要求评估 TDE；本项不判断列加密，钱包状态另见明细。",
+          "priority": "P1"
+        },
+        {
+          "check_id": "5.10",
+          "name": "数据库链接凭据风险",
+          "source_module": "db_security",
+          "extract": {
+            "json_path": "db.security.database_links",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "warning": {
+                "operator": ">=",
+                "value": 1
+              },
+              "critical": {
+                "operator": ">=",
+                "value": 10
+              }
+            }
+          },
+          "optimization_advice": "固定用户名提示链接可能存储凭据，请 DBA 核对链接类型和权限并轮换凭据。DBA_DB_LINKS 不提供口令存在字段，此判断是推断，不能证明凭据存在或排除其他链接风险。",
+          "priority": "P1"
+        },
+        {
+          "check_id": "5.11",
+          "name": "配置文件资源限制开关",
+          "source_module": "db_security",
+          "extract": {
+            "json_path": "db.security.resource_limit",
+            "aggregation": "raw"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": "==",
+              "value": "FALSE"
+            }
+          },
+          "optimization_advice": "请 DBA 评估启用 RESOURCE_LIMIT，并核查各账号配置文件的会话和 CPU 等资源上限。此开关不影响口令限制。",
+          "priority": "P1"
+        },
+        {
+          "check_id": "5.12",
+          "name": "配置文件无限资源上限",
+          "source_module": "db_security",
+          "extract": {
+            "json_path": "db.security.unlimited_resource_profiles",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "warning": {
+                "operator": ">=",
+                "value": 1
+              },
+              "critical": {
+                "operator": ">=",
+                "value": 5
+              }
+            }
+          },
+          "optimization_advice": "开放账号的会话数、会话 CPU、连接时长或空闲时长无限制。请 DBA 按业务要求设置资源上限并评估启用 RESOURCE_LIMIT。",
+          "priority": "P1"
         }
       ]
     },
@@ -271,8 +996,23 @@
           "name": "RMAN 备份记录缺失",
           "priority": "P0",
           "source_module": "db_backup",
-          "extract": {"json_path": "db.backup.jobs", "aggregation": "raw"},
-          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": ">", "value": 0}, "critical": {"operator": "==", "value": 0}}},
+          "extract": {
+            "json_path": "db.backup.jobs",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": ">",
+                "value": 0
+              },
+              "critical": {
+                "operator": "==",
+                "value": 0
+              }
+            }
+          },
           "optimization_advice": "确认 RMAN 备份链路正常并保留最近成功备份记录"
         },
         {
@@ -280,8 +1020,20 @@
           "name": "恢复区使用率",
           "priority": "P0",
           "source_module": "db_backup",
-          "extract": {"json_path": "db.backup.recovery_area.items[*].space_used_pct", "aggregation": "max"},
-          "thresholds": {"warning": {"operator": ">", "value": 80}, "critical": {"operator": ">", "value": 90}},
+          "extract": {
+            "json_path": "db.backup.recovery_area.items[*].space_used_pct",
+            "aggregation": "max"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 80
+            },
+            "critical": {
+              "operator": ">",
+              "value": 90
+            }
+          },
           "optimization_advice": "清理过期归档与备份片，避免 FRA 打满导致归档停滞"
         },
         {
@@ -289,9 +1041,748 @@
           "name": "归档目的地异常",
           "priority": "P0",
           "source_module": "db_backup",
-          "extract": {"json_path": "db.backup.archive_destination_errors", "aggregation": "raw"},
-          "evaluation": {"method": "row_count", "thresholds": {"normal": {"operator": "==", "value": 0}, "critical": {"operator": ">", "value": 0}}},
+          "extract": {
+            "json_path": "db.backup.archive_destination_errors",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "critical": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
           "optimization_advice": "立即检查 archive destination 错误，避免归档无法落盘或传输失败"
+        },
+        {
+          "check_id": "6.4",
+          "name": "最近成功数据备份时间",
+          "source_module": "db_backup",
+          "extract": {
+            "json_path": "db.backup",
+            "aggregation": "raw"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 48
+            },
+            "critical": {
+              "operator": ">",
+              "value": 168
+            }
+          },
+          "optimization_advice": "超过 48 小时告警，超过 7 天或没有成功 DB FULL/DB INCR 记录为严重。此为本项目保守基线，非已验证的双平台阈值。请核对控制文件保留期、RMAN catalog 和备份恢复验证。",
+          "priority": "P1",
+          "evaluation": {
+            "method": "threshold",
+            "critical_when": {
+              "field": "successful_data_backup",
+              "operator": "==",
+              "value": false
+            },
+            "value_field": "successful_backup_age_hours",
+            "requires": [
+              "db.backup.successful_backup_age_hours",
+              "db.backup.successful_data_backup"
+            ]
+          }
+        },
+        {
+          "check_id": "6.5",
+          "name": "最近七天 RMAN 失败作业",
+          "source_module": "db_backup",
+          "extract": {
+            "json_path": "db.backup.failed_jobs",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "critical": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
+          "optimization_advice": "请 DBA 检查 FAILED 或 COMPLETED WITH ERRORS 的 RMAN 日志，补做备份并验证恢复。",
+          "priority": "P1"
+        },
+        {
+          "check_id": "6.6",
+          "name": "闪回数据库状态",
+          "source_module": "db_backup",
+          "extract": {
+            "json_path": "db.backup.flashback_on",
+            "aggregation": "raw"
+          },
+          "thresholds": {
+            "critical": {
+              "operator": "!=",
+              "value": "YES"
+            }
+          },
+          "optimization_advice": "请 DBA 依据恢复目标评估开启 Flashback Database 和恢复区容量；RESTORE POINT ONLY 不等于持续闪回开启。",
+          "priority": "P1"
+        },
+        {
+          "check_id": "6.7",
+          "name": "已知数据块损坏",
+          "source_module": "db_backup",
+          "extract": {
+            "json_path": "db.backup.block_corruption",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "critical": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
+          "optimization_advice": "请 DBA 立即执行 RMAN VALIDATE 并制定块恢复方案；空视图仅表示没有登记的损坏，不能代替全库校验。",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "dimension_id": 7,
+      "name": "告警日志",
+      "checks": [
+        {
+          "check_id": "7.1",
+          "name": "告警日志严重 ORA 错误",
+          "priority": "P0",
+          "source_module": "db_storage",
+          "extract": {
+            "json_path": "db.alert_log.errors",
+            "aggregation": "raw"
+          },
+          "optimization_advice": "请 DBA 检查 ORA-00600、ORA-07445 的诊断文件并联系 Oracle 支持；ORA-01555 检查 UNDO 与长查询，ORA-04031 检查内存与共享池。统计仅覆盖最近七天最新 200 条匹配记录。",
+          "evaluation": {
+            "method": "row_count",
+            "filter": {
+              "field": "error_code",
+              "operator": "in",
+              "value": [
+                "ORA-00600",
+                "ORA-07445",
+                "ORA-01555",
+                "ORA-04031"
+              ]
+            },
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "critical": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          }
+        },
+        {
+          "check_id": "7.2",
+          "name": "告警日志其他 ORA 错误",
+          "priority": "P1",
+          "source_module": "db_storage",
+          "extract": {
+            "json_path": "db.alert_log.errors",
+            "aggregation": "raw"
+          },
+          "optimization_advice": "按告警错误码和时间查看原始日志并排查重复报错；统计仅覆盖最近七天最新 200 条匹配记录。",
+          "evaluation": {
+            "method": "row_count",
+            "filter": {
+              "not": {
+                "field": "error_code",
+                "operator": "in",
+                "value": [
+                  "ORA-00600",
+                  "ORA-07445",
+                  "ORA-01555",
+                  "ORA-04031"
+                ]
+              }
+            },
+            "thresholds": {
+              "normal": {
+                "operator": "==",
+                "value": 0
+              },
+              "warning": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "dimension_id": 8,
+      "name": "补丁与组件",
+      "checks": [
+        {
+          "check_id": "8.1",
+          "name": "当前 SQL 补丁清单",
+          "source_module": "db_security",
+          "extract": {
+            "json_path": "db.security.installed_sql_patches",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "thresholds": {
+              "warning": {
+                "operator": "==",
+                "value": 0
+              }
+            }
+          },
+          "optimization_advice": "按每个补丁最后一次成功操作判断，成功 ROLLBACK 已移除。不代表 Oracle Home 二进制清单或补丁最新程度，请 DBA 提供 opatch lsinventory 并对照批准基线。",
+          "priority": "P1"
+        },
+        {
+          "check_id": "8.2",
+          "name": "SQL 补丁最新操作失败",
+          "source_module": "db_security",
+          "extract": {
+            "json_path": "db.security.failed_patch_attempts",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count"
+          },
+          "optimization_advice": "请 DBA 检查 datapatch 日志并修复最后一次非 SUCCESS 的补丁操作。失败 APPLY 不证明已安装，失败 ROLLBACK 不移除之前成功安装的补丁。",
+          "priority": "P1"
+        },
+        {
+          "check_id": "8.3",
+          "name": "组件注册状态",
+          "source_module": "db_security",
+          "extract": {
+            "json_path": "db.security.invalid_components",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count"
+          },
+          "optimization_advice": "请 DBA 核对 DBA_REGISTRY 非 VALID 组件，按组件安装或升级日志修复。",
+          "priority": "P1"
+        },
+        {
+          "check_id": "8.4",
+          "name": "补丁操作历史",
+          "source_module": "db_security",
+          "extract": {
+            "json_path": "db.security.patch_history",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "info"
+          },
+          "optimization_advice": "历史记录不等于当前安装清单。11g 没有执行状态，需客户 DBA 提供 Oracle Home 清单确认。",
+          "priority": "P3"
+        }
+      ]
+    },
+    {
+      "dimension_id": 9,
+      "name": "Data Guard",
+      "checks": [
+        {
+          "check_id": "9.1",
+          "name": "传输延迟",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {
+            "json_path": "db.data_guard.transport_lag_seconds",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "na_when": {
+              "json_path": "db.deployment_topology.role",
+              "operator": "==",
+              "value": "primary",
+              "reason": "primary 不评估 standby 延迟"
+            },
+            "method": "threshold"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 30
+            },
+            "critical": {
+              "operator": ">",
+              "value": 60
+            }
+          },
+          "optimization_advice": "本项目延迟基线为 30/60 秒。请 DBA 检查网络和归档传输；单次 datum_time 不证明数据持续更新。"
+        },
+        {
+          "check_id": "9.2",
+          "name": "应用延迟",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {
+            "json_path": "db.data_guard.apply_lag_seconds",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "na_when": {
+              "json_path": "db.deployment_topology.role",
+              "operator": "==",
+              "value": "primary",
+              "reason": "primary 不评估 standby 延迟"
+            },
+            "method": "threshold"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 30
+            },
+            "critical": {
+              "operator": ">",
+              "value": 60
+            }
+          },
+          "optimization_advice": "本项目延迟基线为 30/60 秒。请 DBA 在应用实例检查恢复进程、磁盘和日志缺口。"
+        },
+        {
+          "check_id": "9.3",
+          "name": "归档阻塞缺口",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {
+            "json_path": "db.data_guard.archive_gap",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "na_when": {
+              "json_path": "db.deployment_topology.role",
+              "operator": "==",
+              "value": "primary",
+              "reason": "primary 不评估 standby 缺口"
+            },
+            "thresholds": {
+              "critical": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
+          "optimization_advice": "请 DBA 补齐缺失归档并恢复应用。V$ARCHIVE_GAP 仅显示当前阻塞缺口。"
+        },
+        {
+          "check_id": "9.4",
+          "name": "Data Guard 保护模式",
+          "priority": "P1",
+          "source_module": "db_basic",
+          "extract": {
+            "json_path": "db.data_guard.protection_mode",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "na_when": {
+              "json_path": "db.deployment_topology.role",
+              "operator": "==",
+              "value": "primary",
+              "reason": "此检查仅评估 standby"
+            },
+            "method": "threshold"
+          },
+          "thresholds": {
+            "critical": {
+              "operator": "==",
+              "value": "MAXIMUM PERFORMANCE"
+            }
+          },
+          "optimization_advice": "最大性能模式存在数据丢失窗口，请 DBA 对照批准的容灾 RPO 确认保护模式。"
+        },
+        {
+          "check_id": "9.5",
+          "name": "standby 归档目的地错误",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {
+            "json_path": "db.data_guard.destination_errors",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "row_count",
+            "na_when": {
+              "json_path": "db.deployment_topology.role",
+              "operator": "==",
+              "value": "primary",
+              "reason": "primary 错误由 6.3 检查"
+            },
+            "thresholds": {
+              "critical": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
+          "optimization_advice": "请 DBA 按归档目的地 error 检查连接、权限与空间。"
+        }
+      ]
+    },
+    {
+      "dimension_id": 10,
+      "name": "ASM 存储",
+      "checks": [
+        {
+          "check_id": "10.1",
+          "name": "ASM 使用率",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {
+            "json_path": "db.asm.diskgroups.items[*].used_pct",
+            "aggregation": "max"
+          },
+          "evaluation": {
+            "na_when": {
+              "json_path": "db.deployment_topology.is_asm",
+              "operator": "==",
+              "value": false,
+              "reason": "非 ASM 存储"
+            },
+            "method": "threshold"
+          },
+          "thresholds": {
+            "warning": {
+              "operator": ">",
+              "value": 80
+            },
+            "critical": {
+              "operator": ">",
+              "value": 90
+            }
+          },
+          "optimization_advice": "请 DBA 扩容或清理磁盘组；同时核对考虑冗余后的 USABLE_FILE_MB，原始空闲率不能代表可用容量。"
+        },
+        {
+          "check_id": "10.2",
+          "name": "ASM 离线磁盘",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {
+            "json_path": "db.asm.diskgroups.items[*].offline_disks",
+            "aggregation": "max"
+          },
+          "evaluation": {
+            "na_when": {
+              "json_path": "db.deployment_topology.is_asm",
+              "operator": "==",
+              "value": false,
+              "reason": "非 ASM 存储"
+            },
+            "method": "threshold"
+          },
+          "thresholds": {
+            "critical": {
+              "operator": ">",
+              "value": 0
+            }
+          },
+          "optimization_advice": "请 DBA 检查磁盘路径与存储故障，确认冗余与重平衡状态。"
+        },
+        {
+          "check_id": "10.3",
+          "name": "ASM 磁盘组状态",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {
+            "json_path": "db.asm.diskgroups",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "na_when": {
+              "json_path": "db.deployment_topology.is_asm",
+              "operator": "==",
+              "value": false,
+              "reason": "非 ASM 存储"
+            },
+            "method": "row_count",
+            "filter": {
+              "not": {
+                "field": "state",
+                "operator": "in",
+                "value": [
+                  "MOUNTED",
+                  "CONNECTED"
+                ]
+              }
+            },
+            "thresholds": {
+              "critical": {
+                "operator": ">",
+                "value": 0
+              }
+            }
+          },
+          "optimization_advice": "CONNECTED 和 MOUNTED 为正常连接状态；请 DBA 检查其他状态的磁盘组。"
+        },
+        {
+          "check_id": "10.4",
+          "name": "ASM 冗余可用容量",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {
+            "json_path": "db.asm.diskgroups.items[*].usable_file_mb",
+            "aggregation": "min"
+          },
+          "evaluation": {
+            "na_when": {
+              "json_path": "db.deployment_topology.is_asm",
+              "operator": "==",
+              "value": false,
+              "reason": "非 ASM 存储"
+            },
+            "method": "threshold"
+          },
+          "thresholds": {
+            "critical": {
+              "operator": "<=",
+              "value": 0
+            }
+          },
+          "optimization_advice": "冗余保护后的可用容量不足，请 DBA 检查 REQUIRED_MIRROR_FREE_MB 并扩容。"
+        }
+      ]
+    },
+    {
+      "dimension_id": 11,
+      "name": "RAC 实例",
+      "checks": [
+        {
+          "check_id": "11.1",
+          "name": "RAC 可见实例状态",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {
+            "json_path": "db.rac.instances",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "na_when": {
+              "json_path": "db.deployment_topology.is_rac",
+              "operator": "==",
+              "value": false,
+              "reason": "非 RAC"
+            },
+            "method": "row_count",
+            "filter": {
+              "not": {
+                "all": [
+                  {
+                    "field": "status",
+                    "operator": "==",
+                    "value": "OPEN"
+                  },
+                  {
+                    "field": "database_status",
+                    "operator": "==",
+                    "value": "ACTIVE"
+                  },
+                  {
+                    "field": "active_state",
+                    "operator": "==",
+                    "value": "NORMAL"
+                  }
+                ]
+              }
+            },
+            "thresholds": {
+              "critical": {
+                "operator": ">",
+                "value": 0
+              }
+            },
+            "requires_known": ["db.deployment_topology.role"],
+            "filter_variants": [
+              {
+                "when": {
+                  "field": "db.deployment_topology.role",
+                  "operator": "==",
+                  "value": "standby"
+                },
+                "filter": {
+                  "not": {
+                    "all": [
+                      {
+                        "field": "status",
+                        "operator": "in",
+                        "value": [
+                          "OPEN",
+                          "MOUNTED"
+                        ]
+                      },
+                      {
+                        "field": "database_status",
+                        "operator": "==",
+                        "value": "ACTIVE"
+                      },
+                      {
+                        "field": "active_state",
+                        "operator": "==",
+                        "value": "NORMAL"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "optimization_advice": "GV$INSTANCE 仅显示已运行实例，无法发现全部停机节点。请结合 clusterware 资源清单核对预期节点。"
+        },
+        {
+          "check_id": "11.2",
+          "name": "RAC 各实例参数",
+          "priority": "P2",
+          "source_module": "db_basic",
+          "extract": {
+            "json_path": "db.rac.parameters",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "info",
+            "na_when": {
+              "json_path": "db.deployment_topology.is_rac",
+              "operator": "==",
+              "value": false,
+              "reason": "非 RAC"
+            }
+          },
+          "optimization_advice": "按 inst_id 核对当前生效参数；各实例值可能因业务配置而不同。"
+        }
+      ]
+    },
+    {
+      "dimension_id": 12,
+      "name": "Oracle 主机服务",
+      "checks": [
+        {
+          "check_id": "12.1",
+          "name": "Listener 状态",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {
+            "json_path": "db.host_checks.listener",
+            "aggregation": "raw"
+          },
+          "optimization_advice": "请 Oracle 软件属主执行 lsnrctl status，检查监听及服务注册。该命令检查主机默认 listener，其他 listener 需手工核查。",
+          "evaluation": {
+            "method": "threshold",
+            "critical_when": {
+              "any": [
+                {
+                  "field": "command_succeeded",
+                  "operator": "==",
+                  "value": false
+                },
+                {
+                  "field": "output",
+                  "operator": "contains_any",
+                  "value": [
+                    "OFFLINE",
+                    "TNS-",
+                    "CRS-4535"
+                  ]
+                }
+              ]
+            },
+            "thresholds": {
+              "normal": {
+                "operator": "!=",
+                "value": null
+              }
+            }
+          }
+        },
+        {
+          "check_id": "12.2",
+          "name": "Clusterware 状态",
+          "priority": "P0",
+          "source_module": "db_basic",
+          "extract": {
+            "json_path": "db.host_checks.clusterware",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "na_when": {
+              "json_path": "db.deployment_topology.is_rac",
+              "operator": "==",
+              "value": false,
+              "reason": "非 RAC"
+            },
+            "method": "threshold",
+            "critical_when": {
+              "any": [
+                {
+                  "field": "command_succeeded",
+                  "operator": "==",
+                  "value": false
+                },
+                {
+                  "field": "output",
+                  "operator": "contains_any",
+                  "value": [
+                    "OFFLINE",
+                    "TNS-",
+                    "CRS-4535"
+                  ]
+                }
+              ]
+            },
+            "thresholds": {
+              "normal": {
+                "operator": "!=",
+                "value": null
+              }
+            }
+          },
+          "optimization_advice": "请 Grid 软件属主执行 crsctl check crs 和 crsctl status resource -t，检查离线节点及资源；计划停用资源需人工确认。"
+        }
+      ]
+    },
+    {
+      "dimension_id": 13,
+      "name": "采集覆盖范围",
+      "checks": [
+        {
+          "check_id": "13.1",
+          "name": "PDB 清单覆盖范围",
+          "source_module": "db_basic",
+          "extract": {
+            "json_path": "db.deployment_topology.pdbs",
+            "aggregation": "raw"
+          },
+          "evaluation": {
+            "method": "info",
+            "na_when": {
+              "json_path": "db.deployment_topology.is_cdb",
+              "operator": "==",
+              "value": false,
+              "reason": "非 CDB，无 PDB 清单"
+            }
+          },
+          "optimization_advice": "请 DBA 在 CDB$ROOT 授予 SYS.V_$PDBS 读取权限后重新采集。仅巡检当前连接容器。",
+          "priority": "P1"
         }
       ]
     }

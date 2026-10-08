@@ -72,5 +72,5 @@ const memoryForSQLWithExecutionsRatioQuery = `
 SELECT ROUND(
            SUM(CASE WHEN executions > 1 THEN sharable_mem ELSE 0 END) / NULLIF(SUM(sharable_mem), 0) * 100,
            2
-       ) AS "memory_for_sql_with_executions_ratio_pct"
+       )
   FROM v$sql`

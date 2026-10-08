@@ -10,9 +10,12 @@ import (
 type Collector struct{}
 
 type metricsCollector struct {
-	db     *sql.DB
-	cfg    cli.Config
-	errors []string
+	db                *sql.DB
+	cfg               cli.Config
+	errors            []string
+	availability      map[string]any
+	inspectionAccount map[string]any
+	majorVersion      int
 }
 
 func (Collector) Collect(ctx context.Context, cfg cli.Config, _ string, _ core.ArtifactWriter) (map[string]any, error) {
@@ -31,17 +34,29 @@ func (Collector) Collect(ctx context.Context, cfg cli.Config, _ string, _ core.A
 }
 
 func newMetricsCollector(db *sql.DB, cfg cli.Config) *metricsCollector {
-	return &metricsCollector{db: db, cfg: cfg, errors: []string{}}
+	return &metricsCollector{db: db, cfg: cfg, errors: []string{}, availability: map[string]any{}}
 }
 
 func (c *metricsCollector) collectAll(ctx context.Context) map[string]any {
-	return map[string]any{
-		"basic_info":   c.collectBasicInfo(ctx),
-		"config_check": c.collectConfigCheck(ctx),
-		"storage":      c.collectStorage(ctx),
-		"backup":       c.collectBackup(ctx),
-		"performance":  c.collectPerformance(ctx),
-		"sql_analysis": c.collectSQLAnalysis(ctx),
-		"security":     c.collectSecurity(ctx),
+	version, topology := c.collectDeployment(ctx)
+	c.majorVersion = version["major"].(int)
+	payload := map[string]any{
+		"version_info":        version,
+		"deployment_topology": topology,
+		"basic_info":          c.collectBasicInfo(ctx),
+		"config_check":        c.collectConfigCheck(ctx),
+		"storage":             c.collectStorage(ctx),
+		"alert_log":           c.collectAlertLog(ctx, version),
+		"backup":              c.collectBackup(ctx),
+		"performance":         c.collectPerformance(ctx),
+		"sql_analysis":        c.collectSQLAnalysis(ctx),
+		"security":            c.collectSecurity(ctx),
+		"data_guard":          c.collectDataGuard(ctx, topology),
+		"asm":                 c.collectASM(ctx, topology),
+		"rac":                 c.collectRAC(ctx, topology),
+		"host_checks":         c.collectHostChecks(ctx, topology),
 	}
+	payload["inspection_account"] = c.inspectionAccount
+	payload["collection_availability"] = c.availability
+	return payload
 }

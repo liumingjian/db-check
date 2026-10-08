@@ -8,10 +8,10 @@
 
 当前正式实现覆盖：
 - MySQL `5.6 / 5.7 / 8.0`
-- Oracle `11g / 19c`
+- Oracle `11gR2 / 12c / 19c / 21c / 23ai`，18c 归入 12c 系列
 - GaussDB `505.2.1.SPC1000`
 
-当前版本里，MySQL、Oracle 与 GaussDB 都已经打通以下完整链路：
+MySQL、Oracle 与 GaussDB 提供以下完整链路。Oracle 11gR2、19c 已于 2026-10-03 在 Mac 通过单机、primary、非 ASM 容器端到端 smoke；12c、18c、21c、23ai 未经过容器验证。版本分支已实现不等于所有部署形态已验证，详见 [Oracle 支持范围与使用说明](docs/oracle-support.md)。
 - `db-collector` 采集数据库指标；只有显式提供 `--local`、`--os-only` 或远程 OS 参数时才采集 OS 指标
 - Web 上传采集 ZIP 后自动识别 `db_type`，生成 `summary.json`、`report-meta.json`、`report-view.json` 和 `report.docx`
 - 第一章“巡检总结”使用统一模板，关键指标会在 Word 报告中加粗高亮显示
@@ -24,7 +24,7 @@
 - 远程 OS 采集通过 SSH 下发临时 `db-osprobe` 二进制执行，避免依赖目标机 `sar/free/vmstat/iostat`
 - GaussDB 数据库指标默认通过 openGauss Go 驱动 SQL-first 采集，并在 `run_dir/sql/` 保留原始 SQL 与结果
 - 支持 Linux / Windows（x86_64 与 ARM64）多平台发布包构建
-- 支持 MySQL / Oracle 的 Docker 多版本 e2e 验证，保证采集、分析、报告链路一致
+- 提供 MySQL / Oracle 的 Docker 多版本 e2e 验证入口
 
 ## 适用场景
 
@@ -78,7 +78,7 @@ MySQL 示例：
   --dbname mysql
 ```
 
-Oracle 示例：
+Oracle SID 示例：
 
 ```bash
 ./bin/db-collector \
@@ -89,6 +89,22 @@ Oracle 示例：
   --db-password oraclepwd \
   --dbname ORCL
 ```
+
+Oracle service name 示例（可连接 PDB）：
+
+```bash
+./bin/db-collector \
+  --db-type oracle \
+  --db-host 127.0.0.1 \
+  --db-port 1521 \
+  --db-username system \
+  --db-password oraclepwd \
+  --oracle-service-name ORCLPDB1
+```
+
+`--dbname` 保持表示 Oracle SID，与 `--oracle-service-name` 二选一。使用有 SYSDBA 权限的账号时，可加 `--oracle-sysdba`；用户名为 `SYS` 时自动使用 SYSDBA，不区分大小写。SID 和 service name 连接都支持 SYSDBA。仅巡检当前连接的 container，不切换 PDB。
+
+推荐由客户 DBA 提供 [只读巡检账号](docs/oracle-inspection-account.md)。报告开头显示自动探测的版本、验证级别、RAC/CDB/主备/ASM 部署形态和可见 PDB 的状态、大小。Collector 不采集 AWR、ASH、ADDM 等需要额外许可证的诊断数据，AWR 仍由工程师另行上传。主机工具访问条件、阈值来源与版本限制见 [Oracle 使用说明](docs/oracle-support.md)。
 
 GaussDB 示例：
 
@@ -372,9 +388,11 @@ dist/
 
 ## E2E 覆盖
 
-当前 Docker e2e 覆盖以下数据库版本：
+当前 Docker e2e 提供以下数据库环境：
 - MySQL `5.6 / 5.7 / 8.0`
-- Oracle `11g / 19c`
+- Oracle `11gR2 / 19c`，两版 smoke 已通过；12c、18c、21c、23ai 未经过容器验证
+
+Issue #48 的测试已在确认的 Darwin/arm64 Mac 执行环境运行，复用现有 Python `.venv`。验证记录、命令与适用范围见 [Oracle Mac 验证记录](docs/oracle-support.md#mac-验证记录)。
 
 GaussDB 当前不承诺 Docker e2e。原因是可用镜像、内核版本和 openGauss 兼容行为与正式安装形态存在差异，当前以真实环境回归为准。
 
@@ -481,6 +499,8 @@ Makefile 的职责边界：
 
 ## 常见问题
 
+Oracle 巡检账号授权与补采操作见 [巡检账号说明](docs/oracle-inspection-account.md)。
+
 ### 1. Web 报告服务提示缺少 `jsonschema` 或 `python-docx`
 
 在已激活的虚拟环境中执行：
@@ -508,6 +528,7 @@ Web 上传的采集 ZIP 至少要求 `run` 目录中存在：
 ### 4. Oracle 的 `--dbname` 表示什么
 
 Oracle 路径下，`--dbname` 表示 `SID/实例名`，不是 `service name`。
+连接 service name 使用 `--oracle-service-name`，与 `--dbname` 二选一；用户 `SYS` 自动使用 SYSDBA，其他有权限的账号可加 `--oracle-sysdba`。
 
 ### 6. 如何执行完整端到端测试
 

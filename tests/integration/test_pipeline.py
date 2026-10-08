@@ -75,14 +75,16 @@ class PipelineIntegrationTests(unittest.TestCase):
             report_meta = json.loads((run_dir / "report-meta.json").read_text(encoding="utf-8"))
             self.assertEqual("oracle巡检报告", report_meta["change_log"][0]["change"])
             report_view = json.loads((run_dir / "report-view.json").read_text(encoding="utf-8"))
+            summary_section = next(s for s in report_view["sections"] if s["title"] == "第一章 巡检总结")
+            detail_section = next(s for s in report_view["sections"] if s["title"] == "第二章 巡检明细")
             self.assertEqual(
-                [item["title"] for item in report_view["sections"][1]["children"]],
+                [item["title"] for item in summary_section["children"]],
                 ["1.1 巡检告警定义", "1.2 巡检范围", "1.3 综合健康评估", "1.4 风险发现与整改建议", "1.5 巡检结论"],
             )
-            conclusion_table = report_view["sections"][1]["children"][4]["tables"][0]
+            conclusion_table = summary_section["children"][4]["tables"][0]
             self.assertEqual(conclusion_table["title"], "巡检结论摘要")
             self.assertTrue(any("**" in row[1] for row in conclusion_table["rows"]))
-            db_tables = report_view["sections"][2]["children"][1]["children"][2]["tables"]
+            db_tables = detail_section["children"][1]["children"][2]["tables"]
             db_table_titles = [table["title"] for table in db_tables]
             self.assertIn("核心性能指标", db_table_titles)
             self.assertIn("UNDO表空间使用情况", db_table_titles)

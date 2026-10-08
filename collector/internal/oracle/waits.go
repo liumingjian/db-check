@@ -7,7 +7,7 @@ import (
 
 func (c *metricsCollector) collectWaitMetrics(ctx context.Context) map[string]any {
 	return map[string]any{
-		"wait_events": rowsPayload(c.queryRows(ctx, "oracle.performance.wait_events", waitEventsQuery(c.cfg.TopN))),
+		"wait_events": rowsPayload(c.queryPerformanceRows(ctx, "oracle.performance.wait_events", waitEventsQuery(c.cfg.TopN), "avg_wait_ms")),
 		"latch_data":  rowsPayload(c.queryRows(ctx, "oracle.performance.latch_data", latchDataQuery(c.cfg.TopN))),
 		"time_model":  rowsPayload(c.queryRows(ctx, "oracle.performance.time_model", timeModelQuery(c.cfg.TopN))),
 	}
@@ -19,7 +19,7 @@ SELECT * FROM (
   SELECT event AS "event",
          total_waits AS "waits",
          ROUND(time_waited_micro/1000, 2) AS "waited_ms",
-         ROUND(average_wait/100, 2) AS "avg_wait_ms"
+         CASE WHEN total_waits > 0 THEN average_wait*10 END AS "avg_wait_ms"
     FROM v$system_event
    WHERE wait_class NOT IN ('Idle')
    ORDER BY time_waited_micro DESC

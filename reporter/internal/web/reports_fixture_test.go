@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"dbcheck/reporter/internal/reports"
 	"dbcheck/reporter/internal/users"
 
 	"nhooyr.io/websocket"
@@ -32,9 +33,13 @@ type fakePipeline struct {
 	jobs []ItemJob
 }
 
-func (p *fakePipeline) RunItem(_ context.Context, job ItemJob, onLog func(LogEvent)) ItemResult {
+func (p *fakePipeline) RunItem(ctx context.Context, job ItemJob, onLog func(LogEvent)) ItemResult {
 	if p.gate != nil {
-		<-p.gate
+		select {
+		case <-p.gate:
+		case <-ctx.Done():
+			return ItemResult{ID: job.Input.ID, Status: ItemFailed, Error: ctx.Err().Error()}
+		}
 	}
 	p.mu.Lock()
 	p.jobs = append(p.jobs, job)
@@ -88,10 +93,11 @@ func (f *reportsFixture) start(pipeline ReportPipeline) http.Handler {
 	f.t.Helper()
 	p := f.platform
 	p.Pipeline = pipeline
-	h, err := newAPIHandler(f.cfg, p, true)
+	h, err := newAPIHandler(f.cfg, p, false)
 	if err != nil {
 		f.t.Fatalf("newAPIHandler: %v", err)
 	}
+	f.startWorker(h.reports)
 	return h.handler()
 }
 
@@ -259,4 +265,27 @@ func dialWS(t *testing.T, srv *httptest.Server, taskID, token string) (*websocke
 		Subprotocols: []string{token},
 		HTTPHeader:   http.Header{"Origin": []string{"http://example.com"}},
 	})
+}
+
+// Tests own the worker lifetime, so it cannot write after the store or data
+// directory cleanup. Retention runs once; no hourly test goroutine is needed.
+func (f *reportsFixture) startWorker(l *reportLifecycle) {
+	f.t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := reports.RequeueInterrupted(ctx, l.platform.DB); err != nil {
+		cancel()
+		f.t.Fatal(err)
+	}
+	if err := l.removeExpiredFiles(ctx); err != nil {
+		cancel()
+		f.t.Fatal(err)
+	}
+	if _, err := cleanupExpiredTasks(l.legacy, l.cfg.RetentionTTL, l.platform.Now); err != nil {
+		cancel()
+		f.t.Fatal(err)
+	}
+	legacy := l.legacyBacklog()
+	done := make(chan struct{})
+	go func() { defer close(done); l.work(ctx, legacy) }()
+	f.t.Cleanup(func() { cancel(); <-done })
 }

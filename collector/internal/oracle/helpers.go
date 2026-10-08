@@ -12,10 +12,12 @@ func (c *metricsCollector) addErr(scope string, err error) {
 		return
 	}
 	c.errors = append(c.errors, fmt.Sprintf("%s: %v", scope, err))
+	c.recordQuery(scope, "", err)
 }
 
 func (c *metricsCollector) queryString(ctx context.Context, scope string, query string, args ...any) string {
 	var value sql.NullString
+	defer func() { c.recordQuery(scope, query, nil) }()
 	if err := c.db.QueryRowContext(ctx, query, args...).Scan(&value); err != nil {
 		c.addErr(scope, err)
 		return ""
@@ -28,6 +30,7 @@ func (c *metricsCollector) queryString(ctx context.Context, scope string, query 
 
 func (c *metricsCollector) queryInt64(ctx context.Context, scope string, query string, args ...any) int64 {
 	var value sql.NullInt64
+	defer func() { c.recordQuery(scope, query, nil) }()
 	if err := c.db.QueryRowContext(ctx, query, args...).Scan(&value); err != nil {
 		c.addErr(scope, err)
 		return 0
@@ -40,6 +43,7 @@ func (c *metricsCollector) queryInt64(ctx context.Context, scope string, query s
 
 func (c *metricsCollector) queryFloat64(ctx context.Context, scope string, query string, args ...any) float64 {
 	var value sql.NullFloat64
+	defer func() { c.recordQuery(scope, query, nil) }()
 	if err := c.db.QueryRowContext(ctx, query, args...).Scan(&value); err != nil {
 		c.addErr(scope, err)
 		return 0
@@ -51,6 +55,7 @@ func (c *metricsCollector) queryFloat64(ctx context.Context, scope string, query
 }
 
 func (c *metricsCollector) queryRows(ctx context.Context, scope string, query string, args ...any) []map[string]any {
+	defer func() { c.recordQuery(scope, query, nil) }()
 	rows, err := c.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		c.addErr(scope, err)

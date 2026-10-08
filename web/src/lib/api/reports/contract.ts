@@ -26,6 +26,15 @@ export interface SubmittedReportTask {
   total: number;
 }
 
+export type DiagnosticValidation = {
+  itemPosition: number;
+  attachmentPosition: number;
+  fileName: string;
+} & ({ kind: "invalid"; message: string } | {
+  kind: "checked";
+  evidence: "database_name_dbid" | "database_name" | "unconfirmed";
+});
+
 export type ReportTaskStatus = "processing" | "done" | "failed";
 
 /** Each report item's own outcome; a failed item always carries its reason. */
@@ -73,6 +82,8 @@ export interface ReportTaskFilter {
 export type ReportEvent = WsMessage;
 
 export interface ReportsApi {
+  /** Checks optional attachments without creating a report task. */
+  validate(token: string, input: ReportTaskInput): Promise<DiagnosticValidation[]>;
   /** Submits a report task with the session's user as submitter. */
   generate(token: string, input: ReportTaskInput): Promise<SubmittedReportTask>;
   /** The caller's own tasks, admins included, newest first (我的报告). */

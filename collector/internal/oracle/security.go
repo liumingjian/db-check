@@ -3,7 +3,7 @@ package oracle
 import "context"
 
 func (c *metricsCollector) collectSecurity(ctx context.Context) map[string]any {
-	return map[string]any{
+	payload := map[string]any{
 		"disabled_constraints": rowsPayload(c.queryRows(ctx, "oracle.security.disabled_constraints", disabledConstraintsQuery)),
 		"disabled_triggers":    rowsPayload(c.queryRows(ctx, "oracle.security.disabled_triggers", disabledTriggersQuery)),
 		"expired_users": rowsPayload(c.queryRows(
@@ -14,12 +14,12 @@ func (c *metricsCollector) collectSecurity(ctx context.Context) map[string]any {
 		"table_degree_gt_one": rowsPayload(c.queryRows(
 			ctx,
 			"oracle.security.table_degree_gt_one",
-			`SELECT table_name AS "table_name", degree AS "degree" FROM dba_tables WHERE degree > '1'`,
+			`SELECT owner AS "owner", table_name AS "table_name", TRIM(degree) AS "degree" FROM dba_tables WHERE TRIM(degree) NOT IN ('0','1')`,
 		)),
 		"indexes_degree_gt_one": rowsPayload(c.queryRows(
 			ctx,
 			"oracle.security.indexes_degree_gt_one",
-			`SELECT index_name AS "index_name", degree AS "degree" FROM dba_indexes WHERE degree > '1'`,
+			`SELECT owner AS "owner", index_name AS "index_name", TRIM(degree) AS "degree" FROM dba_indexes WHERE TRIM(degree) NOT IN ('0','1')`,
 		)),
 		"dba_role_users": rowsPayload(c.queryRows(
 			ctx,
@@ -27,6 +27,7 @@ func (c *metricsCollector) collectSecurity(ctx context.Context) map[string]any {
 			`SELECT grantee AS "grantee", granted_role AS "granted_role", admin_option AS "admin_option", default_role AS "default_role" FROM dba_role_privs WHERE granted_role='DBA' OR granted_role='SYSDBA'`,
 		)),
 	}
+	return mergeMaps(payload, c.collectSecurityDepth(ctx))
 }
 
 const disabledConstraintsQuery = `

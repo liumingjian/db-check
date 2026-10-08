@@ -7,18 +7,29 @@ import { ItemsPanel } from "@/components/console/home/generate/items-panel";
 import { useReportInputs } from "@/components/console/home/generate/use-report-inputs";
 import { useReportRun } from "@/components/console/home/generate/use-report-run";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/stores/auth-store";
 
 /** 生成报告: the drop zone, one row per report item, overall progress, then the «报告好了。» band. */
 export function GenerateSection() {
   const inputs = useReportInputs();
   const { run, submitting, downloading, submit, download, reset } = useReportRun();
-  const busy = run !== null;
+  const token = useAuthStore((state) => state.token);
+  const busy = run?.outcome === "running" || submitting;
   const { dragging, dropProps } = useFileDrop(!busy, (files) => void inputs.add(files));
   const picker = useRef<HTMLInputElement>(null);
 
   function restart() {
     reset();
-    inputs.clear();
+    if (run?.outcome !== "error") inputs.clear();
+  }
+
+  async function generate() {
+    if (!token || submitting || inputs.validating) return;
+    const input = await inputs.validate(token);
+    if (input) {
+      reset();
+      await submit(input);
+    }
   }
 
   if (run?.outcome === "done") {
@@ -38,7 +49,7 @@ export function GenerateSection() {
           dragging && "bg-primary text-primary-foreground",
         )}
       >
-        <FilePicker inputRef={picker} onFiles={(files) => void inputs.add(files)} />
+        <FilePicker inputRef={picker} disabled={busy} onFiles={(files) => void inputs.add(files)} />
         <div className="mx-auto grid w-full max-w-[1240px] flex-1 grid-cols-[1.3fr_1fr] items-center gap-16 px-8 py-16">
           <div>
             {dragging ? (
@@ -54,7 +65,8 @@ export function GenerateSection() {
               inputs={inputs}
               run={run}
               submitting={submitting}
-              onSubmit={() => inputs.taskInput && void submit(inputs.taskInput)}
+              onSubmit={() => void generate()}
+              onValidate={() => { if (token) void inputs.validate(token); }}
             />
           </div>
         </div>
@@ -63,20 +75,24 @@ export function GenerateSection() {
   );
 }
 
-/** The hidden input behind 选择采集包: ZIPs plus AWR/WDR HTML files. */
+/** The hidden input behind 选择采集包: primary ZIPs. */
 function FilePicker({
   inputRef,
   onFiles,
+  disabled,
 }: {
   inputRef: React.RefObject<HTMLInputElement | null>;
   onFiles: (files: File[]) => void;
+  disabled: boolean;
 }) {
   return (
     <input
       ref={inputRef}
       type="file"
+      disabled={disabled}
       multiple
-      accept=".zip,.html,.htm"
+      accept=".zip"
+      aria-label="选择 ZIP 采集包"
       className="hidden"
       onChange={(e) => {
         onFiles(Array.from(e.target.files ?? []));
@@ -89,7 +105,7 @@ function FilePicker({
 /**
  * Makes the whole section a drop target for files from the desktop while
  * `enabled`. Nested `dragenter`/`dragleave` pairs are counted, and in-page
- * drags (待配对 chips carry no `Files` type) are ignored.
+ * drags without files are ignored.
  */
 function useFileDrop(enabled: boolean, onFiles: (files: File[]) => void) {
   const [dragging, setDragging] = useState(false);

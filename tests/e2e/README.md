@@ -27,6 +27,8 @@ tests/e2e/run_docker_e2e.sh --mysql-version 5.6 --mysql-version 5.7 --mysql-vers
 
 Oracle E2E 用法：
 
+Issue #48 的测试于 2026-10-03 在确认的 Darwin/arm64 Mac 执行环境运行。11gR2、19c smoke 均已通过严格产物验收，范围为单机、primary、非 ASM；12c、18c、21c、23ai 未经过容器验证，18c 属于 12c 系列。验证级别、完整检查命令、产物与主机工具限制见 [Oracle Mac 验证记录](../../docs/oracle-support.md#mac-验证记录)。
+
 ```bash
 source .venv/bin/activate
 tests/e2e/run_docker_e2e.sh --db-type oracle --oracle-version 11g

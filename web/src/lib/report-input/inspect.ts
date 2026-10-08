@@ -1,6 +1,6 @@
 /**
  * Report input inspection (spec #19, seam 2): pure browser-side reading of
- * dropped collector ZIPs and pairing of AWR/WDR HTML files onto them, before
+ * collector ZIPs and adding AWR/WDR HTML files to them, before
  * anything crosses the API.
  */
 import { strFromU8, unzipSync } from "fflate";
@@ -18,7 +18,7 @@ export type ZipInspection =
   | { ok: true; dbType: DbType; collectorVersion: string | null }
   | { ok: false; problem: ZipProblem; reason: string };
 
-/** One dropped ZIP, as a row of the generate section shows it, with the AWR/WDR HTML files paired onto it. */
+/** One dropped ZIP, as a row of the generate section shows it, with its optional AWR/WDR HTML files. */
 export interface InspectedZip {
   file: File;
   inspection: ZipInspection;
@@ -41,21 +41,6 @@ export async function inspectDrop(files: File[], existing: InspectedZip[] = []):
 }
 
 /**
- * The AWR/WDR HTML files of a drop, in drop order, that go to 待配对 (Unpaired).
- * Skips a file already waiting in `unpaired` or paired onto one of `items`.
- */
-export function collectUnpaired(files: File[], items: InspectedZip[] = [], unpaired: File[] = []): File[] {
-  const seen = new Set([...unpaired, ...items.flatMap((item) => item.diagnostics)].map(fileKey));
-  const fresh: File[] = [];
-  for (const file of files) {
-    if (!isDiagnosticFile(file) || seen.has(fileKey(file))) continue;
-    seen.add(fileKey(file));
-    fresh.push(file);
-  }
-  return fresh;
-}
-
-/**
  * Identifies a dropped HTML across drops. Not the name alone: AWR files of two
  * hosts often share one (`awrrpt_1_100_101.html`).
  */
@@ -63,34 +48,29 @@ export function fileKey(file: File): string {
   return `${file.name}\u0000${file.size}\u0000${file.lastModified}`;
 }
 
-export type PairProblem = "unreadable_item" | "no_slot" | "slot_full" | "already_paired";
+export type DiagnosticProblem = "unreadable_item" | "no_slot" | "slot_full" | "already_added" | "unsupported_file";
 
-export type PairOutcome = { ok: true; item: InspectedZip } | { ok: false; problem: PairProblem; reason: string };
+export type DiagnosticOutcome = { ok: true; item: InspectedZip } | { ok: false; problem: DiagnosticProblem; reason: string };
 
-/**
- * Pairs an AWR/WDR HTML onto a report item row, returning the new row. An
- * oracle row takes at most one AWR, a gaussdb row any number of WDRs, and a
- * mysql row or a red row none.
- */
-export function pairDiagnostic(item: InspectedZip, file: File): PairOutcome {
+/** Adds a selection to one item atomically, without replacing existing files. */
+export function addDiagnostics(item: InspectedZip, files: File[]): DiagnosticOutcome {
   const { inspection, diagnostics } = item;
-  if (!inspection.ok) return refuse("unreadable_item", "采集包无法识别，不能配对");
+  if (!inspection.ok) return refuse("unreadable_item", "采集包无法识别，不能添加诊断报告");
   if (inspection.dbType === "mysql") return refuse("no_slot", "MySQL 采集包不需要 AWR 或 WDR 报告");
-  if (diagnostics.some((paired) => fileKey(paired) === fileKey(file))) {
-    return refuse("already_paired", `${file.name} 已配对到这个采集包`);
+  if (files.some((file) => !isDiagnosticFile(file))) return refuse("unsupported_file", "请选择 .html 或 .htm 格式的诊断报告");
+  if (inspection.dbType === "oracle" && diagnostics.length + files.length > 1) {
+    return refuse("slot_full", "每个 Oracle 采集包只能添加一份 AWR，请先移除已有附件再选择");
   }
-  if (inspection.dbType === "oracle" && diagnostics.length > 0) {
-    return refuse("slot_full", "Oracle 采集包只能配对一份 AWR 报告");
+  const seen = new Set(diagnostics.map(fileKey));
+  for (const file of files) {
+    if (seen.has(fileKey(file))) return refuse("already_added", `${file.name} 已添加到这个采集包`);
+    seen.add(fileKey(file));
   }
-  return { ok: true, item: { ...item, diagnostics: [...diagnostics, file] } };
+  return { ok: true, item: { ...item, diagnostics: [...diagnostics, ...files] } };
 }
 
-/**
- * The report task input for these rows, or `null` while submission is
- * blocked: no rows, any red row, or any HTML still waiting in `unpaired`.
- */
-export function toTaskInput(items: InspectedZip[], unpaired: File[] = []): ReportTaskInput | null {
-  if (unpaired.length > 0) return null;
+/** Builds a task only when every primary ZIP has been identified. */
+export function toTaskInput(items: InspectedZip[]): ReportTaskInput | null {
   const inputs: ReportItemInput[] = [];
   for (const { file, inspection, diagnostics } of items) {
     if (!inspection.ok) return null;
@@ -140,7 +120,7 @@ function readCollectorVersion(data: Uint8Array, runDir: string, manifest: JsonOb
 }
 
 const fail = (problem: ZipProblem, reason: string): ZipInspection => ({ ok: false, problem, reason });
-const refuse = (problem: PairProblem, reason: string): PairOutcome => ({ ok: false, problem, reason });
+const refuse = (problem: DiagnosticProblem, reason: string): DiagnosticOutcome => ({ ok: false, problem, reason });
 
 function isDiagnosticFile(file: File): boolean {
   return /\.html?$/i.test(file.name);

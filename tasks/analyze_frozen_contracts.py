@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -293,6 +294,13 @@ def main() -> int:
         raise SystemExit("manifest/result/rule must be JSON objects")
 
     na_ids = load_na_ids(args.na_checks)
+    if rule.get("rule_meta", {}).get("db_type") == "oracle":
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from analyzer.evaluator.rule_engine import generate_summary
+
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(generate_summary(manifest, result, rule, na_ids), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        return 0
     checks = collect_checks(rule)
 
     module_stats = manifest.get("module_stats", {})

@@ -24,6 +24,7 @@ export type { CollectorRelease, Platform, ReleasePackage, ReleaseStatus } from "
 export type { DownloadRecord } from "@/lib/api/downloads/contract";
 export type {
   CollectorNotice,
+  DiagnosticValidation,
   ReportEvent,
   ReportItem,
   ReportItemInput,

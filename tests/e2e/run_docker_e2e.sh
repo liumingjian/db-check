@@ -344,6 +344,7 @@ run_oracle_e2e() (
     --inspector "db-check" \
     --change-description "oracle巡检报告"
 
+  python3 "$ROOT_DIR/tests/e2e/validate_oracle_smoke.py" "$run_dir" --version "$version"
   echo "[INFO] docker e2e succeeded for Oracle $version"
   echo "[INFO] artifacts[$version]: $run_dir"
 )

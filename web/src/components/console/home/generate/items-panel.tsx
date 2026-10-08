@@ -2,7 +2,6 @@
 
 import { ArrowRight } from "lucide-react";
 import { ItemRow, type Stage } from "@/components/console/home/generate/item-row";
-import { Unpaired } from "@/components/console/home/generate/unpaired";
 import type { useReportInputs } from "@/components/console/home/generate/use-report-inputs";
 import type { Run } from "@/components/console/home/generate/use-report-run";
 import { YellowButton } from "@/components/console/kit";
@@ -18,21 +17,23 @@ const READING = "正在读取 manifest…";
 
 /**
  * The section's right column: the platform stats while empty, then one row per
- * report item, 待配对, and the submit button until a task runs.
+ * report item and the submit button until a task runs.
  */
 export function ItemsPanel({
   inputs,
   run,
   submitting,
   onSubmit,
+  onValidate,
 }: {
   inputs: ReturnType<typeof useReportInputs>;
   run: Run | null;
   submitting: boolean;
   onSubmit: () => void;
+  onValidate: () => void;
 }) {
-  const { items, unpaired, inspecting } = inputs;
-  if (items.length === 0 && unpaired.length === 0) {
+  const { items, inspecting } = inputs;
+  if (items.length === 0) {
     return inspecting ? <p className="text-sm text-muted-foreground">{READING}</p> : <Stats />;
   }
   return (
@@ -41,41 +42,47 @@ export function ItemsPanel({
         <ItemRow
           key={item.file.name}
           item={item}
+          editable={!submitting}
           stage={stageOf(run, index)}
           notice={run?.notices[index] ?? null}
           onRemove={() => inputs.removeItem(item)}
-          onPair={(key) => inputs.pair(item, key)}
-          onUnpair={(file) => inputs.unpair(item, file)}
+          onAttach={(files) => inputs.attach(item, files)}
+          onRemoveDiagnostic={(file) => inputs.removeDiagnostic(item, file)}
+          diagnosticCheck={(file) => inputs.diagnosticCheck(item, file)}
         />
       ))}
       {run?.noticesError && (
         <p className="px-4 pt-3 pb-1 text-xs text-muted-foreground">采集器版本提示读取失败：{run.noticesError}</p>
       )}
-      {!run && unpaired.length > 0 && <Unpaired files={unpaired} onRemove={inputs.removeUnpaired} />}
       {inspecting && <p className="px-4 py-3.5 text-xs text-muted-foreground">{READING}</p>}
-      {!run && <SubmitBar inputs={inputs} submitting={submitting} onSubmit={onSubmit} />}
+      {(!run || run.outcome === "error") && <SubmitBar inputs={inputs} submitting={submitting || inputs.validating} onSubmit={onSubmit} onValidate={onValidate} />}
     </div>
   );
 }
 
 function SubmitBar({
-  inputs: { items, unpaired, inspecting, taskInput },
+  inputs: { items, inspecting, taskInput },
   submitting,
   onSubmit,
+  onValidate,
 }: {
   inputs: ReturnType<typeof useReportInputs>;
   submitting: boolean;
   onSubmit: () => void;
+  onValidate: () => void;
 }) {
   return (
     <>
+      {items.some((item) => item.diagnostics.length > 0) && (
+        <button type="button" onClick={onValidate} disabled={!taskInput || inspecting || submitting} className="mx-4 my-2 cursor-pointer text-xs text-muted-foreground underline underline-offset-4 disabled:cursor-default disabled:opacity-50">
+          校验附件
+        </button>
+      )}
       <YellowButton onClick={onSubmit} disabled={!taskInput || inspecting || submitting} className="mt-2 h-14 w-full text-base">
         生成 {items.length} 份报告 <ArrowRight className="h-4 w-4" />
       </YellowButton>
       {items.some((i) => !i.inspection.ok) && <p className="px-4 pt-3 pb-1 text-xs text-destructive">移除标红的采集包后才能生成。</p>}
-      {unpaired.length > 0 && (
-        <p className="px-4 pt-3 pb-1 text-xs text-muted-foreground">把待配对的文件拖到对应的采集包上，或移除它们，才能生成。</p>
-      )}
+
     </>
   );
 }
@@ -95,6 +102,6 @@ function Stats() {
 }
 
 function stageOf(run: Run | null, index: number): Stage {
-  if (!run) return null;
+  if (!run || run.outcome === "error") return null;
   return index < run.completed ? "done" : index === run.completed ? "current" : "queued";
 }

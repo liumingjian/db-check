@@ -9,6 +9,7 @@ from reporter.model.report_view import SectionBlock, TableBlock
 
 def build_storage_and_log_section(result: dict[str, object]) -> SectionBlock:
     storage = db_payload(result, "storage")
+    evidence = result.get("db", {}).get("collection_availability", {})
     summary_rows = (
         ("数据文件总量(GB)", format_number(storage.get("datafile_total_gb"), 0)),
         ("表空间数量", format_number(storage.get("tablespace_count"), 0)),
@@ -16,12 +17,18 @@ def build_storage_and_log_section(result: dict[str, object]) -> SectionBlock:
         ("控制文件数量", format_number(storage.get("controlfile_count"), 0)),
         ("Redo 大小(MB)", format_number(storage.get("redo_size_mb"), 0)),
         ("Redo 组数", format_number(storage.get("redo_group_count"), 0)),
+        ("回收站可回收空间(GB)", format_number(storage.get("recyclebin_size_gb"))),
     )
     return SectionBlock(
         title="2.2.2 存储与日志",
+        paragraphs=("表空间使用率以文件自动扩展最大容量为分母；临时表空间使用量按实际块大小计算活跃临时段，不计可复用缓存。",),
         tables=(
             key_value_table("存储摘要", summary_rows),
             _tablespace_usage_table(storage),
+            _space_detail_table(storage, evidence, "temp_usage", "临时表空间活跃使用量", ("tablespace_name", "block_size", "total_size_gb", "max_size_gb", "used_size_gb", "real_percent"), ("表空间", "块大小(字节)", "当前容量(GB)", "最大容量(GB)", "活跃使用(GB)", "使用率")),
+            _space_detail_table(storage, evidence, "sysaux_usage", "SYSAUX 使用情况", ("tablespace_name", "max_size_gb", "used_size_gb", "real_percent"), ("表空间", "最大容量(GB)", "已用(GB)", "使用率")),
+            _space_detail_table(storage, evidence, "largest_segments", "最大段明细(前 20 项)", ("owner", "segment_name", "partition_name", "segment_type", "tablespace_name", "size_gb", "tablespace_percent"), ("Owner", "段名", "分区", "类型", "表空间", "大小(GB)", "容量占比")),
+            _alert_log_table(result),
             _datafiles_table(storage),
             _control_files_table(storage),
             _redo_logs_table(storage),
@@ -31,6 +38,37 @@ def build_storage_and_log_section(result: dict[str, object]) -> SectionBlock:
             _invalid_indexes_table(storage),
         ),
     )
+
+
+def _space_detail_table(storage, evidence, name, title, fields, columns):
+    rows = tuple(tuple(
+        format_percent(item.get(field)) if field in {"real_percent", "tablespace_percent"}
+        else format_number(item.get(field)) if field.endswith("_gb")
+        else str(item.get(field) or "") for field in fields
+    ) for item in unwrap_items(storage.get(name)))
+    gap = evidence.get("db.storage." + name, {})
+    missing = gap.get("readable") is False or name not in storage
+    return full_table(title, columns, rows or (("未采集" if missing else "无",) + ("",) * (len(columns)-1),),
+                      status="not_collected" if missing else "collected",
+                      note=str(gap.get("remediation", "")))
+
+
+def _alert_log_table(result):
+    alert = db_payload(result, "alert_log")
+    gap = result.get("db", {}).get("collection_availability", {}).get("db.alert_log", {})
+    missing = gap.get("readable") is False or not alert
+    rows = tuple((str(item.get("error_code", "")),
+                  format_number(item.get("count"), 0), str(item.get("latest_time", "")), str(item.get("latest_message", "")))
+                 for item in unwrap_items(alert.get("errors")))
+    days, limit = alert.get("window_days", "未知"), alert.get("record_limit", "未知")
+    note = f"最近 {days} 天最新 {limit} 条包含 ORA 错误的记录，按错误码去重，每条记录同一错误码计一次。"
+    if alert.get("limit_reached"):
+        note += f"已达到 {limit} 条上限，计数不代表窗口内全部错误。"
+    if missing:
+        note += str(gap.get("reason", "")) + " " + str(gap.get("remediation", "请 DBA 手工检查 ADRCI 或 alert 日志。"))
+    return full_table("告警日志 ORA 错误汇总", ("错误码", "匹配记录数", "最近时间", "最近消息"),
+                      rows or (("未采集" if missing else "无 ORA 错误", "", "", ""),),
+                      status="not_collected" if missing else "collected", note=note)
 
 
 def _tablespace_usage_table(storage: dict[str, object]) -> TableBlock:

@@ -1,15 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef } from "react";
 import { Check, TriangleAlert, X } from "lucide-react";
-import type { CollectorNotice } from "@/lib/api";
+import type { CollectorNotice, DiagnosticValidation } from "@/lib/api";
 import { formatSize } from "@/lib/files";
 import { fileKey, type InspectedZip } from "@/lib/report-input/inspect";
 import { DB_LABEL, type DbType } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-/** Drag type for an HTML moved from 待配对 onto a row; the payload is its `fileKey`. */
-export const DIAGNOSTIC_DRAG = "application/x-dbcheck-diagnostic";
 
 /** The HTML a row's slot takes, by database type; mysql rows have no slot. */
 const SLOT_LABEL: Partial<Record<DbType, string>> = { oracle: "AWR", gaussdb: "WDR" };
@@ -20,35 +17,27 @@ export type Stage = "done" | "current" | "queued" | null;
 const REMOVE_BUTTON = "cursor-pointer text-[#5a5a5a] hover:text-foreground";
 
 /**
- * One report item: file name, what its manifest says, its paired AWR/WDR files,
- * and its progress once submitted. Before submission it takes drops from 待配对.
+ * One report item: file name, what its manifest says, its optional AWR/WDR files,
+ * and its progress once submitted. Before submission it accepts diagnostic selections.
  */
-export function ItemRow({
-  item: { file, inspection, diagnostics },
-  stage,
-  notice,
-  onRemove,
-  onPair,
-  onUnpair,
-}: {
+export function ItemRow({ item: { file, inspection, diagnostics }, stage, editable, notice, onRemove, onAttach, onRemoveDiagnostic, diagnosticCheck}: {
   item: InspectedZip;
   stage: Stage;
+  editable: boolean;
   /** Shown only while generating; report lists repeat only the revoked warning. */
   notice: CollectorNotice | null;
   onRemove: () => void;
-  onPair: (key: string) => void;
-  onUnpair: (file: File) => void;
+  onAttach: (files: File[]) => void;
+  onRemoveDiagnostic: (file: File) => void;
+  diagnosticCheck: (file: File) => DiagnosticValidation | null;
 }) {
-  const { target, dropProps } = useDiagnosticDrop(stage === null, onPair);
   const slot = inspection.ok ? SLOT_LABEL[inspection.dbType] : undefined;
 
   return (
     <div
-      {...dropProps}
       className={cn(
         "rounded-xl px-4 py-3.5 hover:bg-muted",
         !inspection.ok && "ring-1 ring-destructive ring-inset",
-        target && "bg-muted ring-1 ring-primary ring-inset",
       )}
     >
       <div className="flex items-center gap-3">
@@ -62,10 +51,10 @@ export function ItemRow({
               : inspection.reason}
           </span>
         </span>
-        <StageMark stage={stage} onRemove={onRemove} />
+        <StageMark stage={stage} editable={editable} onRemove={onRemove} />
       </div>
       {slot && (diagnostics.length > 0 || stage === null) && (
-        <PairedFiles slot={slot} files={diagnostics} editable={stage === null} onUnpair={onUnpair} />
+        <DiagnosticFiles slot={slot} files={diagnostics} editable={stage === null && editable} onAttach={onAttach} onRemoveDiagnostic={onRemoveDiagnostic} diagnosticCheck={diagnosticCheck} />
       )}
       {notice && inspection.ok && <VersionNotice version={inspection.collectorVersion} notice={notice} />}
       {stage !== null && (
@@ -77,35 +66,11 @@ export function ItemRow({
   );
 }
 
-/** Lets a row take a 待配对 file dragged onto it, while `enabled`. */
-function useDiagnosticDrop(enabled: boolean, onPair: (key: string) => void) {
-  const [target, setTarget] = useState(false);
-  const carriesDiagnostic = (e: React.DragEvent) => e.dataTransfer.types.includes(DIAGNOSTIC_DRAG);
-  const dropProps = enabled
-    ? {
-        onDragOver: (e: React.DragEvent) => {
-          if (!carriesDiagnostic(e)) return;
-          e.preventDefault();
-          setTarget(true);
-        },
-        onDragLeave: () => setTarget(false),
-        onDrop: (e: React.DragEvent) => {
-          if (!carriesDiagnostic(e)) return;
-          e.preventDefault();
-          e.stopPropagation();
-          setTarget(false);
-          onPair(e.dataTransfer.getData(DIAGNOSTIC_DRAG));
-        },
-      }
-    : {};
-  return { target, dropProps };
-}
-
 /** × before submission; then ✓, 生成中 or 排队中. */
-function StageMark({ stage, onRemove }: { stage: Stage; onRemove: () => void }) {
+function StageMark({ stage, editable, onRemove }: { stage: Stage; editable: boolean; onRemove: () => void }) {
   if (stage === null) {
     return (
-      <button type="button" aria-label="移除" onClick={onRemove} className={REMOVE_BUTTON}>
+      <button type="button" aria-label="移除" disabled={!editable} onClick={onRemove} className={REMOVE_BUTTON}>
         <X className="h-4 w-4" />
       </button>
     );
@@ -114,36 +79,61 @@ function StageMark({ stage, onRemove }: { stage: Stage; onRemove: () => void }) 
   return <span className="text-xs text-muted-foreground">{stage === "current" ? "生成中" : "排队中"}</span>;
 }
 
-/** The row's paired AWR/WDR chips and, while editable, a hint for its free slot. */
-function PairedFiles({
-  slot,
-  files,
-  editable,
-  onUnpair,
-}: {
+/** Files selected on this item, with individual removal and an optional picker. */
+function DiagnosticFiles({ slot, files, editable, onAttach, onRemoveDiagnostic, diagnosticCheck }: {
   slot: string;
   files: File[];
   editable: boolean;
-  onUnpair: (file: File) => void;
+  onAttach: (files: File[]) => void;
+  onRemoveDiagnostic: (file: File) => void;
+  diagnosticCheck: (file: File) => DiagnosticValidation | null;
 }) {
+  const picker = useRef<HTMLInputElement>(null);
+  const full = slot === "AWR" && files.length > 0;
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-      {files.map((d) => (
-        <span key={fileKey(d)} className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-border px-2 py-1 text-xs">
-          <span className="text-muted-foreground">{slot}</span>
-          <span className="truncate font-mono">{d.name}</span>
-          {editable && (
-            <button type="button" aria-label={`取消配对 ${d.name}`} onClick={() => onUnpair(d)} className={REMOVE_BUTTON}>
-              <X className="h-3 w-3" />
-            </button>
-          )}
-        </span>
-      ))}
-      {editable && (slot === "WDR" || files.length === 0) && (
-        <span className="text-xs text-[#5a5a5a]">{slot === "WDR" ? "可拖入多份 WDR（可选）" : "可拖入一份 AWR（可选）"}</span>
-      )}
+    <div className="mt-2 space-y-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {files.map((file) => (
+          <span key={fileKey(file)} className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-border px-2 py-1 text-xs">
+            <span className="text-muted-foreground">{slot}</span>
+            <span className="truncate font-mono">{file.name}</span>
+            {editable && <button type="button" aria-label={`移除 ${file.name}`} onClick={() => onRemoveDiagnostic(file)} className={REMOVE_BUTTON}><X className="h-3 w-3" /></button>}
+          </span>
+        ))}
+        {editable && <button type="button" disabled={full} onClick={() => picker.current?.click()} className="cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted disabled:cursor-default disabled:opacity-50">添加 {slot}</button>}
+      </div>
+      {files.map((file) => {
+        const check = diagnosticCheck(file);
+        if (check?.kind === "invalid") return <p key={fileKey(file)} role="alert" className="text-xs text-destructive">{file.name}：{check.message}</p>;
+        return <p key={fileKey(file)} className="text-xs text-muted-foreground">{file.name}：{diagnosticGuidance(slot, check)}</p>;
+      })}
+      {editable && <>
+        <input ref={picker} type="file" accept=".html,.htm" multiple={slot === "WDR"} aria-label={`选择 ${slot} 文件`} className="hidden" onChange={(event) => {
+          onAttach(Array.from(event.target.files ?? []));
+          event.target.value = "";
+        }} />
+        <p className="text-xs text-muted-foreground">可从其他平台导出后添加（可选）；未添加时，仅根据采集包生成报告。</p>
+        <p className="text-xs text-muted-foreground">{slot === "AWR" ? "每个采集包支持一份 AWR，更换前请先移除已有附件。" : "每个采集包可添加多份 WDR。"}</p>
+      </>}
     </div>
   );
+}
+
+function diagnosticGuidance(slot: string, check: DiagnosticValidation | null): string {
+  if (!check) return `尚未校验，请核对 ${slot} 对应的数据库及时间范围。`;
+  if (check.kind === "invalid") return check.message;
+  switch (check.evidence) {
+    case "database_name_dbid":
+      return `数据库名和 DBID 一致；尚无法确认时间范围，请核对 ${slot} 与本次巡检的时间。`;
+    case "database_name":
+      return `数据库名一致；尚无法确认完整数据库身份及时间范围，请核对 ${slot} 对应的数据库和时间。`;
+    case "unconfirmed":
+      return `尚无法确认数据库身份及时间范围，请核对 ${slot} 对应的数据库和时间。`;
+    default: {
+      const exhaustive: never = check.evidence;
+      return exhaustive;
+    }
+  }
 }
 
 /** Deprecated: a quiet notice. Revoked: a prominent warning with the revocation reason. */

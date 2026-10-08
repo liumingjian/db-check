@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"dbcheck/reporter/internal/launcher"
 	"errors"
 	"os"
@@ -167,9 +168,11 @@ func (fakeLayoutResolver) Resolve(executablePath string, cfg launcher.Config) (l
 }
 
 type fakeRunner struct {
-	calls    int
-	results  []error
-	lastArgs []string
+	output    []byte
+	outputErr error
+	calls     int
+	results   []error
+	lastArgs  []string
 }
 
 func (r *fakeRunner) Run(command string, args []string, onLog func(LogEvent)) error {
@@ -183,4 +186,12 @@ func (r *fakeRunner) Run(command string, args []string, onLog func(LogEvent)) er
 		return r.results[r.calls-1]
 	}
 	return nil
+}
+
+func (r *fakeRunner) Output(ctx context.Context, command string, args []string) ([]byte, error) {
+	r.lastArgs = append([]string{}, args...)
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	return r.output, r.outputErr
 }

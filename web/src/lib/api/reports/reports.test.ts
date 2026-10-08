@@ -12,6 +12,17 @@ function isNewestFirst(isoTimes: string[]): boolean {
 }
 
 describe.each(contractImplementationsWithReal)("%s reports contract", (_name, makeApi) => {
+  it("validates indexed attachments without admitting a task", async () => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn("user", "user");
+    const before = await api.reports.listOwn(token);
+    const checks = await api.reports.validate(token, { items: [item("mysql.zip"), {
+      ...item("oracle.zip", "oracle"), diagnostics: [new File(["stub diagnostic"], "awr.html")],
+    }] });
+    expect(checks).toEqual([{ itemPosition: 2, attachmentPosition: 1, fileName: "awr.html", kind: "checked", evidence: "unconfirmed" }]);
+    expect(await api.reports.listOwn(token)).toEqual(before);
+    await expect(api.reports.validate("not-a-session", { items: [item("mysql.zip")] })).rejects.toMatchObject({ code: "unauthorized" });
+  });
   it("refuses to generate without a valid session", async () => {
     const api = makeApi();
     await expect(api.reports.generate("not-a-session", { items: [item("mysql-prod-01.zip")] })).rejects.toMatchObject({
@@ -38,6 +49,14 @@ describe.each(contractImplementationsWithReal)("%s reports contract", (_name, ma
 
     const report = await api.reports.download(token, submitted.taskId);
     expect(report.size).toBeGreaterThan(0);
+  });
+
+  it("refuses more than one AWR without silently discarding a selection", async () => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn("user", "user");
+    await expect(api.reports.generate(token, { items: [{ ...item("oracle.zip", "oracle"), diagnostics: [
+      new File(["first"], "first.html"), new File(["second"], "second.html"),
+    ] }] })).rejects.toMatchObject({ code: "invalid" });
   });
 
   it.each(["lisi", "zhaoliu"])("refuses report downloads to applicant %s", async (username) => {

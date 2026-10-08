@@ -22,6 +22,15 @@
   },
   "os": {},
   "db": {
+    "version_info": {
+      "version": "19.3.0.0.0", "major": 19, "family": "19c",
+      "capabilities": {"multitenant": true, "diagnostic_alert": true, "sql_patch_registry": true}
+    },
+    "deployment_topology": {
+      "is_rac": false, "is_cdb": true, "database_role": "PRIMARY", "role": "primary", "is_asm": false,
+      "connected_container": "CDB$ROOT", "inspection_scope": "connected_container", "pdb_list_state": "collected",
+      "pdbs": {"items": [{"con_id": 3, "name": "APP", "open_mode": "READ WRITE", "restricted": "NO", "size_bytes": 209715200}], "count": 1}
+    },
     "basic_info": {
       "db_name": "ORCL",
       "instance_name": "ORCL1",
