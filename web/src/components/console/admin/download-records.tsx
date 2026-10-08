@@ -121,7 +121,7 @@ export function DownloadRecords({ now = Date.now }: { now?: () => number }) {
                     <span className="w-28 shrink-0 text-sm text-muted-foreground tabular-nums">{appliedAtLabel(r.at)}</span>
                     <span className="w-28 shrink-0 truncate text-sm font-semibold">{nameOf(r.userId)}</span>
                     <span className="w-28 shrink-0 text-base font-semibold tabular-nums">v{r.version}</span>
-                    <span className="flex-1 font-mono text-sm text-[#ccc]">{r.platform}</span>
+                    <span className="flex-1 font-mono text-sm text-subtle-foreground">{r.platform}</span>
                     {note && <span className={cn("text-xs", note.className)}>{note.label}</span>}
                   </div>
                 );
@@ -146,7 +146,7 @@ function toFilter(query: DownloadRecordsQuery, now: number): DownloadRecordFilte
 function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-center gap-2 py-2">
-      <span className="w-12 shrink-0 text-xs font-semibold text-[#5a5a5a]">{label}</span>
+      <span className="w-12 shrink-0 text-xs font-semibold text-faint-foreground">{label}</span>
       {children}
     </div>
   );

@@ -42,6 +42,12 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-primary-hover: var(--primary-hover);
+  --color-muted-hover: var(--muted-hover);
+  --color-subtle-foreground: var(--subtle-foreground);
+  --color-faint-foreground: var(--faint-foreground);
+  --color-faint-hover: var(--faint-hover);
+  --color-dim-foreground: var(--dim-foreground);
   --color-warning: var(--warning);
   --color-success: var(--success);
   --radius-sm: calc(var(--radius) * 0.6);
@@ -63,10 +69,17 @@
   --popover-foreground: #ffffff;
   --primary: #faff69;
   --primary-foreground: #0a0a0a;
+  --primary-hover: #e6eb52;
   --secondary: #242424;
   --secondary-foreground: #ffffff;
   --muted: #242424;
   --muted-foreground: #888888;
+  --muted-hover: #2f2f2f;
+  /* Text greys around muted-foreground, brightest first: body copy, faint labels and their hover, inactive tabs. */
+  --subtle-foreground: #cccccc;
+  --faint-foreground: #7a7a7a;
+  --faint-hover: #bbbbbb;
+  --dim-foreground: #3a3a3a;
   --accent: #242424;
   --accent-foreground: #ffffff;
   --destructive: #ef4444;
@@ -101,30 +114,40 @@
   html {
     @apply font-sans;
   }
-}
-
-/* Drag-over breathing animation for upload zone */
-@keyframes border-breathe {
-  0%, 100% { border-color: var(--primary); opacity: 0.6; }
-  50% { border-color: var(--primary); opacity: 1; }
-}
-.drag-over {
-  animation: border-breathe 1.2s ease-in-out infinite;
-  border-style: solid;
-}
-
-/* Terminal log auto-scroll */
-.log-auto-scroll {
-  scroll-behavior: smooth;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .drag-over {
-    animation: none;
-    border-color: var(--primary);
-    opacity: 1;
+  /* Proportional CJK punctuation: the closing 。 sits against its sentence instead of trailing a full em of air. */
+  h1, h2, h3 {
+    font-feature-settings: "palt";
   }
-  .log-auto-scroll {
-    scroll-behavior: auto;
+}
+
+/* Headline scale. Tracking is in em so it stays proportional at every size; it is lighter
+   than Latin display type would take, because CJK glyphs already fill their em box. */
+@theme {
+  --text-giant: 160px;
+  --text-giant--line-height: 0.9;
+  --text-giant--letter-spacing: -0.035em;
+  --text-hero: 120px;
+  --text-hero--line-height: 1;
+  --text-hero--letter-spacing: -0.03em;
+  --text-display: 88px;
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.03em;
+  --text-headline: 56px;
+  --text-headline--line-height: 1.1;
+  --text-headline--letter-spacing: -0.03em;
+  --text-title: 40px;
+  --text-title--line-height: 1.15;
+  --text-title--letter-spacing: -0.03em;
+  --text-subtitle: 32px;
+  --text-subtitle--line-height: 1.1;
+  --text-subtitle--letter-spacing: -0.025em;
+}
+
+/* An indeterminate progress sliver: a third of the track sweeping across it. */
+@theme {
+  --animate-indeterminate: indeterminate 1.2s linear infinite;
+  @keyframes indeterminate {
+    from { translate: -100% 0; }
+    to { translate: 300% 0; }
   }
 }

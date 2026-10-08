@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 
 /** The text input of the account screens (sign-in, register, resubmit). */
-export const INPUT = "h-12 w-full rounded-lg bg-card px-4 text-[15px] ring-1 ring-transparent outline-none placeholder:text-[#5a5a5a] focus:ring-primary";
+export const INPUT = "h-12 w-full rounded-lg bg-card px-4 text-[15px] ring-1 ring-transparent outline-none placeholder:text-faint-foreground focus:ring-primary";
 
 /** The multi-line variant, for the application note. */
 export const TEXTAREA = cn(INPUT, "h-auto resize-none py-3");

@@ -12,12 +12,12 @@ const RESTART_LINK = "cursor-pointer text-base font-semibold underline underline
 export function Intro({ onPick }: { onPick: () => void }) {
   return (
     <>
-      <h1 className="text-[88px] leading-[1.02] font-bold tracking-[-3px]">
+      <h1 className="text-display font-bold">
         拖进 ZIP，
         <br />
         <span className="text-primary">拿走报告。</span>
       </h1>
-      <p className="mt-8 max-w-md text-lg leading-relaxed text-[#ccc]">
+      <p className="mt-8 max-w-md text-lg leading-relaxed text-subtle-foreground">
         把采集器生成的 ZIP 拖到这一屏任意位置。数据库类型自动识别，一次可以放多台主机。Oracle 的 AWR、GaussDB
         的 WDR 可在识别数据库类型后，添加到对应采集包。
       </p>
@@ -39,12 +39,12 @@ export function RunProgress({ run, onRestart }: { run: Run; onRestart: () => voi
       <p className={CAPTION}>{failed ? "生成失败" : "正在生成"}</p>
       <p
         className={cn(
-          "mt-4 text-[160px] leading-[0.9] font-bold tracking-[-6px] tabular-nums",
+          "mt-4 text-giant font-bold tabular-nums",
           failed ? "text-destructive" : "text-primary",
         )}
       >
         {overall}
-        <span className="text-[64px] tracking-[-2px]">%</span>
+        <span className="text-[0.4em] tracking-[-0.03em]">%</span>
       </p>
       {failed ? (
         <>
@@ -54,7 +54,7 @@ export function RunProgress({ run, onRestart }: { run: Run; onRestart: () => voi
           </button>
         </>
       ) : (
-        <p className="mt-6 text-lg text-[#ccc] tabular-nums">
+        <p className="mt-6 text-lg text-subtle-foreground tabular-nums">
           {run.completed} / {run.total} 份报告
         </p>
       )}
@@ -78,7 +78,7 @@ export function DoneBand({
     <div className="flex min-h-[min(100vh,860px)] flex-col bg-primary text-primary-foreground">
       <div className="mx-auto flex w-full max-w-[1240px] flex-1 flex-col justify-center px-8 py-16">
         <p className="text-[12px] font-semibold tracking-[1.5px] uppercase opacity-60">{run.taskId}</p>
-        <h1 className="mt-4 text-[96px] leading-[1] font-bold tracking-[-3.5px]">报告好了。</h1>
+        <h1 className="mt-4 text-display font-bold">报告好了。</h1>
         <p className="mt-6 text-lg opacity-70">
           {run.total} 份报告 · {REPORT_RETENTION_DAYS} 天内可在「我的报告」重新下载
         </p>

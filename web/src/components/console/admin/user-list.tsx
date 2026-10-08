@@ -46,7 +46,7 @@ function UserRow({ user, self, actions }: { user: UserProfile; self: boolean; ac
         </p>
       </div>
       <div className="w-56 text-sm">
-        <span className={user.role === "admin" ? "text-primary" : "text-[#ccc]"}>{user.role === "admin" ? "管理员" : "工程师"}</span>
+        <span className={user.role === "admin" ? "text-primary" : "text-subtle-foreground"}>{user.role === "admin" ? "管理员" : "工程师"}</span>
         {user.status === "disabled" && <span className="ml-3 text-destructive">已禁用</span>}
         {user.mustChangePassword && <span className="ml-3 text-warning">待改密码</span>}
         {user.status === "disabled" && user.reason && <p className="mt-0.5 truncate text-muted-foreground">{user.reason}</p>}

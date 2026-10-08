@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { useUsersStore, usePendingCount } from "@/stores/users-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { AccountMenu } from "@/components/console/account-menu";
-import { Bars } from "@/components/console/kit";
+import { Bars, PRESS } from "@/components/console/kit";
 import { SECTIONS, scrollToSection, type SectionKey } from "@/components/console/sections";
 
 export const RAIL_WIDTH = "pl-[72px]";
@@ -40,7 +40,7 @@ function useSectionInView(enabled: boolean): SectionKey {
 }
 
 function RailLabel({ label, on, onClick, href, children }: { label: string; on: boolean; onClick?: () => void; href?: string; children?: React.ReactNode }) {
-  const className = cn("relative flex cursor-pointer flex-col items-center gap-2", on ? "text-foreground" : "text-[#5a5a5a] hover:text-[#bbb]");
+  const className = cn("relative flex cursor-pointer flex-col items-center gap-2", PRESS, on ? "text-foreground" : "text-faint-foreground hover:text-faint-hover");
   const content = (
     <>
       <span className="text-[14px] font-semibold tracking-[0.35em] [writing-mode:vertical-rl]">{label}</span>
@@ -90,7 +90,7 @@ export function Rail() {
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 flex w-[72px] flex-col items-center justify-between border-r border-sidebar-border bg-background py-7">
-      <button type="button" aria-label="DB-Check" onClick={() => go("new-report")} className="cursor-pointer">
+      <button type="button" aria-label="DB-Check" onClick={() => go("new-report")} className={cn("cursor-pointer", PRESS)}>
         <Bars size={22} />
       </button>
       <nav className="flex flex-col items-center gap-9">

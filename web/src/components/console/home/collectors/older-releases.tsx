@@ -1,8 +1,8 @@
 "use client";
 
-import { Download } from "lucide-react";
+import { ChevronDown, Download } from "lucide-react";
 import { useState } from "react";
-import { Menu, type MenuItem } from "@/components/console/kit";
+import { EASE_OUT, Menu, PRESS, type MenuItem } from "@/components/console/kit";
 import type { CollectorRelease, ReleasePackage, ReleaseStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -31,12 +31,13 @@ export function OlderReleases({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className="cursor-pointer text-sm font-semibold text-muted-foreground hover:text-foreground"
+        className={cn("inline-flex cursor-pointer items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground", PRESS)}
       >
-        历史版本 {open ? "↑" : "↓"}
+        历史版本
+        <ChevronDown className={cn("h-4 w-4 transition-[rotate] duration-200", EASE_OUT, open && "rotate-180")} />
       </button>
       {open && (
-        <div className="mt-4 divide-y divide-border border-y border-border">
+        <div className="mt-4 divide-y divide-border border-y border-border transition-opacity duration-200 starting:opacity-0">
           {releases.map((r) => {
             const status = r.status === "latest" ? null : HISTORY_STATUS[r.status];
             return (

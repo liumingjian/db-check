@@ -19,11 +19,11 @@ export function LatestRelease({ release, onDownload }: { release: CollectorRelea
             onClick={() => onDownload(pkg)}
             className={cn(
               "group flex h-60 cursor-pointer flex-col justify-between rounded-2xl bg-card p-6 text-left",
-              `transition-[background-color,color,transform] duration-150 ${EASE_OUT} hover:bg-primary hover:text-primary-foreground active:scale-[0.98]`,
+              `transition-[background-color,color,scale] duration-150 ${EASE_OUT} hover:bg-primary hover:text-primary-foreground active:scale-[0.98]`,
             )}
           >
             <span className="text-sm font-semibold text-muted-foreground group-hover:text-primary-foreground/60">{pkg.os}</span>
-            <span className="text-[40px] leading-none font-bold tracking-[-1.5px]">{pkg.arch}</span>
+            <span className="text-title leading-none font-bold">{pkg.arch}</span>
             <span className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground tabular-nums group-hover:text-primary-foreground/60">
                 {formatSize(pkg.size)} · .zip
@@ -41,7 +41,7 @@ export function LatestRelease({ release, onDownload }: { release: CollectorRelea
             key={pkg.platform}
             text={pkg.sha256}
             label={`${pkg.os} ${pkg.arch} sha256 ${pkg.sha256.slice(0, 12)}`}
-            className="text-[#5a5a5a]"
+            className="text-faint-foreground"
           />
         ))}
       </div>
@@ -65,7 +65,7 @@ function ReleaseNotes({ notes }: { notes: string }) {
     .map((l) => l.replace(/^\s*[-*]\s*/, "").trim())
     .filter(Boolean);
   return (
-    <ul className="space-y-1.5 text-[#ccc]">
+    <ul className="space-y-1.5 text-subtle-foreground">
       {lines.map((line) => (
         <li key={line} className="flex gap-3">
           <span className="text-primary">—</span>
@@ -80,7 +80,7 @@ function ReleaseNotes({ notes }: { notes: string }) {
 export function NoLatest({ hasOlder }: { hasOlder: boolean }) {
   return (
     <div className="mt-12 rounded-2xl bg-card p-10">
-      <p className="text-[32px] leading-tight font-bold tracking-[-1px]">暂无推荐版本，请联系管理员</p>
+      <p className="text-subtitle font-bold">暂无推荐版本，请联系管理员</p>
       {hasOlder && <p className="mt-3 text-sm text-muted-foreground">下方历史版本仍可下载。</p>}
     </div>
   );

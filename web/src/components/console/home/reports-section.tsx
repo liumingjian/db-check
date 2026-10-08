@@ -59,7 +59,7 @@ export function ReportsSection() {
       <div ref={sectionRef} className="mx-auto grid max-w-[1240px] grid-cols-[1fr_1.6fr] gap-16 px-8 py-24">
         <div>
           <p className={CAPTION}>My reports</p>
-          <h2 className="mt-4 text-[40px] leading-[1.15] font-bold tracking-[-1.5px]">
+          <h2 className="mt-4 text-title font-bold">
             忘了下载？
             <br />
             都在这里。

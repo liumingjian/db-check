@@ -22,7 +22,7 @@ export function AdminTabs() {
             key={href}
             href={href}
             aria-current={on ? "page" : undefined}
-            className={cn("text-[32px] leading-none font-bold tracking-[-1px]", on ? "text-foreground" : "text-[#3a3a3a] hover:text-[#5a5a5a]")}
+            className={cn("text-subtitle leading-none font-bold", on ? "text-foreground" : "text-dim-foreground hover:text-faint-foreground")}
           >
             {label}
           </Link>

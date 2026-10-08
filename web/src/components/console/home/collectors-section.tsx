@@ -71,12 +71,12 @@ function Heading({ latest, menu }: { latest: CollectorRelease | undefined; menu:
     <>
       <p className={CAPTION}>Collector</p>
       <div className="mt-4 flex items-center gap-4">
-        <h2 className="text-[56px] leading-[1.1] font-bold tracking-[-2px]">
+        <h2 className="text-headline font-bold">
           下载采集器 {latest && <span className="text-primary">v{latest.version}</span>}
         </h2>
         {latest && <Menu items={menu} label={`v${latest.version} 的操作`} />}
       </div>
-      <p className="mt-4 text-lg text-[#ccc]">按客户主机的系统和架构选择，四个包功能完全一致。</p>
+      <p className="mt-4 text-lg text-subtle-foreground">按客户主机的系统和架构选择，四个包功能完全一致。</p>
     </>
   );
 }

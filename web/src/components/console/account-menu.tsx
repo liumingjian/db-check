@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Popover } from "@base-ui/react/popover";
 import { usePathname } from "next/navigation";
 import { apiMode } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { usePendingCount } from "@/stores/users-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { POP_IN, PRESS } from "@/components/console/kit";
+import { POPUP, PRESS } from "@/components/console/kit";
 import { ResetMockDataButton } from "@/components/console/reset-mock-data";
 
 const ROLE_LABEL = { admin: "管理员", user: "工程师" } as const;
@@ -25,29 +26,25 @@ export function AccountMenu() {
   const item = "flex w-full cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-left text-sm hover:bg-muted";
 
   return (
-    <div className="relative">
-      <button
-        type="button"
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger
         aria-label="账号"
-        aria-expanded={open}
         title={`${user.displayName} · 账号`}
-        onClick={() => setOpen(!open)}
         className={cn("group flex cursor-pointer flex-col items-center gap-2", PRESS)}
       >
-        <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-semibold group-hover:bg-[#2f2f2f]">
+        <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-semibold group-hover:bg-muted-hover">
           {user.displayName.slice(0, 1)}
           {user.role === "admin" && pending > 0 && (
             <span aria-hidden className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-background" />
           )}
         </span>
-        <span aria-hidden className={cn("pl-[0.35em] text-[11px] font-semibold tracking-[0.35em]", open ? "text-foreground" : "text-[#5a5a5a] group-hover:text-[#bbb]")}>
+        <span aria-hidden className={cn("pl-[0.35em] text-[11px] font-semibold tracking-[0.35em]", open ? "text-foreground" : "text-faint-foreground group-hover:text-faint-hover")}>
           账号
         </span>
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className={cn("absolute bottom-0 left-full z-50 ml-3 w-60 origin-bottom-left rounded-xl bg-popover p-1 shadow-2xl ring-1 ring-border", POP_IN)}>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Positioner side="right" align="end" sideOffset={12} className="z-50">
+          <Popover.Popup className={cn("w-60 rounded-xl bg-popover p-1 shadow-2xl ring-1 ring-border outline-none", POPUP)}>
             <div className="px-3 pt-2 pb-3">
               <p className="text-sm font-semibold">{user.displayName}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
@@ -76,9 +73,9 @@ export function AccountMenu() {
                 退出登录
               </button>
             </div>
-          </div>
-        </>
-      )}
-    </div>
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

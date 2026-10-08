@@ -9,7 +9,7 @@ import { Brand, CAPTION, TOP_BAR_ACTION, YellowButton } from "@/components/conso
 import { ResetMockDataButton } from "@/components/console/reset-mock-data";
 import { SessionGuard } from "@/components/console/session-guard";
 
-const HEADLINE = "mt-4 text-[88px] leading-[1.02] font-bold tracking-[-3px]";
+const HEADLINE = "mt-4 text-display font-bold";
 
 function Waiting({ profile }: { profile: UserProfile }) {
   const refresh = useAuthStore((s) => s.refresh);
@@ -21,7 +21,7 @@ function Waiting({ profile }: { profile: UserProfile }) {
         <br />
         <span className="text-primary">等管理员批准。</span>
       </h1>
-      <p className="mt-8 max-w-md text-lg leading-relaxed text-[#ccc]">
+      <p className="mt-8 max-w-md text-lg leading-relaxed text-subtle-foreground">
         {profile.displayName}，你在 {appliedAtLabel(profile.appliedAt)} 提交了申请。批准后刷新状态就能开始用。
       </p>
       {/* An approved user leaves this page: the session guard sends active users home. */}
@@ -59,7 +59,7 @@ function Rejected({ profile }: { profile: UserProfile }) {
       <div>
         <p className={CAPTION}>Rejected</p>
         <h1 className={HEADLINE}>这次没通过。</h1>
-        <p className="mt-8 max-w-md border-l-2 border-destructive pl-4 text-lg leading-relaxed text-[#ccc]">{profile.reason}</p>
+        <p className="mt-8 max-w-md border-l-2 border-destructive pl-4 text-lg leading-relaxed text-subtle-foreground">{profile.reason}</p>
       </div>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <p className="mb-2 text-base text-muted-foreground">
