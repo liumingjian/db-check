@@ -36,8 +36,8 @@ function SignInForm() {
       <Brand />
       <div className="mx-auto mt-[12vh] max-w-[440px]">
         <p className={CAPTION}>Sign in</p>
-        <h1 className="mt-4 text-[56px] leading-[1.05] font-bold tracking-[-2px]">
-          登录<span className="text-primary">。</span>
+        <h1 className="mt-4 text-headline font-bold">
+          欢迎回来<span className="text-primary">。</span>
         </h1>
 
         <form onSubmit={submit} className="mt-10 flex flex-col gap-3">

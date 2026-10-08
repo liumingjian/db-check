@@ -2,16 +2,26 @@
  * D3b primitives (spec #19, UI). Colours come from the theme tokens in
  * `globals.css`; motion follows the spec: popovers 150–200 ms with EASE_OUT
  * from scale 0.95, buttons press to 0.97, transitions name their properties.
+ * Tailwind v4 writes `scale-*` and `translate-*` to the standalone `scale` and
+ * `translate` properties, so transitions name those, not `transform`.
+ * Under reduced motion, entrances only fade.
  */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { Check, Copy, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const EASE_OUT = "ease-[cubic-bezier(0.23,1,0.32,1)]";
-export const PRESS = `transition-[transform,background-color,color,opacity] duration-150 ${EASE_OUT} active:scale-[0.97]`;
-export const POP_IN = `transition-[opacity,transform] duration-150 starting:scale-95 starting:opacity-0 ${EASE_OUT}`;
+export const PRESS = `transition-[scale,background-color,color,opacity] duration-150 ${EASE_OUT} active:scale-[0.97]`;
+
+/** A Base UI popup: grows from its trigger (`--transform-origin`) and shrinks back on close. */
+export const POPUP = cn(
+  `origin-(--transform-origin) transition-[opacity,scale] duration-150 ${EASE_OUT}`,
+  "data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0",
+  "motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100",
+);
 
 /** Small uppercase English section word above a headline (Collector, My reports, Admin, ...). */
 export const CAPTION = "text-[12px] font-semibold uppercase tracking-[1.5px] text-muted-foreground";
@@ -48,7 +58,7 @@ export function YellowButton({ className, type = "button", ...props }: React.But
       {...props}
       className={cn(
         "inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-primary px-6 text-[15px] font-semibold text-primary-foreground",
-        "cursor-pointer hover:bg-[#e6eb52] disabled:pointer-events-none disabled:opacity-40",
+        "cursor-pointer hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-40",
         PRESS,
         className,
       )}
@@ -82,59 +92,48 @@ export interface MenuItem {
 
 /** The `···` actions menu. Renders nothing without items. */
 export function Menu({ items, label = "更多操作" }: { items: MenuItem[]; label?: string }) {
-  const [open, setOpen] = useState(false);
   if (items.length === 0) return null;
   return (
-    <div className="relative">
-      <button
-        type="button"
+    <MenuPrimitive.Root>
+      <MenuPrimitive.Trigger
         aria-label={label}
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
         className={cn(
-          "flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground",
+          "flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground data-popup-open:bg-muted data-popup-open:text-foreground",
           PRESS,
         )}
       >
         <MoreHorizontal className="h-4 w-4" />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div
-            role="menu"
-            className={cn(
-              "absolute top-full right-0 z-50 mt-1 min-w-36 origin-top-right rounded-xl bg-popover p-1 shadow-lg ring-1 ring-border",
-              POP_IN,
-            )}
-          >
+      </MenuPrimitive.Trigger>
+      <MenuPrimitive.Portal>
+        <MenuPrimitive.Positioner align="end" sideOffset={4} className="z-50">
+          <MenuPrimitive.Popup className={cn("min-w-36 rounded-xl bg-popover p-1 shadow-lg ring-1 ring-border outline-none", POPUP)}>
             {items.map((it) => (
-              <button
+              <MenuPrimitive.Item
                 key={it.label}
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setOpen(false);
-                  it.onSelect();
-                }}
+                onClick={it.onSelect}
                 className={cn(
-                  "block w-full cursor-pointer rounded-lg px-3 py-1.5 text-left text-sm hover:bg-muted",
+                  "block w-full cursor-pointer rounded-lg px-3 py-1.5 text-left text-sm outline-none data-highlighted:bg-muted",
                   it.danger && "text-destructive",
                 )}
               >
                 {it.label}
-              </button>
+              </MenuPrimitive.Item>
             ))}
-          </div>
-        </>
-      )}
-    </div>
+          </MenuPrimitive.Popup>
+        </MenuPrimitive.Positioner>
+      </MenuPrimitive.Portal>
+    </MenuPrimitive.Root>
   );
 }
+
+const ICON_SWAP = `col-start-1 row-start-1 h-3 w-3 transition-[opacity,scale,filter] duration-150 ${EASE_OUT}`;
+const ICON_OUT = "scale-[0.8] opacity-0 blur-[2px]";
 
 /** Mono text that copies itself, e.g. a SHA256 or a command. */
 export function CopyText({ text, label, className }: { text: string; label?: string; className?: string }) {
   const [copied, setCopied] = useState(false);
+  const reset = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(reset.current), []);
   return (
     <button
       type="button"
@@ -142,15 +141,21 @@ export function CopyText({ text, label, className }: { text: string; label?: str
       onClick={() => {
         void navigator.clipboard?.writeText(text);
         setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
+        // A repeat click restarts the 1.5 s rather than inheriting the first click's deadline.
+        clearTimeout(reset.current);
+        reset.current = setTimeout(() => setCopied(false), 1500);
       }}
       className={cn(
         "inline-flex cursor-pointer items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-foreground",
+        PRESS,
         className,
       )}
     >
       {label ?? text}
-      {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
+      <span aria-hidden className="grid">
+        <Copy className={cn(ICON_SWAP, copied && ICON_OUT)} />
+        <Check className={cn(ICON_SWAP, "text-success", !copied && ICON_OUT)} />
+      </span>
     </button>
   );
 }

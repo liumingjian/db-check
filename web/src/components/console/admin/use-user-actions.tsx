@@ -21,7 +21,7 @@ export function useUserActions(): (user: UserProfile) => MenuItem[] {
       done(await action);
     } catch (e) {
       if (!(e instanceof ApiError)) throw e;
-      toast(e.message);
+      toast(e.message, "error");
     }
   }
 

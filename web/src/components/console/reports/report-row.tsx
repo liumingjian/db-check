@@ -6,6 +6,7 @@ import { failedItems, MARKER_LABEL, markersFor } from "@/components/console/repo
 import { useBlobDownload } from "@/components/console/use-blob-download";
 import { api, type ReportTask } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { EASE_OUT, PRESS } from "@/components/console/kit";
 import { useAuthStore } from "@/stores/auth-store";
 
 /**
@@ -40,13 +41,13 @@ export function ReportRow({ task, showSubmitter = false }: { task: ReportTask; s
               type="button"
               aria-expanded={open}
               onClick={() => setOpen((o) => !o)}
-              className="flex cursor-pointer items-center gap-1 text-sm text-[#5a5a5a] hover:text-foreground"
+              className={cn("flex cursor-pointer items-center gap-1 text-sm text-faint-foreground hover:text-foreground", PRESS)}
             >
               {MARKER_LABEL[marker]}
-              <ChevronDown className={cn("h-3.5 w-3.5", open && "rotate-180")} />
+              <ChevronDown className={cn("h-3.5 w-3.5 transition-[rotate] duration-200", EASE_OUT, open && "rotate-180")} />
             </button>
           ) : (
-            <span key={marker} className="text-sm text-[#5a5a5a]">
+            <span key={marker} className="text-sm text-faint-foreground">
               {MARKER_LABEL[marker]}
             </span>
           ),
@@ -56,7 +57,7 @@ export function ReportRow({ task, showSubmitter = false }: { task: ReportTask; s
             type="button"
             disabled={downloading}
             onClick={() => token && void download(() => api.reports.download(token, task.id), `reports-${task.id}.zip`)}
-            className="flex cursor-pointer items-center gap-1 text-sm font-semibold text-primary hover:underline disabled:cursor-wait disabled:opacity-60"
+            className={cn("flex cursor-pointer items-center gap-1 text-sm font-semibold text-primary hover:underline disabled:cursor-wait disabled:opacity-60", PRESS)}
           >
             下载 <ArrowDown className="h-4 w-4" />
           </button>
@@ -71,7 +72,7 @@ export function ReportRow({ task, showSubmitter = false }: { task: ReportTask; s
         </p>
       ))}
       {expandable && open && (
-        <ul className="mt-3 space-y-1 pl-34 text-xs">
+        <ul className="mt-3 space-y-1 pl-34 text-xs transition-opacity duration-200 starting:opacity-0">
           {failures.map((f) => (
             <li key={f.fileName}>
               <span className="font-mono">{f.fileName}</span>

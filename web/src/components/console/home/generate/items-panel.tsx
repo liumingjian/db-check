@@ -92,7 +92,7 @@ function Stats() {
     <div className="grid grid-cols-2 gap-x-10 gap-y-12">
       {STATS.map(([n, unit, sub]) => (
         <div key={unit}>
-          <p className="text-[56px] leading-none font-bold tracking-[-1.5px] text-primary tabular-nums">{n}</p>
+          <p className="text-headline leading-none font-bold text-primary tabular-nums">{n}</p>
           <p className="mt-2 text-base font-semibold">{unit}</p>
           <p className="mt-0.5 text-sm text-muted-foreground">{sub}</p>
         </div>

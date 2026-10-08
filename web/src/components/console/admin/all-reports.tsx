@@ -37,7 +37,7 @@ export function AllReports() {
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 py-2">
-        <span className="w-12 shrink-0 text-xs font-semibold text-[#5a5a5a]">提交人</span>
+        <span className="w-12 shrink-0 text-xs font-semibold text-faint-foreground">提交人</span>
         <Chip on={!user} onClick={() => show()}>全部</Chip>
         {submitters.map((a) => (
           <Chip key={a.id} on={user === a.id} onClick={() => show(a.id)}>

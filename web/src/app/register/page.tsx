@@ -50,8 +50,8 @@ function RegisterForm() {
       <Brand />
       <div className="mx-auto mt-[8vh] max-w-[440px] pb-24">
         <p className={CAPTION}>Register</p>
-        <h1 className="mt-4 text-[56px] leading-[1.05] font-bold tracking-[-2px]">
-          申请账号<span className="text-primary">。</span>
+        <h1 className="mt-4 text-headline font-bold">
+          申请一个账号<span className="text-primary">。</span>
         </h1>
         <p className="mt-4 text-muted-foreground">管理员批准后即可登录使用。</p>
 

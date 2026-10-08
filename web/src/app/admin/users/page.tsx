@@ -15,11 +15,11 @@ function ApplicantCard({ applicant, onApprove, onReject }: { applicant: UserProf
   return (
     <div className="flex flex-col rounded-2xl bg-card p-7">
       <p className="text-sm text-muted-foreground tabular-nums">{appliedAtLabel(applicant.appliedAt)} 申请</p>
-      <p className="mt-4 text-[32px] leading-none font-bold tracking-[-1px]">{applicant.displayName}</p>
+      <p className="mt-4 text-subtitle leading-none font-bold">{applicant.displayName}</p>
       <p className="mt-2 text-sm text-muted-foreground">
         @{applicant.username} · {applicant.team} · {applicant.email}
       </p>
-      {applicant.note && <p className="mt-5 text-base text-[#ccc]">“{applicant.note}”</p>}
+      {applicant.note && <p className="mt-5 text-base text-subtle-foreground">“{applicant.note}”</p>}
       <div className="mt-8 flex items-center gap-6">
         <YellowButton onClick={onApprove}>
           批准 <Check className="h-4 w-4" />
@@ -54,7 +54,7 @@ export default function AdminUsersPage() {
       toast(done);
     } catch (e) {
       if (!(e instanceof ApiError)) throw e;
-      toast(e.message);
+      toast(e.message, "error");
     }
   }
 
@@ -70,7 +70,7 @@ export default function AdminUsersPage() {
 
   return (
     <div>
-      <h1 className="text-[72px] leading-[1.05] font-bold tracking-[-2.5px]">
+      <h1 className="text-display font-bold">
         {pending.length > 0 ? (
           <>
             <span className="text-primary tabular-nums">{pending.length} 人</span>在等你批准。

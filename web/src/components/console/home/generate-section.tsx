@@ -53,7 +53,7 @@ export function GenerateSection() {
         <div className="mx-auto grid w-full max-w-[1240px] flex-1 grid-cols-[1.3fr_1fr] items-center gap-16 px-8 py-16">
           <div>
             {dragging ? (
-              <h1 className="text-[120px] leading-[1] font-bold tracking-[-4px]">松手。</h1>
+              <h1 className="text-hero font-bold">松手。</h1>
             ) : run ? (
               <RunProgress run={run} onRestart={restart} />
             ) : (

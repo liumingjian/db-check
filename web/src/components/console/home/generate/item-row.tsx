@@ -7,6 +7,7 @@ import { formatSize } from "@/lib/files";
 import { fileKey, type InspectedZip } from "@/lib/report-input/inspect";
 import { DB_LABEL, type DbType } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { EASE_OUT, PRESS } from "@/components/console/kit";
 
 /** The HTML a row's slot takes, by database type; mysql rows have no slot. */
 const SLOT_LABEL: Partial<Record<DbType, string>> = { oracle: "AWR", gaussdb: "WDR" };
@@ -14,7 +15,7 @@ const SLOT_LABEL: Partial<Record<DbType, string>> = { oracle: "AWR", gaussdb: "W
 /** A row's progress once submitted; `null` before submission. */
 export type Stage = "done" | "current" | "queued" | null;
 
-const REMOVE_BUTTON = "cursor-pointer text-[#5a5a5a] hover:text-foreground";
+const REMOVE_BUTTON = cn("cursor-pointer text-faint-foreground hover:text-foreground", PRESS);
 
 /**
  * One report item: file name, what its manifest says, its optional AWR/WDR files,
@@ -57,10 +58,21 @@ export function ItemRow({ item: { file, inspection, diagnostics }, stage, editab
         <DiagnosticFiles slot={slot} files={diagnostics} editable={stage === null && editable} onAttach={onAttach} onRemoveDiagnostic={onRemoveDiagnostic} diagnosticCheck={diagnosticCheck} />
       )}
       {notice && inspection.ok && <VersionNotice version={inspection.collectorVersion} notice={notice} />}
-      {stage !== null && (
-        <div className="mt-2.5 h-[3px] overflow-hidden rounded-full bg-border">
-          <div className={cn("h-full bg-primary", stage === "done" ? "w-full" : stage === "current" ? "w-1/3 animate-pulse" : "w-0")} />
-        </div>
+      {stage !== null && <ProgressBar stage={stage} />}
+    </div>
+  );
+}
+
+/**
+ * A sliver sweeps the track while the item generates (it has no percentage to
+ * show), and the fill grows across it once done. Reduced motion pulses instead.
+ */
+function ProgressBar({ stage }: { stage: Exclude<Stage, null> }) {
+  return (
+    <div className="relative mt-2.5 h-[3px] overflow-hidden rounded-full bg-border">
+      {stage === "current" && <div className="h-full w-1/3 animate-indeterminate bg-primary motion-reduce:animate-pulse" />}
+      {stage === "done" && (
+        <div className={cn("h-full origin-left bg-primary transition-[scale] duration-300 starting:scale-x-0 motion-reduce:starting:scale-x-100", EASE_OUT)} />
       )}
     </div>
   );
@@ -100,20 +112,20 @@ function DiagnosticFiles({ slot, files, editable, onAttach, onRemoveDiagnostic, 
             {editable && <button type="button" aria-label={`移除 ${file.name}`} onClick={() => onRemoveDiagnostic(file)} className={REMOVE_BUTTON}><X className="h-3 w-3" /></button>}
           </span>
         ))}
-        {editable && <button type="button" disabled={full} onClick={() => picker.current?.click()} className="cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted disabled:cursor-default disabled:opacity-50">添加 {slot}</button>}
+        {editable && <button type="button" disabled={full} onClick={() => picker.current?.click()} className={cn("cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted disabled:cursor-default disabled:opacity-50", PRESS)}>添加 {slot}</button>}
       </div>
       {files.map((file) => {
         const check = diagnosticCheck(file);
         if (check?.kind === "invalid") return <p key={fileKey(file)} role="alert" className="text-xs text-destructive">{file.name}：{check.message}</p>;
-        return <p key={fileKey(file)} className="text-xs text-muted-foreground">{file.name}：{diagnosticGuidance(slot, check)}</p>;
+        return <p key={fileKey(file)} className="text-[13px] leading-5 text-muted-foreground">{file.name}：{diagnosticGuidance(slot, check)}</p>;
       })}
       {editable && <>
         <input ref={picker} type="file" accept=".html,.htm" multiple={slot === "WDR"} aria-label={`选择 ${slot} 文件`} className="hidden" onChange={(event) => {
           onAttach(Array.from(event.target.files ?? []));
           event.target.value = "";
         }} />
-        <p className="text-xs text-muted-foreground">可从其他平台导出后添加（可选）；未添加时，仅根据采集包生成报告。</p>
-        <p className="text-xs text-muted-foreground">{slot === "AWR" ? "每个采集包支持一份 AWR，更换前请先移除已有附件。" : "每个采集包可添加多份 WDR。"}</p>
+        <p className="text-[13px] leading-5 text-muted-foreground">可从其他平台导出后添加（可选）；未添加时，仅根据采集包生成报告。</p>
+        <p className="text-[13px] leading-5 text-muted-foreground">{slot === "AWR" ? "每个采集包支持一份 AWR，更换前请先移除已有附件。" : "每个采集包可添加多份 WDR。"}</p>
       </>}
     </div>
   );
@@ -139,7 +151,7 @@ function diagnosticGuidance(slot: string, check: DiagnosticValidation | null): s
 /** Deprecated: a quiet notice. Revoked: a prominent warning with the revocation reason. */
 function VersionNotice({ version, notice }: { version: string | null; notice: CollectorNotice }) {
   if (notice.status === "deprecated") {
-    return <p className="mt-2 text-xs text-warning">采集器 v{version} 已弃用，建议下载最新版本重新采集。</p>;
+    return <p className="mt-2 text-[13px] leading-5 text-warning">采集器 v{version} 已弃用，建议下载最新版本重新采集。</p>;
   }
   return (
     <p className="mt-2 flex items-start gap-1.5 rounded-md bg-destructive/10 px-2.5 py-2 text-sm font-semibold text-destructive">

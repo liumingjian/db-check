@@ -67,8 +67,8 @@ function ChangePasswordForm() {
       </div>
       <div className="mx-auto mt-[12vh] max-w-[440px]">
         <p className={CAPTION}>Change password</p>
-        <h1 className="mt-4 text-[56px] leading-[1.05] font-bold tracking-[-2px]">
-          {forced ? "设个新密码" : "修改密码"}
+        <h1 className="mt-4 text-headline font-bold">
+          {forced ? "设个新密码" : "换个新密码"}
           <span className="text-primary">。</span>
         </h1>
         <p className="mt-4 text-base text-muted-foreground">
