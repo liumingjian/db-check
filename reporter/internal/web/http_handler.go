@@ -40,6 +40,9 @@ func newAPIHandler(cfg Config, p Platform, startWorker bool) (*apiHandler, error
 	if err != nil {
 		return nil, err
 	}
+	if err := removeAbandonedDiagnosticValidations(cfg.DataDir); err != nil {
+		return nil, err
+	}
 	h := &apiHandler{cfg: cfg, platform: p, hub: hub, reports: lifecycle}
 	if startWorker {
 		lifecycle.start()
@@ -131,7 +134,7 @@ func saveUpload(dir string, kind string, itemID string, header *multipart.FileHe
 		return "", "", fmt.Errorf("open upload failed: %w", err)
 	}
 	defer src.Close()
-	dstPath := filepath.Join(dir, fmt.Sprintf("%s-%s-%s", kind, itemID, name))
+	dstPath := uploadPath(dir, kind, itemID, name)
 	dst, err := os.OpenFile(dstPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
 	if err != nil {
 		return "", "", fmt.Errorf("save upload failed: %w", err)
@@ -147,4 +150,8 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func uploadPath(dir, kind, itemID, name string) string {
+	return filepath.Join(dir, fmt.Sprintf("%s-%s-%s", kind, itemID, name))
 }

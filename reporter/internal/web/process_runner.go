@@ -2,6 +2,7 @@ package web
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os/exec"
@@ -22,6 +23,7 @@ type LogEvent struct {
 
 type CommandRunner interface {
 	Run(command string, args []string, onLog func(LogEvent)) error
+	Output(ctx context.Context, command string, args []string) ([]byte, error)
 }
 
 type ExecRunner struct {
@@ -93,4 +95,8 @@ func streamLines(r io.Reader, stream LogStream, out chan<- LogEvent) {
 	for scanner.Scan() {
 		out <- LogEvent{Stream: stream, Line: scanner.Text()}
 	}
+}
+
+func (r *ExecRunner) Output(ctx context.Context, command string, args []string) ([]byte, error) {
+	return exec.CommandContext(ctx, command, args...).Output()
 }

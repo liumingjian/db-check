@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"dbcheck/reporter/internal/apierr"
 	"dbcheck/reporter/internal/launcher"
+	"dbcheck/reporter/internal/reports"
 	"dbcheck/reporter/internal/users"
 )
 
@@ -32,108 +32,138 @@ type diagnosticValidator interface {
 }
 
 func (h *apiHandler) handleValidateDiagnostics(w http.ResponseWriter, r *http.Request, _ users.User) {
-	if h.cfg.MaxUploadBytes > 0 {
-		r.Body = http.MaxBytesReader(w, r.Body, h.cfg.MaxUploadBytes)
-	}
-	if err := r.ParseMultipartForm(multipartMemoryBytes); err != nil {
-		var tooLarge *http.MaxBytesError
-		if errors.As(err, &tooLarge) {
-			h.writeAPIError(w, errUploadTooLarge)
-		} else {
-			h.writeAPIError(w, apierr.Invalid("请至少上传一个 ZIP 文件"))
-		}
+	form, err := h.diagnosticUploadForm(w, r)
+	if err != nil {
+		h.writeAPIError(w, err)
 		return
 	}
 	defer r.MultipartForm.RemoveAll()
-	zips := filesForKey(r.MultipartForm, "zips")
-	if len(zips) == 0 {
-		zips = filesForKey(r.MultipartForm, "zip")
-	}
-	if len(zips) == 0 {
-		h.writeAPIError(w, apierr.Invalid("请至少上传一个 ZIP 文件"))
-		return
-	}
 	dir, err := os.MkdirTemp(h.cfg.DataDir, "diagnostic-validation-")
 	if err != nil {
 		h.writeAPIError(w, err)
 		return
 	}
 	defer os.RemoveAll(dir)
-	form := uploadForm{form: r.MultipartForm, zips: zips}
 	items, err := form.stage(filepath.Join(dir, "uploads"))
 	if err != nil {
 		h.writeAPIError(w, err)
 		return
 	}
-	validator, ok := h.platform.Pipeline.(diagnosticValidator)
-	if !ok {
-		executable, err := os.Executable()
+	validator, err := h.diagnosticValidator()
+	if err != nil {
+		h.writeAPIError(w, err)
+		return
+	}
+	checks := []DiagnosticCheck{}
+	for i, item := range items {
+		results, err := validateDiagnosticItem(r.Context(), validator, dir, form, i, item)
 		if err != nil {
 			h.writeAPIError(w, err)
 			return
 		}
-		validator = NewPipeline(executable, h.cfg.PythonBin)
-	}
-	checks := []DiagnosticCheck{}
-	for i, item := range items {
-		id := strconv.Itoa(i + 1)
-		input := ItemInput{ID: id, Name: item.FileName, ZipPath: filepath.Join(dir, "uploads", "zip-"+id+"-"+item.FileName)}
-		names := []string{}
-		results := []DiagnosticCheck{}
-		validPositions := []int{}
-		addAttachment := func(kind, name, path string) {
-			names = append(names, name)
-			candidate := ItemInput{}
-			if kind == "awr" {
-				candidate.AWRPath = path
-			} else {
-				candidate.WDRPaths = []string{path}
-			}
-			if typeErr := validateHTMLAttachment(item.DBType, candidate); typeErr != nil {
-				results = append(results, DiagnosticCheck{Kind: "invalid", Message: "附件类型与采集包不符，请移除并使用对应的 AWR/WDR 报告。" + typeErr.Error()})
-				return
-			}
-			validPositions = append(validPositions, len(results))
-			results = append(results, DiagnosticCheck{})
-			if kind == "awr" {
-				input.AWRPath = path
-			} else {
-				input.WDRPaths = append(input.WDRPaths, path)
-			}
-		}
-		for _, hdr := range form.paired("awr", i) {
-			name := filepath.Base(hdr.Filename)
-			addAttachment("awr", name, filepath.Join(dir, "uploads", "awr-"+id+"-"+name))
-		}
-		for k, hdr := range form.paired("wdr", i) {
-			name := filepath.Base(hdr.Filename)
-			addAttachment("wdr", name, filepath.Join(dir, "uploads", "wdr-"+wdrUploadID(id, k)+"-"+name))
-		}
-		if len(names) == 0 {
-			continue
-		}
-		if len(validPositions) > 0 {
-			validated, err := validator.ValidateDiagnostics(r.Context(), dir, input)
-			if err != nil {
-				h.writeAPIError(w, err)
-				return
-			}
-			if len(validated) != len(validPositions) {
-				h.writeAPIError(w, fmt.Errorf("diagnostic validation returned an incomplete result"))
-				return
-			}
-			for k, check := range validated {
-				results[validPositions[k]] = check
-			}
-		}
-		for k, result := range results {
-			result.ItemPosition = i + 1
-			result.AttachmentPosition = k + 1
-			result.FileName = names[k]
-			checks = append(checks, result)
-		}
+		checks = append(checks, results...)
 	}
 	writeJSON(w, http.StatusOK, checks)
+}
+
+func (h *apiHandler) diagnosticUploadForm(w http.ResponseWriter, r *http.Request) (uploadForm, error) {
+	if h.cfg.MaxUploadBytes > 0 {
+		r.Body = http.MaxBytesReader(w, r.Body, h.cfg.MaxUploadBytes)
+	}
+	if err := r.ParseMultipartForm(multipartMemoryBytes); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			return uploadForm{}, errUploadTooLarge
+		}
+		return uploadForm{}, apierr.Invalid("请至少上传一个 ZIP 文件")
+	}
+	zips := filesForKey(r.MultipartForm, "zips")
+	if len(zips) == 0 {
+		zips = filesForKey(r.MultipartForm, "zip")
+	}
+	if len(zips) == 0 {
+		r.MultipartForm.RemoveAll()
+		return uploadForm{}, apierr.Invalid("请至少上传一个 ZIP 文件")
+	}
+	return uploadForm{form: r.MultipartForm, zips: zips}, nil
+}
+
+func (h *apiHandler) diagnosticValidator() (diagnosticValidator, error) {
+	if validator, ok := h.platform.Pipeline.(diagnosticValidator); ok {
+		return validator, nil
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	return NewPipeline(executable, h.cfg.PythonBin), nil
+}
+
+type diagnosticAttachment struct{ kind, name, path string }
+
+func (f uploadForm) diagnosticAttachments(dir string, position int) []diagnosticAttachment {
+	id := strconv.Itoa(position + 1)
+	attachments := []diagnosticAttachment{}
+	for _, kind := range htmlInputKinds {
+		for k, header := range f.paired(kind, position) {
+			uploadID := id
+			if kind == "wdr" {
+				uploadID = wdrUploadID(id, k)
+			}
+			name := filepath.Base(header.Filename)
+			attachments = append(attachments, diagnosticAttachment{kind, name, uploadPath(filepath.Join(dir, "uploads"), kind, uploadID, name)})
+		}
+	}
+	return attachments
+}
+
+func prepareDiagnosticInput(dir string, item reports.Item, attachments []diagnosticAttachment) (ItemInput, []DiagnosticCheck, []int) {
+	id := strconv.Itoa(item.Position)
+	input := ItemInput{ID: id, Name: item.FileName, ZipPath: uploadPath(filepath.Join(dir, "uploads"), "zip", id, item.FileName)}
+	results := make([]DiagnosticCheck, len(attachments))
+	validPositions := []int{}
+	for k, attachment := range attachments {
+		candidate := ItemInput{}
+		if attachment.kind == "awr" {
+			candidate.AWRPath = attachment.path
+		} else {
+			candidate.WDRPaths = []string{attachment.path}
+		}
+		if err := validateHTMLAttachment(item.DBType, candidate); err != nil {
+			results[k] = DiagnosticCheck{Kind: "invalid", Message: "附件类型与采集包不符，请移除并使用对应的 AWR/WDR 报告。" + err.Error()}
+			continue
+		}
+		validPositions = append(validPositions, k)
+		if attachment.kind == "awr" {
+			input.AWRPath = attachment.path
+		} else {
+			input.WDRPaths = append(input.WDRPaths, attachment.path)
+		}
+	}
+	return input, results, validPositions
+}
+
+func validateDiagnosticItem(ctx context.Context, validator diagnosticValidator, dir string, form uploadForm, position int, item reports.Item) ([]DiagnosticCheck, error) {
+	attachments := form.diagnosticAttachments(dir, position)
+	input, results, validPositions := prepareDiagnosticInput(dir, item, attachments)
+	if len(validPositions) > 0 {
+		validated, err := validator.ValidateDiagnostics(ctx, dir, input)
+		if err != nil {
+			return nil, err
+		}
+		if len(validated) != len(validPositions) {
+			return nil, fmt.Errorf("diagnostic validation returned an incomplete result")
+		}
+		for k, check := range validated {
+			results[validPositions[k]] = check
+		}
+	}
+	for k := range results {
+		results[k].ItemPosition = position + 1
+		results[k].AttachmentPosition = k + 1
+		results[k].FileName = attachments[k].name
+	}
+	return results, nil
 }
 
 func (p *Pipeline) ValidateDiagnostics(ctx context.Context, dir string, input ItemInput) ([]DiagnosticCheck, error) {
@@ -155,7 +185,7 @@ func (p *Pipeline) ValidateDiagnostics(ctx context.Context, dir string, input It
 	}
 	args := append([]string{layout.Script}, launcher.OrchestratorArgs(cfg, layout)...)
 	args = append(args, "--validate-diagnostics")
-	output, err := exec.CommandContext(ctx, p.PythonBin, args...).Output()
+	output, err := p.Runner.Output(ctx, p.PythonBin, args)
 	if err != nil {
 		return nil, fmt.Errorf("附件校验服务失败，请重试：%w", err)
 	}
@@ -172,4 +202,22 @@ func (p *Pipeline) ValidateDiagnostics(ctx context.Context, dir string, input It
 		}
 	}
 	return checks, nil
+}
+
+// Startup precedes request admission in the single API process (ADR 0003).
+// Every validation directory left by the previous process is abandoned.
+func removeAbandonedDiagnosticValidations(dataDir string) error {
+	entries, err := os.ReadDir(dataDir)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), "diagnostic-validation-") {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(dataDir, entry.Name())); err != nil {
+			return fmt.Errorf("remove abandoned diagnostic validation: %w", err)
+		}
+	}
+	return nil
 }

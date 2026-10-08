@@ -138,7 +138,7 @@ func (f *reportsFixture) startFlaky(pipeline ReportPipeline, flaky *flakyRecords
 	flaky.taskRecords = h.reports.records
 	h.reports.records = flaky
 	h.reports.backoff = retryBackoff{first: time.Millisecond, max: 10 * time.Millisecond}
-	h.reports.start()
+	f.startWorker(h.reports)
 	return h.handler()
 }
 
