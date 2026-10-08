@@ -12,6 +12,18 @@ import (
 	"dbcheck/reporter/internal/web"
 )
 
+// Contract fixtures model transport only, without claiming parser validation.
+func (p *stubPipeline) ValidateDiagnostics(_ context.Context, _ string, input web.ItemInput) ([]web.DiagnosticCheck, error) {
+	checks := []web.DiagnosticCheck{}
+	if input.AWRPath != "" {
+		checks = append(checks, web.DiagnosticCheck{Kind: "checked", Evidence: "unconfirmed"})
+	}
+	for range input.WDRPaths {
+		checks = append(checks, web.DiagnosticCheck{Kind: "checked", Evidence: "unconfirmed"})
+	}
+	return checks, nil
+}
+
 // stubItemDuration is how long the stub takes per report item on the
 // pinned clock, as GENERATION_MS_PER_ITEM in web/src/lib/api/reports/mock.ts.
 const stubItemDuration = 5 * time.Second

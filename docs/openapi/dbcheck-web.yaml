@@ -708,6 +708,39 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /api/reports/validate:
+    post:
+      summary: Validate optional diagnostics without submitting a task
+      description: |
+        Requires an active user. Uses generation's indexed ZIP/AWR/WDR
+        association, validates temporary inputs and removes them afterwards.
+        Never creates or changes a task. Returns each attachment's position,
+        original filename and blocking failure or identity evidence. Evidence
+        records only the fields the enrichment checks verify, never time
+        correspondence. Generation independently checks every attachment.
+      security:
+        - sessionAuth: []
+      requestBody:
+        $ref: "#/paths/~1api~1reports~1generate/post/requestBody"
+      responses:
+        "200":
+          description: Per-attachment results, including blocking failures.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DiagnosticValidation"
+        "400":
+          description: Missing or unreadable ZIP, invalid extension or attachment count.
+        "401":
+          description: No live session.
+        "403":
+          description: Account is not active or requires a password change.
+        "413":
+          description: Upload exceeds the configured limit.
+        "500":
+          description: Validation runtime unavailable; no success is assumed.
   /api/reports/generate:
     post:
       summary: Submit a report task
@@ -1036,6 +1069,30 @@ components:
       description: The CI machine credential, compared in constant time. Publish API only.
 
   schemas:
+    DiagnosticValidation:
+      type: object
+      required: [itemPosition, attachmentPosition, fileName, kind]
+      properties:
+        itemPosition:
+          type: integer
+          minimum: 1
+          description: One-based report item position in the submitted ZIP order.
+        attachmentPosition:
+          type: integer
+          minimum: 1
+          description: One-based attachment position on the report item.
+        fileName:
+          type: string
+        kind:
+          type: string
+          enum: [checked, invalid]
+        evidence:
+          type: string
+          enum: [database_name_dbid, database_name, unconfirmed]
+          description: Checked identity fields; unconfirmed is used by contract stubs only.
+        message:
+          type: string
+          description: Actionable failure detail for invalid results.
     ApiError:
       type: object
       required: [code, message]

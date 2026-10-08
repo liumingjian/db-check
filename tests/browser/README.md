@@ -26,3 +26,11 @@ These checks use the real frontend, API, Python parsers, and report renderer. Th
    ```
 
 The AWR fixture uses Oracle database ORACC and DBID 2668322570. Both WDR files use the existing valid cluster report, paired to a GaussDB ZIP whose database is postgres. The inspector checks an AWR SQL ID and metrics, two WDR source rows, and absence of cross-item diagnostic content. Placeholder HTML in transport tests does not establish parser success.
+
+## Attachment recovery
+
+Generate fixtures in `/tmp/dbcheck-diagnostic-recovery-fixtures` and start the same real service flow. Run `playwright-cli -s=diagnostics run-code --filename=tests/browser/diagnostic_recovery.js`, then `uv run --python .venv/bin/python --no-project python tests/browser/inspect_diagnostic_reports.py /tmp/dbcheck-diagnostic-recovery-fixtures --recovery`.
+
+The recovery suite rejects malformed AWR/WDR, swapped diagnostic types, AWR database name and DBID mismatches, and a WDR database name mismatch. Each case retains both selected ZIPs and the other item's valid attachment, removes only the bad attachment, selects a matching replacement, and downloads real reports. The inspector verifies both documents contain their own diagnostic data.
+
+Run `diagnostic_recovery_edges.js` in the same signed-in session to verify removing a bad optional attachment permits generation without it, and a delayed response from the real validation service is discarded after replacement. It saves `removed-optional.zip` and `stale-response-corrected.zip`.

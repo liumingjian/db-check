@@ -7,18 +7,29 @@ import { ItemsPanel } from "@/components/console/home/generate/items-panel";
 import { useReportInputs } from "@/components/console/home/generate/use-report-inputs";
 import { useReportRun } from "@/components/console/home/generate/use-report-run";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/stores/auth-store";
 
 /** 生成报告: the drop zone, one row per report item, overall progress, then the «报告好了。» band. */
 export function GenerateSection() {
   const inputs = useReportInputs();
   const { run, submitting, downloading, submit, download, reset } = useReportRun();
-  const busy = run !== null;
+  const token = useAuthStore((state) => state.token);
+  const busy = run?.outcome === "running" || submitting;
   const { dragging, dropProps } = useFileDrop(!busy, (files) => void inputs.add(files));
   const picker = useRef<HTMLInputElement>(null);
 
   function restart() {
     reset();
-    inputs.clear();
+    if (run?.outcome !== "error") inputs.clear();
+  }
+
+  async function generate() {
+    if (!token || submitting || inputs.validating) return;
+    const input = await inputs.validate(token);
+    if (input) {
+      reset();
+      await submit(input);
+    }
   }
 
   if (run?.outcome === "done") {
@@ -53,8 +64,8 @@ export function GenerateSection() {
             <ItemsPanel
               inputs={inputs}
               run={run}
-              submitting={submitting}
-              onSubmit={() => inputs.taskInput && void submit(inputs.taskInput)}
+              submitting={submitting || inputs.validating}
+              onSubmit={() => void generate()}
             />
           </div>
         </div>

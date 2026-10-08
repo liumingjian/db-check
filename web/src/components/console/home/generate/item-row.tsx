@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { Check, TriangleAlert, X } from "lucide-react";
-import type { CollectorNotice } from "@/lib/api";
+import type { CollectorNotice, DiagnosticValidation } from "@/lib/api";
 import { formatSize } from "@/lib/files";
 import { fileKey, type InspectedZip } from "@/lib/report-input/inspect";
 import { DB_LABEL, type DbType } from "@/lib/types";
@@ -20,7 +20,7 @@ const REMOVE_BUTTON = "cursor-pointer text-[#5a5a5a] hover:text-foreground";
  * One report item: file name, what its manifest says, its optional AWR/WDR files,
  * and its progress once submitted. Before submission it accepts diagnostic selections.
  */
-export function ItemRow({ item: { file, inspection, diagnostics }, stage, notice, onRemove, onAttach, onRemoveDiagnostic}: {
+export function ItemRow({ item: { file, inspection, diagnostics }, stage, notice, onRemove, onAttach, onRemoveDiagnostic, diagnosticCheck}: {
   item: InspectedZip;
   stage: Stage;
   /** Shown only while generating; report lists repeat only the revoked warning. */
@@ -28,6 +28,7 @@ export function ItemRow({ item: { file, inspection, diagnostics }, stage, notice
   onRemove: () => void;
   onAttach: (files: File[]) => void;
   onRemoveDiagnostic: (file: File) => void;
+  diagnosticCheck: (file: File) => DiagnosticValidation | null;
 }) {
   const slot = inspection.ok ? SLOT_LABEL[inspection.dbType] : undefined;
 
@@ -52,7 +53,7 @@ export function ItemRow({ item: { file, inspection, diagnostics }, stage, notice
         <StageMark stage={stage} onRemove={onRemove} />
       </div>
       {slot && (diagnostics.length > 0 || stage === null) && (
-        <DiagnosticFiles slot={slot} files={diagnostics} editable={stage === null} onAttach={onAttach} onRemoveDiagnostic={onRemoveDiagnostic} />
+        <DiagnosticFiles slot={slot} files={diagnostics} editable={stage === null} onAttach={onAttach} onRemoveDiagnostic={onRemoveDiagnostic} diagnosticCheck={diagnosticCheck} />
       )}
       {notice && inspection.ok && <VersionNotice version={inspection.collectorVersion} notice={notice} />}
       {stage !== null && (
@@ -78,12 +79,13 @@ function StageMark({ stage, onRemove }: { stage: Stage; onRemove: () => void }) 
 }
 
 /** Files selected on this item, with individual removal and an optional picker. */
-function DiagnosticFiles({ slot, files, editable, onAttach, onRemoveDiagnostic }: {
+function DiagnosticFiles({ slot, files, editable, onAttach, onRemoveDiagnostic, diagnosticCheck }: {
   slot: string;
   files: File[];
   editable: boolean;
   onAttach: (files: File[]) => void;
   onRemoveDiagnostic: (file: File) => void;
+  diagnosticCheck: (file: File) => DiagnosticValidation | null;
 }) {
   const picker = useRef<HTMLInputElement>(null);
   const full = slot === "AWR" && files.length > 0;
@@ -99,6 +101,10 @@ function DiagnosticFiles({ slot, files, editable, onAttach, onRemoveDiagnostic }
         ))}
         {editable && <button type="button" disabled={full} onClick={() => picker.current?.click()} className="cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted disabled:cursor-default disabled:opacity-50">添加 {slot}</button>}
       </div>
+      {files.map((file) => {
+        const check = diagnosticCheck(file);
+        return check?.kind === "invalid" ? <p key={fileKey(file)} role="alert" className="text-xs text-destructive">{file.name}：{check.message}</p> : null;
+      })}
       {editable && <>
         <input ref={picker} type="file" accept=".html,.htm" multiple={slot === "WDR"} aria-label={`选择 ${slot} 文件`} className="hidden" onChange={(event) => {
           onAttach(Array.from(event.target.files ?? []));

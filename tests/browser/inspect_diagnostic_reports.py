@@ -26,10 +26,10 @@ def require_awr(text: str) -> None:
     assert "WDR 性能洞察" not in text
 
 
-def require_wdr(text: str) -> None:
+def require_wdr(text: str, expected_sources: int = 2) -> None:
     for marker in ("WDR 性能洞察", "dn_6001_6002_6003", "2026-03-13 09:36:45"):
         assert marker in text, f"Missing WDR-derived content: {marker}"
-    assert text.count("Summary + Detail") == 2, "Both selected WDR reports must contribute source rows"
+    assert text.count("Summary + Detail") == expected_sources, "Every selected WDR must contribute a source row"
     assert "SQL ordered by Elapsed Time" not in text
 
 
@@ -48,5 +48,22 @@ def inspect_downloads(directory: Path) -> None:
     print("All downloaded documents contain the expected item-specific diagnostic content.")
 
 
+def inspect_recovery_downloads(directory: Path) -> None:
+    scenarios = ("malformed-awr", "malformed-wdr", "wrong-type-awr", "wrong-type-wdr",
+                 "awr-name-mismatch", "awr-dbid-mismatch", "wdr-name-mismatch")
+    for scenario in scenarios:
+        documents = report_texts(directory / f"{scenario}.zip")
+        assert set(documents) == {"oracle.zip", "gaussdb.zip"}, scenario
+        require_awr(documents["oracle.zip"])
+        require_wdr(documents["gaussdb.zip"], expected_sources=1)
+    removed = report_texts(directory / "removed-optional.zip")["oracle.zip"]
+    assert "SQL ordered by Elapsed Time" not in removed
+    require_awr(report_texts(directory / "stale-response-corrected.zip")["oracle.zip"])
+    print("All corrected downloads contain the expected diagnostic content; removing the optional attachment excludes it.")
+
+
 if __name__ == "__main__":
-    inspect_downloads(Path(sys.argv[1]))
+    if "--recovery" in sys.argv:
+        inspect_recovery_downloads(Path(sys.argv[1]))
+    else:
+        inspect_downloads(Path(sys.argv[1]))

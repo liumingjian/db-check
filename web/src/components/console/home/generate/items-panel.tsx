@@ -45,13 +45,14 @@ export function ItemsPanel({
           onRemove={() => inputs.removeItem(item)}
           onAttach={(files) => inputs.attach(item, files)}
           onRemoveDiagnostic={(file) => inputs.removeDiagnostic(item, file)}
+          diagnosticCheck={(file) => inputs.diagnosticCheck(item, file)}
         />
       ))}
       {run?.noticesError && (
         <p className="px-4 pt-3 pb-1 text-xs text-muted-foreground">采集器版本提示读取失败：{run.noticesError}</p>
       )}
       {inspecting && <p className="px-4 py-3.5 text-xs text-muted-foreground">{READING}</p>}
-      {!run && <SubmitBar inputs={inputs} submitting={submitting} onSubmit={onSubmit} />}
+      {(!run || run.outcome === "error") && <SubmitBar inputs={inputs} submitting={submitting} onSubmit={onSubmit} />}
     </div>
   );
 }
@@ -91,6 +92,6 @@ function Stats() {
 }
 
 function stageOf(run: Run | null, index: number): Stage {
-  if (!run) return null;
+  if (!run || run.outcome === "error") return null;
   return index < run.completed ? "done" : index === run.completed ? "current" : "queued";
 }

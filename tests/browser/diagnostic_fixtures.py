@@ -35,6 +35,12 @@ def create_fixtures(destination: Path) -> None:
         ("wdr_cluster.html", "wdr-two.htm"),
     ]:
         (destination / name).write_bytes((ROOT / "resources" / source).read_bytes())
+    (destination / "malformed.html").write_text("<html>not a diagnostic report</html>")
+    awr = (destination / "awr.html").read_text()
+    (destination / "awr-wrong-name.html").write_text(awr.replace("ORACC", "ANOTHERDB"))
+    (destination / "awr-wrong-dbid.html").write_text(awr.replace("2668322570", "1234567890"))
+    wdr = (destination / "wdr-one.html").read_text()
+    (destination / "wdr-wrong-name.html").write_text(wdr.replace("postgres", "anotherdb"))
 
 
 if __name__ == "__main__":
