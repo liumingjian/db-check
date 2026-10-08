@@ -66,6 +66,7 @@ export function GenerateSection() {
               run={run}
               submitting={submitting || inputs.validating}
               onSubmit={() => void generate()}
+              onValidate={() => { if (token) void inputs.validate(token); }}
             />
           </div>
         </div>

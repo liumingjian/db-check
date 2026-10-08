@@ -103,7 +103,8 @@ function DiagnosticFiles({ slot, files, editable, onAttach, onRemoveDiagnostic, 
       </div>
       {files.map((file) => {
         const check = diagnosticCheck(file);
-        return check?.kind === "invalid" ? <p key={fileKey(file)} role="alert" className="text-xs text-destructive">{file.name}：{check.message}</p> : null;
+        if (check?.kind === "invalid") return <p key={fileKey(file)} role="alert" className="text-xs text-destructive">{file.name}：{check.message}</p>;
+        return <p key={fileKey(file)} className="text-xs text-muted-foreground">{file.name}：{diagnosticGuidance(slot, check)}</p>;
       })}
       {editable && <>
         <input ref={picker} type="file" accept=".html,.htm" multiple={slot === "WDR"} aria-label={`选择 ${slot} 文件`} className="hidden" onChange={(event) => {
@@ -115,6 +116,23 @@ function DiagnosticFiles({ slot, files, editable, onAttach, onRemoveDiagnostic, 
       </>}
     </div>
   );
+}
+
+function diagnosticGuidance(slot: string, check: DiagnosticValidation | null): string {
+  if (!check) return `尚未校验，请核对 ${slot} 对应的数据库及时间范围。`;
+  if (check.kind === "invalid") return check.message;
+  switch (check.evidence) {
+    case "database_name_dbid":
+      return `数据库名和 DBID 一致；尚无法确认时间范围，请核对 ${slot} 与本次巡检的时间。`;
+    case "database_name":
+      return `数据库名一致；尚无法确认完整数据库身份及时间范围，请核对 ${slot} 对应的数据库和时间。`;
+    case "unconfirmed":
+      return `尚无法确认数据库身份及时间范围，请核对 ${slot} 对应的数据库和时间。`;
+    default: {
+      const exhaustive: never = check.evidence;
+      return exhaustive;
+    }
+  }
 }
 
 /** Deprecated: a quiet notice. Revoked: a prominent warning with the revocation reason. */
