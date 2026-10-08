@@ -24,11 +24,13 @@ export function ItemsPanel({
   run,
   submitting,
   onSubmit,
+  onValidate,
 }: {
   inputs: ReturnType<typeof useReportInputs>;
   run: Run | null;
   submitting: boolean;
   onSubmit: () => void;
+  onValidate: () => void;
 }) {
   const { items, inspecting } = inputs;
   if (items.length === 0) {
@@ -52,7 +54,7 @@ export function ItemsPanel({
         <p className="px-4 pt-3 pb-1 text-xs text-muted-foreground">采集器版本提示读取失败：{run.noticesError}</p>
       )}
       {inspecting && <p className="px-4 py-3.5 text-xs text-muted-foreground">{READING}</p>}
-      {(!run || run.outcome === "error") && <SubmitBar inputs={inputs} submitting={submitting} onSubmit={onSubmit} />}
+      {(!run || run.outcome === "error") && <SubmitBar inputs={inputs} submitting={submitting} onSubmit={onSubmit} onValidate={onValidate} />}
     </div>
   );
 }
@@ -61,13 +63,20 @@ function SubmitBar({
   inputs: { items, inspecting, taskInput },
   submitting,
   onSubmit,
+  onValidate,
 }: {
   inputs: ReturnType<typeof useReportInputs>;
   submitting: boolean;
   onSubmit: () => void;
+  onValidate: () => void;
 }) {
   return (
     <>
+      {items.some((item) => item.diagnostics.length > 0) && (
+        <button type="button" onClick={onValidate} disabled={!taskInput || inspecting || submitting} className="mx-4 my-2 cursor-pointer text-xs text-muted-foreground underline underline-offset-4 disabled:cursor-default disabled:opacity-50">
+          校验附件
+        </button>
+      )}
       <YellowButton onClick={onSubmit} disabled={!taskInput || inspecting || submitting} className="mt-2 h-14 w-full text-base">
         生成 {items.length} 份报告 <ArrowRight className="h-4 w-4" />
       </YellowButton>

@@ -62,8 +62,20 @@ def inspect_recovery_downloads(directory: Path) -> None:
     print("All corrected downloads contain the expected diagnostic content; removing the optional attachment excludes it.")
 
 
+def inspect_guidance_download(directory: Path) -> None:
+    documents = report_texts(directory / "guidance-mixed.zip")
+    assert set(documents) == {"oracle.zip", "gaussdb.zip", "mysql.zip"}
+    require_awr(documents["oracle.zip"])
+    require_wdr(documents["gaussdb.zip"], expected_sources=1)
+    assert "WDR 性能洞察" not in documents["mysql.zip"]
+    assert "SQL ordered by Elapsed Time" not in documents["mysql.zip"]
+    print("Manual-check guidance permits a downloaded mixed batch containing each item's diagnostic content.")
+
+
 if __name__ == "__main__":
-    if "--recovery" in sys.argv:
+    if "--guidance" in sys.argv:
+        inspect_guidance_download(Path(sys.argv[1]))
+    elif "--recovery" in sys.argv:
         inspect_recovery_downloads(Path(sys.argv[1]))
     else:
         inspect_downloads(Path(sys.argv[1]))
