@@ -1,10 +1,9 @@
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import {
-  collectUnpaired,
   inspectDrop,
   inspectReportZip,
-  pairDiagnostic,
+  addDiagnostics,
   toTaskInput,
   type InspectedZip,
 } from "@/lib/report-input/inspect";
@@ -186,35 +185,7 @@ describe("inspectDrop and toTaskInput: a drop becomes report items", () => {
   });
 });
 
-describe("collectUnpaired: dropped HTML files wait in 待配对", () => {
-  const zip = zipOf("ora-01.zip", { "manifest.json": manifest("oracle") });
-  const awr = new File(["<html>awr</html>"], "awrrpt_1_100_101.html");
-  const wdr = new File(["<html>wdr</html>"], "WDR_7_8.HTM");
-  const notes = new File(["hello"], "notes.txt");
-
-  it("keeps every HTML of a mixed drop, in drop order, and nothing else", () => {
-    expect(collectUnpaired([zip, awr, notes, wdr])).toEqual([awr, wdr]);
-  });
-
-  it("skips an HTML already waiting or already paired", async () => {
-    const [row] = await inspectDrop([zip]);
-    const again = new File(["<html>awr</html>"], "awrrpt_1_100_101.html", { lastModified: awr.lastModified });
-    expect(collectUnpaired([again, wdr], [], [awr])).toEqual([wdr]);
-    expect(collectUnpaired([again, wdr], [{ ...row, diagnostics: [awr] }])).toEqual([wdr]);
-  });
-
-  it("keeps a different HTML that shares a name, e.g. AWRs of two hosts", () => {
-    const otherHost = new File(["<html>other host</html>"], "awrrpt_1_100_101.html");
-    expect(collectUnpaired([otherHost], [], [awr])).toEqual([otherHost]);
-  });
-
-  it("leaves a fresh row with no paired files", async () => {
-    const [row] = await inspectDrop([zip, awr]);
-    expect(row.diagnostics).toEqual([]);
-  });
-});
-
-describe("pairDiagnostic: dragging an HTML from 待配对 onto a report item row", () => {
+describe("addDiagnostics: direct selection on a report item", () => {
   const awr = new File(["<html>awr</html>"], "awrrpt_1_100_101.html");
   const awr2 = new File(["<html>second awr</html>"], "awrrpt_1_101_102.html");
   const wdr = new File(["<html>wdr</html>"], "wdr_1.html");
@@ -235,7 +206,7 @@ describe("pairDiagnostic: dragging an HTML from 待配对 onto a report item row
     { case: "more WDRs onto a gaussdb row", row: () => rowOf("gaussdb", [wdr]), file: wdr2, paired: [wdr, wdr2] },
   ])("accepts $case, leaving the original row untouched", async ({ row, file, paired }) => {
     const before = await row();
-    const outcome = pairDiagnostic(before, file);
+    const outcome = addDiagnostics(before, [file]);
     expect(outcome).toMatchObject({ ok: true });
     expect(outcome.ok && outcome.item.diagnostics).toEqual(paired);
     expect(before.diagnostics).not.toContain(file);
@@ -246,9 +217,9 @@ describe("pairDiagnostic: dragging an HTML from 待配对 onto a report item row
     { case: "an AWR on a mysql row", row: () => rowOf("mysql"), file: awr, problem: "no_slot" },
     { case: "a WDR on a mysql row", row: () => rowOf("mysql"), file: wdr, problem: "no_slot" },
     { case: "any HTML on a red row", row: () => rowOf(null), file: awr, problem: "unreadable_item" },
-    { case: "the same WDR twice on a gaussdb row", row: () => rowOf("gaussdb", [wdr]), file: wdr, problem: "already_paired" },
+    { case: "the same WDR twice on a gaussdb row", row: () => rowOf("gaussdb", [wdr]), file: wdr, problem: "already_added" },
   ])("refuses $case, with a reason", async ({ row, file, problem }) => {
-    const outcome = pairDiagnostic(await row(), file);
+    const outcome = addDiagnostics(await row(), [file]);
     expect(outcome).toMatchObject({ ok: false, problem });
     expect(outcome.ok === false && outcome.reason).toBeTruthy();
   });
@@ -266,7 +237,7 @@ describe("toTaskInput: paired inputs reach the report task", () => {
     const [ora, gs, my] = await inspectDrop([oracle, gauss, mysql, awr, wdr1, wdr2]);
     let rows = [ora, gs, my];
     for (const [index, file] of [[0, awr], [1, wdr1], [1, wdr2]] as const) {
-      const outcome = pairDiagnostic(rows[index], file);
+      const outcome = addDiagnostics(rows[index], [file]);
       if (!outcome.ok) throw new Error(outcome.reason);
       rows = rows.map((row, i) => (i === index ? outcome.item : row));
     }
@@ -281,9 +252,22 @@ describe("toTaskInput: paired inputs reach the report task", () => {
     ]);
   });
 
-  it("blocks submission while any HTML still waits in 待配对", async () => {
+  it("rejects excess Oracle selections without adding either file", async () => {
+    const [row] = await inspectDrop([oracle]);
+    const second = new File(["second"], "second.htm");
+    expect(addDiagnostics(row, [awr, second])).toMatchObject({ ok: false, problem: "slot_full" });
+    expect(row.diagnostics).toEqual([]);
+  });
+
+  it("rejects non-HTML selections", async () => {
+    const [row] = await inspectDrop([gauss]);
+    expect(addDiagnostics(row, [new File(["text"], "notes.txt")])).toMatchObject({ ok: false, problem: "unsupported_file" });
+  });
+
+  it("keeps associations after another item is removed", async () => {
     const rows = await pairedRows();
-    expect(toTaskInput(rows, [new File(["<html>?</html>"], "stray.html")])).toBeNull();
-    expect(toTaskInput(rows, [])).not.toBeNull();
+    expect(toTaskInput(rows.filter((row) => row.file.name !== "ora.zip"))?.items.map((item) => [item.zip.name, item.diagnostics])).toEqual([
+      ["gs.zip", [wdr1, wdr2]], ["my.zip", []],
+    ]);
   });
 });

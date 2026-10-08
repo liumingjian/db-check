@@ -10,8 +10,7 @@ export function createHttpReports(client: HttpClient): ReportsApi {
       items.forEach(({ dbType, diagnostics }, idx) => {
         // The backend reads each ZIP's type itself. Oracle takes one AWR per item, GaussDB any number of WDRs.
         const field = dbType === "gaussdb" ? "wdr" : "awr";
-        const selected = dbType === "gaussdb" ? diagnostics : diagnostics.slice(0, 1);
-        selected.forEach((file) => form.append(`${field}_${idx + 1}`, file, file.name));
+        diagnostics.forEach((file) => form.append(`${field}_${idx + 1}`, file, file.name));
       });
       const resp = await client.request("生成接口失败", "/api/reports/generate", token, { method: "POST", body: form });
       const body = (await resp.json()) as GenerateResponse;

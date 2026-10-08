@@ -63,7 +63,7 @@ export function GenerateSection() {
   );
 }
 
-/** The hidden input behind 选择采集包: ZIPs plus AWR/WDR HTML files. */
+/** The hidden input behind 选择采集包: primary ZIPs. */
 function FilePicker({
   inputRef,
   onFiles,
@@ -76,7 +76,8 @@ function FilePicker({
       ref={inputRef}
       type="file"
       multiple
-      accept=".zip,.html,.htm"
+      accept=".zip"
+      aria-label="选择 ZIP 采集包"
       className="hidden"
       onChange={(e) => {
         onFiles(Array.from(e.target.files ?? []));
@@ -89,7 +90,7 @@ function FilePicker({
 /**
  * Makes the whole section a drop target for files from the desktop while
  * `enabled`. Nested `dragenter`/`dragleave` pairs are counted, and in-page
- * drags (待配对 chips carry no `Files` type) are ignored.
+ * drags without files are ignored.
  */
 function useFileDrop(enabled: boolean, onFiles: (files: File[]) => void) {
   const [dragging, setDragging] = useState(false);

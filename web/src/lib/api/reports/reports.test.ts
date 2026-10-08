@@ -40,6 +40,14 @@ describe.each(contractImplementationsWithReal)("%s reports contract", (_name, ma
     expect(report.size).toBeGreaterThan(0);
   });
 
+  it("refuses more than one AWR without silently discarding a selection", async () => {
+    const api = makeApi();
+    const { token } = await api.auth.signIn("user", "user");
+    await expect(api.reports.generate(token, { items: [{ ...item("oracle.zip", "oracle"), diagnostics: [
+      new File(["first"], "first.html"), new File(["second"], "second.html"),
+    ] }] })).rejects.toMatchObject({ code: "invalid" });
+  });
+
   it.each(["lisi", "zhaoliu"])("refuses report downloads to applicant %s", async (username) => {
     const api = makeApi();
     const { token } = await api.auth.signIn(username, username);

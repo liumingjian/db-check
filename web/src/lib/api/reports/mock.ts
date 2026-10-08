@@ -121,6 +121,9 @@ export function createMockReports(ctx: MockContext): ReportsApi {
     async generate(token, input) {
       const submitter = requireSessionUser(ctx, token);
       if (input.items.length === 0) throw new ApiError("invalid", "请至少上传一个 ZIP 文件");
+      if (input.items.some((item) => item.dbType === "oracle" && item.diagnostics.length > 1)) {
+        throw new ApiError("invalid", "每个 ZIP 只能添加一份 Oracle AWR 文件");
+      }
       const createdAt = ctx.now();
       const task: MockReportTask = {
         id: mockId("mock-task"),
