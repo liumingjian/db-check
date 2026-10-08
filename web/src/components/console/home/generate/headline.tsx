@@ -19,7 +19,7 @@ export function Intro({ onPick }: { onPick: () => void }) {
       </h1>
       <p className="mt-8 max-w-md text-lg leading-relaxed text-[#ccc]">
         把采集器生成的 ZIP 拖到这一屏任意位置。数据库类型自动识别，一次可以放多台主机。Oracle 的 AWR、GaussDB
-        的 WDR 报告可以一起拖进来，再配对到对应的采集包。
+        的 WDR 可在识别数据库类型后，添加到对应采集包。
       </p>
       <div className="mt-10">
         <YellowButton onClick={onPick}>
