@@ -1,0 +1,4 @@
+interface:
+  display_name: "部署 db-check"
+  short_description: "将当前版本部署到内网 Linux 主机，保留平台数据并验证服务，支持失败回滚"
+  default_prompt: "使用 $deploy-db-check 将当前已提交版本部署到项目生产主机，并验证前后端与报告生成。"

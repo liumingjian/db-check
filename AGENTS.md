@@ -14,3 +14,8 @@ Use the five default triage labels. Before triage, read
 
 Use a single-context layout: root `CONTEXT.md` and `docs/adr/`.
 Before codebase exploration, read `docs/agents/domain.md`.
+
+### Deployment
+
+Before deploying, updating, or rolling back the platform, read
+`.agents/skills/deploy-db-check/SKILL.md`.
