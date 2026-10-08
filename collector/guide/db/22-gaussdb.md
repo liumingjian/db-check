@@ -3,12 +3,12 @@
 复制以下命令，按下表替换示例值，然后执行：
 
 ```{{SHELL}}
-{{COLLECTOR}} --db-type gaussdb --db-host 10.0.0.30 --db-port 8000 --db-username dbcheck --db-password 'ChangeMe' --dbname postgres
+{{COLLECTOR}} --db-type gaussdb --db-host 10.0.0.10 --db-port 8000 --db-username dbcheck --db-password 'ChangeMe' --dbname postgres
 ```
 
 | 参数 | 示例值 | 替换为 |
 | --- | --- | --- |
-| `--db-host` | `10.0.0.30` | 数据库地址。在数据库主机上运行时，填 `127.0.0.1`。 |
+| `--db-host` | `10.0.0.10` | 数据库地址。在数据库主机上运行时，填 `127.0.0.1`。 |
 | `--db-port` | `8000` | 数据库端口。端口是 8000 时，可以删除这个参数。 |
 | `--db-username` | `dbcheck` | 客户 DBA 提供的账号。 |
 | `--db-password` | `'ChangeMe'` | 这个账号的密码。保留两侧的单引号。 |

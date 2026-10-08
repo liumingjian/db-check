@@ -22,12 +22,12 @@ EXEC :inspection_password := 'ChangeMe';
 复制以下命令，按下表替换示例值，然后执行：
 
 ```{{SHELL}}
-{{COLLECTOR}} --db-type oracle --db-host 10.0.0.20 --db-port 1521 --db-username DBCHECK --db-password 'ChangeMe' --dbname ORCL
+{{COLLECTOR}} --db-type oracle --db-host 10.0.0.10 --db-port 1521 --db-username DBCHECK --db-password 'ChangeMe' --dbname ORCL
 ```
 
 | 参数 | 示例值 | 替换为 |
 | --- | --- | --- |
-| `--db-host` | `10.0.0.20` | 数据库地址。在数据库主机上运行时，填 `127.0.0.1`。 |
+| `--db-host` | `10.0.0.10` | 数据库地址。在数据库主机上运行时，填 `127.0.0.1`。 |
 | `--db-port` | `1521` | 监听端口。端口是 1521 时，可以删除这个参数。 |
 | `--db-username` | `DBCHECK` | 巡检账号。 |
 | `--db-password` | `'ChangeMe'` | 巡检账号的密码。保留两侧的单引号。 |

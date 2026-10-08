@@ -44,6 +44,7 @@ To add a database, add `db/2N-<db-type>.md` and follow the structure of `db/20-m
 - Put the condition before the step: "如果主机上没有 `unzip` 命令，……", not the other way round.
 - After a step that prints something, say what the reader should see, such as the version number or the `run_id=` line.
 - Write example values that look real, such as `10.0.0.10` and `'ChangeMe'`, not `<host>`. An angle bracket breaks the command if it is pasted unchanged. List every value to replace in a table with the columns 参数, 示例值, and 替换为.
+- Use `10.0.0.10` as the database host in every example, so the examples in different parts of one guide agree. A file outside `db/` is read with every database. When its example needs a database type, describe the format and name the type the example uses, as `40-pack-results.md` does for `run_id`.
 - Wrap every password in single quotes. Single quotes keep special characters literal in both `bash` and PowerShell.
 - Name UI elements exactly as the platform shows them, in bold: **选择 ZIP 采集包**. Check the label in `web/src/components/console/` before you write it.
 - Write only what the code does. Take flags, defaults, and error text from `collector/internal/cli/`. If a behavior is not in the code or in `docs/`, leave it out.
