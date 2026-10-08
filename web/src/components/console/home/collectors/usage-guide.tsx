@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Chip, CopyText } from "@/components/console/kit";
 import { DB_LABEL, type DbType } from "@/lib/types";
 
-/** The QUICKSTART commands shipped in each package (`scripts/build_release_packages.sh`). */
+/** The collector command for each database. Keep it in step with the shipped guide in `collector/guide/db/`. */
 const USAGE: Record<DbType, string> = {
   mysql: "./db-collector --db-type mysql --db-host 127.0.0.1 --db-port 3306 --db-username root --db-password '***' --dbname dbcheck",
   oracle: "./db-collector --db-type oracle --db-host 127.0.0.1 --db-port 1521 --db-username system --db-password '***' --dbname ORCL",
