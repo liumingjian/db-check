@@ -134,7 +134,7 @@ func saveUpload(dir string, kind string, itemID string, header *multipart.FileHe
 		return "", "", fmt.Errorf("open upload failed: %w", err)
 	}
 	defer src.Close()
-	dstPath := uploadPath(dir, kind, itemID, name)
+	dstPath := uploadPath(dir, uploadName{kind: kind, itemID: itemID, name: name})
 	dst, err := os.OpenFile(dstPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
 	if err != nil {
 		return "", "", fmt.Errorf("save upload failed: %w", err)
@@ -152,6 +152,12 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
-func uploadPath(dir, kind, itemID, name string) string {
-	return filepath.Join(dir, fmt.Sprintf("%s-%s-%s", kind, itemID, name))
+type uploadName struct {
+	kind   string
+	itemID string
+	name   string
+}
+
+func uploadPath(dir string, upload uploadName) string {
+	return filepath.Join(dir, fmt.Sprintf("%s-%s-%s", upload.kind, upload.itemID, upload.name))
 }
