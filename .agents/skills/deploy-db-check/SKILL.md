@@ -19,15 +19,21 @@ application configuration and first-admin semantics.
 3. Verify the target's current PM2 definitions, runtime versions, ports, data
    path, and free space. Prepare a complete new release before stopping services.
 4. Follow the runbook's backup, cutover, and verification sequence. For updates,
-   preserve the complete persistent data directory and existing accounts. Restore
-   the prior release when verification fails before new writes. Follow the
-   runbook's recovery boundary after migrations or public user writes.
-5. Report the deployed revision, application URL, service state, verification
+   preserve the complete persistent data directory, collector releases, and
+   existing accounts. Restore the prior release when verification fails before
+   new writes. Follow the runbook's recovery boundary after migrations or public
+   user writes.
+5. Verify an engineer can list and download a recommended collector release.
+   If none exists, follow the runbook's collector initialization workflow before
+   declaring the application deployment complete. Report any missing release or
+   unverified download behavior explicitly.
+6. Report the deployed revision, application URL, service state, verification
    results, and backup location. Leave credentials in the remote private file
    or the session's credential channel.
 
-This skill manages only `dbcheck-api` and `dbcheck-web`. Collector publishing is
-a separate workflow. Use credentials supplied by the user for the current task;
-keep passwords and tokens out of skill files, packages, commands printed to the
-user, and version control. Existing deployment authorization covers the requested
+This skill manages only `dbcheck-api` and `dbcheck-web`. Initialize missing
+collector releases through the official publish workflow (ADR 0002); preserve
+existing releases on updates. Use credentials supplied by the user for the
+current task; keep passwords and tokens out of skill files, packages, command
+output, and version control. Existing deployment authorization covers the requested
 deployment; a different target or unrelated service requires separate scope.

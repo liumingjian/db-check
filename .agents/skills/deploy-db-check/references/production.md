@@ -63,8 +63,11 @@ NEXT_PUBLIC_API_BASE=http://10.250.0.222:18080
 NEXT_PUBLIC_API_PORT=18080
 ```
 
-Preserve an existing publishing token if one is already configured. A fresh
-deployment leaves publishing disabled. PM2 loads the root `.env`; `make web-build`
+Preserve an existing publishing token if one is already configured. When a
+fresh deployment needs its first collector release, generate a machine credential
+with `openssl rand -hex 32` directly into protected configuration and pass it
+to the publisher through a protected environment channel. Keep it out of command
+output and packages. PM2 loads the root `.env`; `make web-build`
 does not. Build the console with the public API values explicitly exported:
 
 ```bash
@@ -141,6 +144,8 @@ Use bounded HTTP checks with timeouts and a short startup retry window:
 - `GET /api/auth/me` without a session returns 401 from port 18080.
 - The console on port 3000 returns 200; its browser API calls use port 18080.
 - A CORS request from `http://10.250.0.222:3000` receives that allowed origin.
+- Collector acceptance passes the authenticated listing and package download
+  checks in the next section. HTTP availability alone does not complete deployment.
 - With an existing active account, package the tracked files
   `tests/fixtures/oracle_os_unprovided/{manifest.json,result.json,collector.log}`
   into a ZIP with those three files at its root. Sign in through
@@ -172,8 +177,55 @@ uv run --no-project --python <validated-python> python -m unittest discover \
 Explicitly report that authenticated HTTP report verification remains for
 the first user login. Preserve the real application's admin and account state.
 
-Collector release upload is separate. A fresh deployment may correctly show no
-recommended collector until an authorized collector publication occurs.
+## Initialize and verify collector downloads
+
+Preserve `shared/data/platform.db` and `shared/data/releases/` together on every
+update; deployment source archives contain neither published release metadata
+nor release packages. Check the active release catalogue before publishing.
+Run the read-only package gate on the target (Python 3.11 or newer):
+
+```bash
+uv run --no-project --python <validated-python> python \
+  <skill-directory>/scripts/verify_collector.py /opt/tools/db-check/shared/data
+```
+
+The gate fails on an empty catalogue, missing platforms, missing or corrupt ZIPs,
+and checksum mismatches. It complements the authenticated HTTP checks below.
+
+If no engineer-downloadable recommended release exists, read
+`docs/adr/0002-collector-releases-published-by-ci.md`
+and the publishing section of `docs/deployment.md`. Use the intranet CI runner
+or, until that CI phase lands, its official `scripts/publish_release.sh` workflow:
+
+1. Select a clean Git checkout whose HEAD is exactly on the intended release tag.
+   Verify `vX.Y.Z` matches the collector's built-in `Version` in
+   `collector/internal/cli/config.go`, with release notes from an annotated tag
+   or the documented changelog fallback. An extracted deployment archive lacks
+   the Git history this check needs. Use the intended existing tag, or initialize
+   the first tag on the selected release commit as documented in
+   `docs/deployment.md` when the task authorizes initial publication. Check remote
+   tags first and preserve existing tags. If the intended version or commit is
+   unresolved, report that specific missing release decision.
+2. Configure the same protected `DBCHECK_PUBLISH_TOKEN` on the API and publisher.
+   Activate a changed API configuration with the scoped PM2 restart from this
+   runbook. Run `scripts/publish_release.sh --url http://10.250.0.222:18080` from
+   the tagged checkout. It builds and publishes all four release packages with
+   checksums and tag/commit metadata. Preserve the script's failure on conflicts.
+3. Using an existing active engineer account, `GET /api/releases` must return a
+   `latest` release with Linux/Windows amd64/arm64 packages. A pre-release visible
+   only to admins does not satisfy this check. With its bearer token, download
+   `GET /api/releases/<version>/packages/<platform>` for each listed platform;
+   require HTTP 200, a ZIP attachment, a readable archive containing the collector,
+   and SHA256 matching the catalogue. Use an admin's `GET /api/downloads` to
+   confirm the engineer's download records. Keep credentials and auth headers out
+   of captured output. Confirm the console's Collectors page offers those downloads.
+
+Keep the initial admin's required password change and existing accounts intact.
+If an active engineer account is unavailable, run the role-sensitive listing and
+download checks with isolated test accounts/data, and report production
+authenticated acceptance as pending. Empty catalogues, missing matching tags,
+failed publication, and pending production download acceptance are incomplete
+deployment results; report the exact remaining step rather than declaring success.
 
 ## Initial deployment record
 
@@ -203,3 +255,26 @@ Smoke script, inputs, and downloaded reports are retained at
 `/opt/tools/db-check/shared/deployment-smoke-20261008-be31ad0.log`.
 Authenticated report upload through the production account remains for the
 user's first login.
+
+This historical deployment did not initialize collector releases. Its service
+and report checks therefore did not establish complete application acceptance.
+Apply the collector checks above to the active deployment.
+
+### Collector initialization correction (2026-10-08)
+
+Published `v1.2.0` from `1f3c4190483123f83b09435f0863af58524db766` through
+the official script, with all four platforms marked `latest`. The tag is retained
+in the origin repository. The private configuration and SQLite backup are under
+`shared/backups/collector-initialization-20261008/`.
+
+`verify_collector.py` failed before publication and passed afterward. An isolated
+API using the deployed binary and production release rows/files verified an
+engineer's catalogue, four downloads, SHA256, ZIP integrity, unauthenticated
+rejection, and four download records. Production accounts were not used; actual
+production-session/browser acceptance remains with the user. Verification scripts
+are retained under `shared/verify_collector.py` and `shared/verify-downloads.py`.
+
+The host could not reach `proxy.golang.org`; the build used a transient
+`GOPROXY=https://goproxy.cn,direct` without changing global configuration. For this
+collector revision, the version smoke uses `--version --local --os-only` because
+the parser validates connection flags before handling standalone `--version`.
