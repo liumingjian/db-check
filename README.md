@@ -381,8 +381,9 @@ dist/
 构建需要 `zip` 命令。发布到平台请用 `scripts/publish_release.sh`（见「方式三」第 9 节）。
 
 每个发布包目录中都包含：
-- `db-collector`
-- `QUICKSTART.md`
+- `db-collector`（Windows 包为 `db-collector.exe`）
+- `GUIDE.md`：使用说明，由 `collector/guide/` 中的模板按平台生成，填写规则见 `collector/guide/README.md`
+- `oracle/create_inspection_account.sql`：Oracle 巡检账号脚本
 
 报告生成不随客户侧采集包发布，统一通过 db-check Web 上传采集 ZIP 完成。
 

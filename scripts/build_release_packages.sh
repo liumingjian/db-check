@@ -33,47 +33,37 @@ archive_platform() {
   log "archive written: $archive_path"
 }
 
-write_quickstart() {
+# write_guide assembles GUIDE.md from collector/guide. It joins the common/,
+# db/, and <goos>/ parts in file-name order, then fills the placeholders.
+# collector/guide/README.md says what goes in each part.
+write_guide() {
   local target="$1"
-  local exe_suffix="$2"
-  cat > "$target/QUICKSTART.md" <<EOF
-# Quick Start
-
-## 1. 执行采集
-
-\`\`\`bash
-./db-collector$exe_suffix --db-type mysql --db-host 127.0.0.1 --db-port 3306 --db-username root --db-password rootpwd --dbname dbcheck
-\`\`\`
-
-Oracle 示例：
-
-\`\`\`bash
-./db-collector$exe_suffix --db-type oracle --db-host 127.0.0.1 --db-port 1521 --db-username system --db-password oraclepwd --dbname ORCL
-\`\`\`
-
-GaussDB 示例：
-
-\`\`\`bash
-./db-collector$exe_suffix --db-type gaussdb --db-host 10.0.0.10 --db-port 8000 --db-username root --db-password secret --dbname postgres
-\`\`\`
-
-说明：
-- 默认输出目录为当前目录下的 \`./runs\`
-- Oracle 路径下 \`--dbname\` 表示 SID/实例名
-- GaussDB 路径下 \`--db-host/--db-port/--db-username/--db-password/--dbname\` 用于 openGauss SQL-first 直连采集
-- GaussDB 路径下 \`--gauss-user\` 和 \`--gauss-env-file\` 已废弃，传入后会被显式忽略
-- 未提供 OS 参数时不会采集 OS 指标；如需远程 OS 采集，可追加 \`--os-host/--os-port/--os-username/--os-password\`
-- 如需本机 OS 采集，可追加 \`--local\`
-
-## 2. 上传生成报告
-
-采集完成后，\`run\` 目录中会包含：
-- \`collector.log\`
-- \`result.json\`
-- \`manifest.json\`
-
-将该 \`run\` 目录压缩成 ZIP 后，在 db-check Web 页面上传 ZIP 生成 Word 报告。
-EOF
+  local goos="$2"
+  local guide_dir="$ROOT_DIR/collector/guide"
+  local binary="db-collector" collector="./db-collector" shell="bash"
+  if [[ "$goos" == "windows" ]]; then
+    binary="db-collector.exe"
+    collector='.\\db-collector.exe'
+    shell="powershell"
+  fi
+  local part
+  for part in "$guide_dir"/common/*.md "$guide_dir"/db/*.md "$guide_dir/$goos"/*.md; do
+    printf '%s\t%s\n' "$(basename "$part")" "$part"
+  done | LC_ALL=C sort | cut -f2 | while IFS= read -r part; do
+    cat "$part"
+    printf '\n'
+  done | sed \
+    -e "s|{{VERSION}}|$VERSION|g" \
+    -e "s|{{PACKAGE}}|$(basename "$target")|g" \
+    -e "s|{{BINARY}}|$binary|g" \
+    -e "s|{{COLLECTOR}}|$collector|g" \
+    -e "s|{{SHELL}}|$shell|g" > "$target/GUIDE.md"
+  if grep -q '{{' "$target/GUIDE.md"; then
+    printf '[ERROR] unfilled placeholder in %s/GUIDE.md\n' "$target" >&2
+    exit 1
+  fi
+  mkdir -p "$target/oracle"
+  cp "$ROOT_DIR/scripts/oracle/create_inspection_account.sql" "$target/oracle/"
 }
 
 build_platform() {
@@ -89,8 +79,8 @@ build_platform() {
   mkdir -p "$pkg_dir"
   log "build db-collector: $goos/$goarch"
   GOOS="$goos" GOARCH="$goarch" GOCACHE=/tmp/go-cache go build -trimpath -o "$pkg_dir/db-collector$exe_suffix" "$ROOT_DIR/collector/cmd/db-collector"
-  log "write quickstart: $goos/$goarch"
-  write_quickstart "$pkg_dir" "$exe_suffix"
+  log "write guide: $goos/$goarch"
+  write_guide "$pkg_dir" "$goos"
   archive_platform "$pkg_dir"
   log "package finished: $goos/$goarch"
 }
