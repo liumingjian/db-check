@@ -20,9 +20,10 @@ const REMOVE_BUTTON = "cursor-pointer text-[#5a5a5a] hover:text-foreground";
  * One report item: file name, what its manifest says, its optional AWR/WDR files,
  * and its progress once submitted. Before submission it accepts diagnostic selections.
  */
-export function ItemRow({ item: { file, inspection, diagnostics }, stage, notice, onRemove, onAttach, onRemoveDiagnostic, diagnosticCheck}: {
+export function ItemRow({ item: { file, inspection, diagnostics }, stage, editable, notice, onRemove, onAttach, onRemoveDiagnostic, diagnosticCheck}: {
   item: InspectedZip;
   stage: Stage;
+  editable: boolean;
   /** Shown only while generating; report lists repeat only the revoked warning. */
   notice: CollectorNotice | null;
   onRemove: () => void;
@@ -50,10 +51,10 @@ export function ItemRow({ item: { file, inspection, diagnostics }, stage, notice
               : inspection.reason}
           </span>
         </span>
-        <StageMark stage={stage} onRemove={onRemove} />
+        <StageMark stage={stage} editable={editable} onRemove={onRemove} />
       </div>
       {slot && (diagnostics.length > 0 || stage === null) && (
-        <DiagnosticFiles slot={slot} files={diagnostics} editable={stage === null} onAttach={onAttach} onRemoveDiagnostic={onRemoveDiagnostic} diagnosticCheck={diagnosticCheck} />
+        <DiagnosticFiles slot={slot} files={diagnostics} editable={stage === null && editable} onAttach={onAttach} onRemoveDiagnostic={onRemoveDiagnostic} diagnosticCheck={diagnosticCheck} />
       )}
       {notice && inspection.ok && <VersionNotice version={inspection.collectorVersion} notice={notice} />}
       {stage !== null && (
@@ -66,10 +67,10 @@ export function ItemRow({ item: { file, inspection, diagnostics }, stage, notice
 }
 
 /** × before submission; then ✓, 生成中 or 排队中. */
-function StageMark({ stage, onRemove }: { stage: Stage; onRemove: () => void }) {
+function StageMark({ stage, editable, onRemove }: { stage: Stage; editable: boolean; onRemove: () => void }) {
   if (stage === null) {
     return (
-      <button type="button" aria-label="移除" onClick={onRemove} className={REMOVE_BUTTON}>
+      <button type="button" aria-label="移除" disabled={!editable} onClick={onRemove} className={REMOVE_BUTTON}>
         <X className="h-4 w-4" />
       </button>
     );

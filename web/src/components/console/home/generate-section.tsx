@@ -49,7 +49,7 @@ export function GenerateSection() {
           dragging && "bg-primary text-primary-foreground",
         )}
       >
-        <FilePicker inputRef={picker} onFiles={(files) => void inputs.add(files)} />
+        <FilePicker inputRef={picker} disabled={busy} onFiles={(files) => void inputs.add(files)} />
         <div className="mx-auto grid w-full max-w-[1240px] flex-1 grid-cols-[1.3fr_1fr] items-center gap-16 px-8 py-16">
           <div>
             {dragging ? (
@@ -64,7 +64,7 @@ export function GenerateSection() {
             <ItemsPanel
               inputs={inputs}
               run={run}
-              submitting={submitting || inputs.validating}
+              submitting={submitting}
               onSubmit={() => void generate()}
               onValidate={() => { if (token) void inputs.validate(token); }}
             />
@@ -79,14 +79,17 @@ export function GenerateSection() {
 function FilePicker({
   inputRef,
   onFiles,
+  disabled,
 }: {
   inputRef: React.RefObject<HTMLInputElement | null>;
   onFiles: (files: File[]) => void;
+  disabled: boolean;
 }) {
   return (
     <input
       ref={inputRef}
       type="file"
+      disabled={disabled}
       multiple
       accept=".zip"
       aria-label="选择 ZIP 采集包"

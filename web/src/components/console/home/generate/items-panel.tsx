@@ -42,6 +42,7 @@ export function ItemsPanel({
         <ItemRow
           key={item.file.name}
           item={item}
+          editable={!submitting}
           stage={stageOf(run, index)}
           notice={run?.notices[index] ?? null}
           onRemove={() => inputs.removeItem(item)}
@@ -54,7 +55,7 @@ export function ItemsPanel({
         <p className="px-4 pt-3 pb-1 text-xs text-muted-foreground">采集器版本提示读取失败：{run.noticesError}</p>
       )}
       {inspecting && <p className="px-4 py-3.5 text-xs text-muted-foreground">{READING}</p>}
-      {(!run || run.outcome === "error") && <SubmitBar inputs={inputs} submitting={submitting} onSubmit={onSubmit} onValidate={onValidate} />}
+      {(!run || run.outcome === "error") && <SubmitBar inputs={inputs} submitting={submitting || inputs.validating} onSubmit={onSubmit} onValidate={onValidate} />}
     </div>
   );
 }
