@@ -278,3 +278,26 @@ The host could not reach `proxy.golang.org`; the build used a transient
 `GOPROXY=https://goproxy.cn,direct` without changing global configuration. For this
 collector revision, the version smoke uses `--version --local --os-only` because
 the parser validates connection flags before handling standalone `--version`.
+
+### Console update (2026-10-08)
+
+Deployed `e01b610` to `/opt/tools/db-check/releases/20261008-e01b610`; `current`
+points there. Only `web/src` and skill files changed since `1f3c419`, so the API
+code, schema, Python requirements, and PM2 configuration were unchanged; the
+Python environment was reused and no migration ran. The package was built on a
+developer mac with `scripts/package.sh` and uploaded to
+`shared/uploads/20261008-e01b610/`, which also holds `prepare-e01b610.sh`,
+`cutover-e01b610.sh` (the 1f3c419 update script with revisions substituted), and
+`cutover.log`. The staged `.env` was a copy of the active one, preserving the
+publishing token.
+
+The backup is `shared/backups/20261008-e01b610/`, with a stopped `data/` snapshot,
+`previous.env`, `previous-release`, `previous-apps.config.json`, and PM2 state
+before and after. External console HTTP 200, unauthenticated API HTTP 401, the
+allowed CORS origin, both production processes on the new release, and an
+unchanged `dbcheck-fiyo` PID passed; `pm2 save` completed. `verify_collector.py`
+passed for `v1.2.0` on all four platforms. Authenticated engineer listing and
+download through a production account remain with the user.
+
+A rexec-synced workspace omits `.env*` files, so `package.sh` reports tracked
+changes for `web/.env.example`; restore it with `git checkout` before packaging.
