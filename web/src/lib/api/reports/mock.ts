@@ -118,6 +118,11 @@ export function createMockReports(ctx: MockContext): ReportsApi {
   }
 
   return {
+    async validate(token, input) {
+      requireSessionUser(ctx, token);
+      if (input.items.length === 0) throw new ApiError("invalid", "请至少上传一个 ZIP 文件");
+      return input.items.flatMap((item, i) => item.diagnostics.map((file, k) => ({ itemPosition: i + 1, attachmentPosition: k + 1, fileName: file.name, kind: "checked", evidence: "unconfirmed" })));
+    },
     async generate(token, input) {
       const submitter = requireSessionUser(ctx, token);
       if (input.items.length === 0) throw new ApiError("invalid", "请至少上传一个 ZIP 文件");

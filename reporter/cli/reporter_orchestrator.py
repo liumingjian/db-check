@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
@@ -51,6 +52,7 @@ class Options:
     review_contact: str
     review_email: str
     mysql_version: str | None
+    validate_diagnostics: bool = False
 
 
 class _ArgumentParser(argparse.ArgumentParser):
@@ -75,6 +77,7 @@ def build_parser() -> _ArgumentParser:
     parser.add_argument("--review-contact", default="13570391044")
     parser.add_argument("--review-email", default="haibo.zhou@antute.com.cn")
     parser.add_argument("--mysql-version")
+    parser.add_argument("--validate-diagnostics", action="store_true")
     return parser
 
 
@@ -98,12 +101,16 @@ def parse_args(argv: Sequence[str] | None) -> Options:
         review_contact=args.review_contact,
         review_email=args.review_email,
         mysql_version=args.mysql_version,
+        validate_diagnostics=args.validate_diagnostics,
     )
 
 
 def run(argv: Sequence[str] | None = None) -> int:
     try:
         options = parse_args(argv)
+        if options.validate_diagnostics:
+            print(json.dumps(validate_diagnostics(options), ensure_ascii=False))
+            return EXIT_OK
         paths = build_paths(options.run_dir)
         ensure_inputs(options, paths)
         result_path = paths.result
@@ -138,6 +145,24 @@ def run(argv: Sequence[str] | None = None) -> int:
     except Exception as exc:  # noqa: BLE001
         print(f"[ERROR] 未分类内部错误: {exc}")
         return EXIT_REPORT_ERROR
+
+
+def validate_diagnostics(options: Options) -> list[dict[str, str]]:
+    checks = []
+    attachments = [("AWR", options.awr_file)] if options.awr_file else []
+    attachments.extend(("WDR", path) for path in options.wdr_files)
+    for diagnostic_type, path in attachments:
+        try:
+            if diagnostic_type == "AWR":
+                write_awr_enriched_result(run_dir=options.run_dir, awr_file=path)
+                evidence = "database_name_dbid"
+            else:
+                write_wdr_enriched_result(run_dir=options.run_dir, wdr_files=[path])
+                evidence = "database_name"
+            checks.append({"kind": "checked", "evidence": evidence})
+        except Exception as exc:  # noqa: BLE001
+            checks.append({"kind": "invalid", "message": f"无法使用此 {diagnostic_type} 附件，请移除或重新选择。{exc}"})
+    return checks
 
 
 @dataclass(frozen=True)

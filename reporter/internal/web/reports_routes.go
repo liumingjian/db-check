@@ -25,6 +25,7 @@ func (h *apiHandler) registerReportRoutes(mux routeMux) {
 	mux.HandleFunc("GET /api/reports/mine", h.active(h.handleListOwn))
 	mux.HandleFunc("GET /api/reports/tasks/{id}", h.active(h.handleGetTask))
 	mux.HandleFunc("POST /api/reports/generate", h.active(h.handleGenerate))
+	mux.HandleFunc("POST /api/reports/validate", h.active(h.handleValidateDiagnostics))
 	mux.HandleFunc("GET /api/reports/status/{id}", h.active(h.handleStatus))
 	mux.HandleFunc("GET /api/reports/download/{id}", h.active(h.handleDownload))
 	mux.HandleFunc("GET /api/reports/ws/{id}", h.handleWS)
